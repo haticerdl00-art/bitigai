@@ -26,6 +26,11 @@ async function startServer() {
 
   // --- API ROUTES ---
 
+  // Health Check
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   // Bildirim Sayacı Endpoint (Moved to top for priority)
   app.get('/api/notifications/count', (req, res) => {
     console.log('Serving notification count...');
@@ -33,7 +38,7 @@ async function startServer() {
   });
 
   // Market Data Endpoint (TCMB & Gold)
-  app.get('/api/market/pulse', async (req, res) => {
+  app.get(['/api/market/pulse', '/api/market/pulse/'], async (req, res) => {
     // Fallback data in case API fails
     const fallbackData = {
       currencies: [

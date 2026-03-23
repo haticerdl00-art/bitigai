@@ -1,6 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey || apiKey === 'undefined') {
+  console.error("GEMINI_API_KEY is missing or undefined! AI features will fail.");
+}
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
 // Simple in-memory cache
 const cache: { [key: string]: { data: any, timestamp: number } } = {};
@@ -19,105 +23,137 @@ function setCachedData(key: string, data: any) {
 }
 
 export async function askCopilotStream(prompt: string, history: { role: 'user' | 'model', text: string }[] = [], companies: any[] = []) {
+  const formattedHistory = history.map(h => ({
+    role: h.role,
+    parts: [{ text: h.text }]
+  }));
+
+  const companyContext = companies.length > 0 
+    ? `Sistemdeki kayıtlı firmalar: ${companies.map(c => c.title).join(', ')}.`
+    : '';
+
+  const systemInstruction = `Sen 'Eylem Odaklı Akıllı Asistan'sın. Bir SMMM (Serbest Muhasebeci Mali Müşavir) için profesyonel, çözüm odaklı ve hatırlatıcı bir yardımcı olarak çalışıyorsun.
+  
+  TEMEL GÖREVLERİN:
+  1. DANIŞMANLIK: Mevzuat, vergi, SGK ve muhasebe konularında uzman görüşü ver.
+  2. EYLEM TESPİTİ: Kullanıcının mesajlarından somut görevler çıkar.
+  
+  EYLEM FORMATI:
+  Eğer kullanıcı bir kayıt, not veya güncelleme talep ederse, yanıtının en sonuna MUTLAKA şu formatta bir JSON bloğu ekle:
+  [ACTION: {"type": "ADD_NOTE", "company": "Firma Adı veya Genel", "content": "Not içeriği"}]
+  [ACTION: {"type": "UPDATE_DECLARATION", "company": "Firma Adı", "declaration": "KDV/MUHSGK/GEÇİCİ/BERAT", "status": "Verildi"}]
+  [ACTION: {"type": "ADD_TASK", "content": "Görev içeriği", "date": "YYYY-MM-DD"}]
+  
+  ${companyContext}
+  
+  KARAKTERİN (SMMM DANIŞMANI):
+  - Sen tecrübeli bir Serbest Muhasebeci Mali Müşavir (SMMM) asistanısın.
+  - Üslubun profesyonel, ciddi ama yardımsever olmalı.
+  - Kullanıcıya her zaman "Üstadım" veya "Hocam" gibi mesleki nezaket ifadeleriyle hitap edebilirsin (isteğe bağlı ama profesyonel durur).
+  - İşlemleri yaptıktan sonra mutlaka teyit ver: "X firması için notu kaydettim.", "KDV beyannamesini verildi olarak işaretledim." gibi.
+  - Mevzuat sorularında güncel kalmaya çalış ve riskleri hatırlat.
+  - Kullanıcının sesli veya yazılı komutlarını anında eyleme dönüştür.
+  
+  2026 Yılı Parametreleri (KESİN BİLGİ): 
+  * Brüt Asgari Ücret: 33.030,00 TL
+  * Net Asgari Ücret: 28.075,50 TL
+  * İşverene Toplam Maliyet: 40.874,63 TL
+  
+  Bugünün tarihi: ${new Date().toLocaleDateString('tr-TR')}.`;
+
   try {
-    const formattedHistory = history.map(h => ({
-      role: h.role,
-      parts: [{ text: h.text }]
-    }));
-
-    const companyContext = companies.length > 0 
-      ? `Sistemdeki kayıtlı firmalar: ${companies.map(c => c.title).join(', ')}.`
-      : '';
-
-    const response = await ai.models.generateContentStream({
-      model: "gemini-3-flash-preview",
-      contents: [
-        ...formattedHistory.map(h => ({ role: h.role, parts: h.parts })),
-        { role: 'user', parts: [{ text: prompt }] }
-      ],
-      config: {
-        systemInstruction: `Sen 'Eylem Odaklı Akıllı Asistan'sın. Bir SMMM (Serbest Muhasebeci Mali Müşavir) için profesyonel, çözüm odaklı ve hatırlatıcı bir yardımcı olarak çalışıyorsun.
-        
-        TEMEL GÖREVLERİN:
-        1. DANIŞMANLIK: Mevzuat, vergi, SGK ve muhasebe konularında uzman görüşü ver.
-        2. EYLEM TESPİTİ: Kullanıcının mesajlarından somut görevler çıkar.
-        
-        EYLEM FORMATI:
-        Eğer kullanıcı bir kayıt, not veya güncelleme talep ederse, yanıtının en sonuna MUTLAKA şu formatta bir JSON bloğu ekle:
-        [ACTION: {"type": "ADD_NOTE", "company": "Firma Adı veya Genel", "content": "Not içeriği"}]
-        [ACTION: {"type": "UPDATE_DECLARATION", "company": "Firma Adı", "declaration": "KDV/MUHSGK/GEÇİCİ/BERAT", "status": "Verildi"}]
-        [ACTION: {"type": "ADD_TASK", "content": "Görev içeriği", "date": "YYYY-MM-DD"}]
-        
-        ${companyContext}
-        
-        KARAKTERİN (SMMM DANIŞMANI):
-        - Sen tecrübeli bir Serbest Muhasebeci Mali Müşavir (SMMM) asistanısın.
-        - Üslubun profesyonel, ciddi ama yardımsever olmalı.
-        - Kullanıcıya her zaman "Üstadım" veya "Hocam" gibi mesleki nezaket ifadeleriyle hitap edebilirsin (isteğe bağlı ama profesyonel durur).
-        - İşlemleri yaptıktan sonra mutlaka teyit ver: "X firması için notu kaydettim.", "KDV beyannamesini verildi olarak işaretledim." gibi.
-        - Mevzuat sorularında güncel kalmaya çalış ve riskleri hatırlat.
-        - Kullanıcının sesli veya yazılı komutlarını anında eyleme dönüştür.
-        
-        2026 Yılı Parametreleri (KESİN BİLGİ): 
-        * Brüt Asgari Ücret: 33.030,00 TL
-        * Net Asgari Ücret: 28.075,50 TL
-        * İşverene Toplam Maliyet: 40.874,63 TL
-        
-        Bugünün tarihi: ${new Date().toLocaleDateString('tr-TR')}.`,
-        tools: [{ googleSearch: {} }],
-      },
-    });
-
-    return response;
+    // Try with search grounding first
+    try {
+      const response = await ai.models.generateContentStream({
+        model: "gemini-3-flash-preview",
+        contents: [
+          ...formattedHistory.map(h => ({ role: h.role, parts: h.parts })),
+          { role: 'user', parts: [{ text: prompt }] }
+        ],
+        config: {
+          systemInstruction,
+          tools: [{ googleSearch: {} }],
+        },
+      });
+      return response;
+    } catch (searchError) {
+      console.warn("Search grounding failed, falling back to standard generation:", searchError);
+      const response = await ai.models.generateContentStream({
+        model: "gemini-3-flash-preview",
+        contents: [
+          ...formattedHistory.map(h => ({ role: h.role, parts: h.parts })),
+          { role: 'user', parts: [{ text: prompt }] }
+        ],
+        config: {
+          systemInstruction,
+        },
+      });
+      return response;
+    }
   } catch (error) {
-    console.error("Copilot error:", error);
+    console.error("Copilot stream error:", error);
     throw error;
   }
 }
 
 export async function askCopilot(prompt: string, history: { role: 'user' | 'model', text: string }[] = []) {
+  const formattedHistory = history.map(h => ({
+    role: h.role,
+    parts: [{ text: h.text }]
+  }));
+
+  const systemInstruction = `Sen uzman bir Mali Müşavir ve Vergi Danışmanısın. 
+  Kullanıcın bir mali müşavir. Ona mevzuat, vergi, SGK, beyanname ve genel muhasebe konularında profesyonel danışmanlık veriyorsun.
+  
+  TEMEL PRENSİPLER:
+  1. ADIM ADIM REHBERLİK: Karmaşık süreçleri (örn: beyanname düzeltme) her zaman numaralandırılmış, net adımlarla açıkla.
+  2. MEVZUAT ODAKLI: Cevaplarını her zaman güncel kanun, tebliğ ve sirkülerlere dayandır.
+  3. YORUM VE ANALİZ: Sadece bilgi verme, konuyu mali müşavir gözüyle yorumla ve riskleri/fırsatları belirt.
+  4. HIZ VE GÜNCELLİK: Google Search aracını kullanarak en son verileri (2026 dahil) anlık sorgula.
+  
+  ÖZEL SENARYOLAR:
+  - Beyanname Düzeltme: Düzeltme yolunu (Pişmanlık, KSS vb.) belirt, muhasebe kayıtlarının (yevmiye maddesi) nasıl düzeltilmesi gerektiğini göster.
+  - Sektörel Analiz: Karlılık oranları, NACE kodları ve sektörel riskler hakkında güncel veriler sun.
+  
+  2026 Yılı Parametreleri (KESİN BİLGİ): 
+  * Brüt Asgari Ücret: 33.030,00 TL
+  * Net Asgari Ücret: 28.075,50 TL
+  * İşverene Toplam Maliyet: 40.874,63 TL
+  * %5 İndirimli İşverene Maliyet: 39.223,13 TL
+  * %2 İndirimli İşverene Maliyet: 40.214,03 TL
+  * Günlük Brüt: 1.101,00 TL
+  * Günlük Net: 935,85 TL
+  * Bağkur Primi: 11.808,23 TL
+  * İndirimli Bağkur Primi: 10.156,73 TL
+  * Asgari Ücret Desteği: 1.000,00 TL
+  
+  Bugünün tarihi: ${new Date().toLocaleDateString('tr-TR')}.`;
+
   try {
-    const formattedHistory = history.map(h => ({
-      role: h.role,
-      parts: [{ text: h.text }]
-    }));
-
-    const chat = ai.chats.create({
-      model: "gemini-3-flash-preview",
-      config: {
-        systemInstruction: `Sen uzman bir Mali Müşavir ve Vergi Danışmanısın. 
-        Kullanıcın bir mali müşavir. Ona mevzuat, vergi, SGK, beyanname ve genel muhasebe konularında profesyonel danışmanlık veriyorsun.
-        
-        TEMEL PRENSİPLER:
-        1. ADIM ADIM REHBERLİK: Karmaşık süreçleri (örn: beyanname düzeltme) her zaman numaralandırılmış, net adımlarla açıkla.
-        2. MEVZUAT ODAKLI: Cevaplarını her zaman güncel kanun, tebliğ ve sirkülerlere dayandır.
-        3. YORUM VE ANALİZ: Sadece bilgi verme, konuyu mali müşavir gözüyle yorumla ve riskleri/fırsatları belirt.
-        4. HIZ VE GÜNCELLİK: Google Search aracını kullanarak en son verileri (2026 dahil) anlık sorgula.
-        
-        ÖZEL SENARYOLAR:
-        - Beyanname Düzeltme: Düzeltme yolunu (Pişmanlık, KSS vb.) belirt, muhasebe kayıtlarının (yevmiye maddesi) nasıl düzeltilmesi gerektiğini göster.
-        - Sektörel Analiz: Karlılık oranları, NACE kodları ve sektörel riskler hakkında güncel veriler sun.
-        
-        2026 Yılı Parametreleri (KESİN BİLGİ): 
-        * Brüt Asgari Ücret: 33.030,00 TL
-        * Net Asgari Ücret: 28.075,50 TL
-        * İşverene Toplam Maliyet: 40.874,63 TL
-        * %5 İndirimli İşverene Maliyet: 39.223,13 TL
-        * %2 İndirimli İşverene Maliyet: 40.214,03 TL
-        * Günlük Brüt: 1.101,00 TL
-        * Günlük Net: 935,85 TL
-        * Bağkur Primi: 11.808,23 TL
-        * İndirimli Bağkur Primi: 10.156,73 TL
-        * Asgari Ücret Desteği: 1.000,00 TL
-        
-        Bugünün tarihi: ${new Date().toLocaleDateString('tr-TR')}.`,
-        tools: [{ googleSearch: {} }],
-      },
-      history: formattedHistory,
-    });
-
-    const response = await chat.sendMessage({ message: prompt });
-    return response.text;
+    // Try with search grounding first
+    try {
+      const chat = ai.chats.create({
+        model: "gemini-3-flash-preview",
+        config: {
+          systemInstruction,
+          tools: [{ googleSearch: {} }],
+        },
+        history: formattedHistory,
+      });
+      const response = await chat.sendMessage({ message: prompt });
+      return response.text;
+    } catch (searchError) {
+      console.warn("Search grounding failed for chat, falling back:", searchError);
+      const chat = ai.chats.create({
+        model: "gemini-3-flash-preview",
+        config: {
+          systemInstruction,
+        },
+        history: formattedHistory,
+      });
+      const response = await chat.sendMessage({ message: prompt });
+      return response.text;
+    }
   } catch (error) {
     console.error("Copilot error:", error);
     throw error;

@@ -46,8 +46,8 @@ export const MarketPulse = () => {
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
-        console.error('Expected JSON but got:', text.substring(0, 100));
-        throw new Error('Sunucudan geçersiz yanıt alındı');
+        console.error('Expected JSON but got:', text.substring(0, 500));
+        throw new Error(`Sunucudan geçersiz yanıt alındı (${response.status} ${response.statusText})`);
       }
 
       const data = await response.json();
