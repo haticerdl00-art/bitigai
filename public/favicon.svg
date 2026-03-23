@@ -1,0 +1,17 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="120" fill="#1a365d"/>
+  <path d="M60 60 L452 60 L452 452 L60 452 Z" fill="none" stroke="#fef3c7" stroke-width="8" stroke-dasharray="20 10" opacity="0.3" />
+  <g transform="translate(256, 256)">
+    <path d="M0 -160 L180 0 L0 160 L-180 0 Z" fill="#991b1b" />
+    <path d="M0 -100 L110 0 L0 100 L-110 0 Z" fill="#1a365d" />
+    <path d="M0 -40 L45 0 L0 40 L-45 0 Z" fill="#fef3c7" />
+    <path d="M0 -160 L0 -190" stroke="#991b1b" stroke-width="12" stroke-linecap="round" />
+    <path d="M0 160 L0 190" stroke="#991b1b" stroke-width="12" stroke-linecap="round" />
+    <path d="M180 0 L210 0" stroke="#991b1b" stroke-width="12" stroke-linecap="round" />
+    <path d="M-180 0 L-210 0" stroke="#991b1b" stroke-width="12" stroke-linecap="round" />
+    <path d="M127 -113 L148 -134" stroke="#991b1b" stroke-width="12" stroke-linecap="round" />
+    <path d="M127 113 L148 134" stroke="#991b1b" stroke-width="12" stroke-linecap="round" />
+    <path d="M-127 -113 L-148 -134" stroke="#991b1b" stroke-width="12" stroke-linecap="round" />
+    <path d="M-127 113 L-148 134" stroke="#991b1b" stroke-width="12" stroke-linecap="round" />
+  </g>
+</svg>
