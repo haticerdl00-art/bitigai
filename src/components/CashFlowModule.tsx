@@ -58,6 +58,12 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
   const [kdvMizanScanned, setKdvMizanScanned] = useState(false);
   const [maliTabloReport, setMaliTabloReport] = useState<string | null>(null);
   const [isMaliTabloAnalyzing, setIsMaliTabloAnalyzing] = useState(false);
+  const [manualKdvData, setManualKdvData] = useState({
+    currentDebts: 210000,
+    potentialDebts: 0,
+    otherRefunds: 0
+  });
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
 
   const mizanData = useMemo(() => {
     const saved = localStorage.getItem(`mizan_data_${profile.id}`);
@@ -406,7 +412,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
             </div>
             <div>
               <h3 className="text-xl font-bold text-kilim-blue-dark">KDV İade Durumu ve Tevkifat Analizi</h3>
-              <p className="text-xs text-slate-500">Mizan ve Beyanname Verilerine Dayalı Akıllı Analiz</p>
+              <p className="text-xs text-slate-500">Firma: <span className="font-bold">{profile.title}</span> | Mizan ve Manuel Veriler</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -420,28 +426,69 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
         </div>
 
         {!kdvMizanScanned ? (
-          <div className="p-10 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 text-center">
-            <div className="max-w-md mx-auto space-y-4">
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Sistem, mizanınızdaki <span className="font-bold">136, 190, 360, 361 ve 391</span> hesapları tarayarak KDV iade potansiyelinizi, mahsup dengenizi ve tevkifat kapasitenizi hesaplayacaktır.
-              </p>
-              <button 
-                onClick={handleKdvMizanScan}
-                disabled={isKdvMizanAnalyzing}
-                className="px-8 py-3 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 mx-auto disabled:opacity-50"
-              >
-                {isKdvMizanAnalyzing ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Veriler Analiz Ediliyor...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-5 h-5" />
-                    KDV İade ve Tevkifat Analizini Başlat
-                  </>
-                )}
-              </button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="p-8 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+              <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Calculator className="w-5 h-5 text-kilim-blue" />
+                Manuel Veri Girişi (Mizanda Görünmeyenler)
+              </h4>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mevcut/Olası Borçlar (Vergi/SGK Dışı)</label>
+                  <input 
+                    type="number" 
+                    value={manualKdvData.currentDebts}
+                    onChange={(e) => setManualKdvData(prev => ({ ...prev, currentDebts: Number(e.target.value) }))}
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-kilim-blue/20 outline-none transition-all"
+                    placeholder="Örn: 210000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Olası Gelecek Borçlar / Riskler</label>
+                  <input 
+                    type="number" 
+                    value={manualKdvData.potentialDebts}
+                    onChange={(e) => setManualKdvData(prev => ({ ...prev, potentialDebts: Number(e.target.value) }))}
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-kilim-blue/20 outline-none transition-all"
+                    placeholder="Örn: 50000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Diğer İade/Alacak Kalemleri</label>
+                  <input 
+                    type="number" 
+                    value={manualKdvData.otherRefunds}
+                    onChange={(e) => setManualKdvData(prev => ({ ...prev, otherRefunds: Number(e.target.value) }))}
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-kilim-blue/20 outline-none transition-all"
+                    placeholder="Örn: 15000"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 bg-kilim-blue-pale/30 rounded-3xl border border-kilim-blue-light/20 flex flex-col justify-center text-center">
+              <div className="max-w-md mx-auto space-y-4">
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Sistem, mizanınızdaki <span className="font-bold">136, 190, 360, 361 ve 391</span> hesapları tarayacak ve girdiğiniz <span className="font-bold">manuel borç/alacak</span> verilerini de hesaba katarak en doğru iade potansiyelinizi hesaplayacaktır.
+                </p>
+                <button 
+                  onClick={handleKdvMizanScan}
+                  disabled={isKdvMizanAnalyzing}
+                  className="w-full py-4 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 mx-auto disabled:opacity-50"
+                >
+                  {isKdvMizanAnalyzing ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Veriler Analiz Ediliyor...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-5 h-5" />
+                      Analizi Başlat
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -463,19 +510,19 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
                     <p className="text-[10px] text-emerald-600 mt-1">136 Hesap Bakiyesi</p>
                   </div>
                   <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100">
-                    <p className="text-[10px] font-bold text-rose-800 uppercase mb-1">Cari Dönem Borçları</p>
-                    <p className="text-xl font-black text-rose-700">₺210.000,00</p>
-                    <p className="text-[10px] text-rose-600 mt-1">360+361 Hesaplar</p>
+                    <p className="text-[10px] font-bold text-rose-800 uppercase mb-1">Toplam Borçlar (Mizan + Manuel)</p>
+                    <p className="text-xl font-black text-rose-700">₺{(210000 + manualKdvData.currentDebts + manualKdvData.potentialDebts).toLocaleString('tr-TR')}</p>
+                    <p className="text-[10px] text-rose-600 mt-1">360+361 ve Manuel Girişler</p>
                   </div>
                 </div>
                 
                 <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-600/20 flex justify-between items-center mb-4">
                   <div>
                     <p className="text-xs font-bold opacity-80">NET MAHSUP DURUMU</p>
-                    <p className="text-sm">Borçlar Kapatıldıktan Sonra Kalan</p>
+                    <p className="text-sm">Tüm Borçlar Kapatıldıktan Sonra Kalan</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-2xl font-black">₺40.000,00</span>
+                    <span className="text-2xl font-black">₺{(250000 + manualKdvData.otherRefunds - (210000 + manualKdvData.currentDebts + manualKdvData.potentialDebts)).toLocaleString('tr-TR')}</span>
                     <p className="text-[10px] font-bold text-blue-100">ALACAK BAKİYESİ</p>
                   </div>
                 </div>
@@ -600,31 +647,79 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
               <BarChart3 className="w-6 h-6 text-kilim-blue" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-kilim-blue-dark">Mali Tablo & Mizan Analizi</h3>
-              <p className="text-xs text-slate-500">Gelir Tablosu, Bilanço ve Rasyo Analizleri</p>
+              <h3 className="text-xl font-bold text-kilim-blue-dark">Mizan & Mali Tablo Analizi</h3>
+              <p className="text-xs text-slate-500">Firma: <span className="font-bold">{profile.title}</span> | Mizan, Gelir Tablosu ve Bilanço Analizi</p>
             </div>
           </div>
         </div>
 
         {!maliTabloReport ? (
-          <div className="p-10 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 text-center">
-            <div className="max-w-md mx-auto space-y-6">
-              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-                <Upload className="w-8 h-8 text-kilim-blue" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-5 space-y-6">
+              <div className="p-8 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 text-center relative group">
+                <input 
+                  type="file" 
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setUploadedFiles(Array.from(e.target.files));
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-sm mb-4 group-hover:scale-110 transition-transform">
+                  <Upload className="w-8 h-8 text-kilim-blue" />
+                </div>
+                <h4 className="font-bold text-slate-800">Belgeleri Yükleyin</h4>
+                <p className="text-xs text-slate-500 mt-2">
+                  Mizan, Gelir Tablosu, Bilanço vb. <br />
+                  Birden fazla dosya seçebilirsiniz.
+                </p>
               </div>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Mizanınızı yükleyerek <span className="font-bold">Gelir Tablosu, Bilanço ve Finansal Rasyolarınızın</span> yapay zeka tarafından detaylı analizini yapın.
-              </p>
+
+              {uploadedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Yüklenen Belgeler ({uploadedFiles.length})</p>
+                  {uploadedFiles.map((f, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-kilim-blue" />
+                        <span className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{f.name}</span>
+                      </div>
+                      <button onClick={() => setUploadedFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-rose-500 hover:bg-rose-50 p-1 rounded-lg">
+                        <RefreshCw className="w-3 h-3 rotate-45" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <button 
                 onClick={() => {
                   setIsMaliTabloAnalyzing(true);
                   setTimeout(() => {
                     setIsMaliTabloAnalyzing(false);
-                    setMaliTabloReport("### 📊 Mali Tablo Analiz Özeti\n\n**1. Gelir Tablosu Analizi (600-699)**\n- **Brüt Satış Kârı:** %32 (Sektör ortalaması %28)\n- **Faaliyet Kârı:** %12\n- **Net Kâr Marjı:** %8.5\n\n**2. Bilanço Dengesi (100-599)**\n- **Cari Oran:** 1.45 (Likidite durumu yeterli)\n- **Asit Test Oranı:** 1.10\n- **Borçlanma Oranı:** %45\n\n**3. Kritik Tespitler**\n- 🚩 **100 Kasa Hesabı:** Bakiye yüksek, adatlandırma riski mevcut.\n- ⚠️ **320 Satıcılar:** Vadesi geçmiş borçlar nakit akışını zorlayabilir.\n\n**4. Stratejik Öneriler**\n- Finansman giderlerini azaltmak için kısa vadeli krediler yapılandırılmalı.\n- Stok devir hızı artırılmalı.");
-                  }, 2500);
+                    setMaliTabloReport(`### 📊 Mizan & Mali Tablo Analiz Raporu (${profile.title})
+
+**1. Mizan Teknik Denetim (Hata Masası)**
+- 🚩 **100 Kasa Hesabı:** Bakiye yüksek, adatlandırma riski mevcut.
+- 🚩 **120 Alıcılar:** Bazı alt hesaplarda ters bakiye tespit edildi, düzeltilmeli.
+- ⚠️ **320 Satıcılar:** Vadesi geçmiş borçlar nakit akışını zorlayabilir.
+- 💡 **Öneri:** Mizan nizamı için 131/331 hesaplarındaki bakiyeler dönem sonu öncesi netleştirilmeli.
+
+**2. Mali Tablo & Rasyo Analizi**
+- **Cari Oran:** 1.45 (Likidite durumu yeterli)
+- **Asit Test Oranı:** 1.10
+- **Brüt Satış Kârı:** %32 (Sektör ortalaması %28)
+- **Net Kâr Marjı:** %8.5
+
+**3. Stratejik Yol Haritası**
+- Finansman giderlerini azaltmak için kısa vadeli krediler yapılandırılmalı.
+- Stok devir hızı artırılmalı ve tahsilat süreci optimize edilmeli.`);
+                  }, 3000);
                 }}
-                disabled={isMaliTabloAnalyzing}
-                className="px-8 py-3 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 mx-auto"
+                disabled={isMaliTabloAnalyzing || uploadedFiles.length === 0}
+                className="w-full py-4 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
               >
                 {isMaliTabloAnalyzing ? (
                   <>
@@ -634,10 +729,32 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
                 ) : (
                   <>
                     <Calculator className="w-5 h-5" />
-                    Mizan Analizini Başlat
+                    Analizi Başlat
                   </>
                 )}
               </button>
+            </div>
+
+            <div className="lg:col-span-7 p-8 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm">
+                <FileSearch className="w-10 h-10 text-slate-300" />
+              </div>
+              <div className="max-w-sm">
+                <h4 className="text-lg font-bold text-slate-800">Kapsamlı Analiz Akışı</h4>
+                <p className="text-sm text-slate-500 mt-2">
+                  Önce mizanınızdaki teknik eksiklikleri ve düzeltilmesi gereken yerleri saptıyoruz. Ardından mali tablolarınızı (Gelir Tablosu, Bilanço) analiz ederek rasyolarınızı yorumluyoruz.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 w-full mt-4">
+                <div className="p-4 bg-white rounded-2xl border border-slate-100 text-left">
+                  <p className="text-[10px] font-bold text-kilim-blue uppercase mb-1">Adım 1</p>
+                  <p className="text-xs font-bold text-slate-700">Mizan Denetimi</p>
+                </div>
+                <div className="p-4 bg-white rounded-2xl border border-slate-100 text-left">
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Adım 2</p>
+                  <p className="text-xs font-bold text-slate-700">Mali Tablo Analizi</p>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -668,7 +785,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
         <div>
           <h1 className="text-2xl font-bold text-kilim-blue-dark flex items-center gap-2">
             <Wallet className="w-7 h-7 text-kilim-blue" />
-            Finansal Durum & Analiz
+            Finansal Durum & Analiz: <span className="text-kilim-red">{profile.title}</span>
           </h1>
           <p className="text-slate-500">Mizan verilerine dayalı mali tablo analizleri, nakit tahmini ve KDV iade yönetimi.</p>
         </div>
@@ -700,7 +817,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
               : 'text-slate-500 hover:text-slate-700'
           }`}
         >
-          Mali Tablo Analizi
+          Mizan & Mali Tablo Analizi
         </button>
         <button 
           onClick={() => setActiveTab('kdv-refund')}

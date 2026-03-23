@@ -51,6 +51,7 @@ export const ContentCreatorModule = () => {
   const [file, setFile] = useState<File | null>(null);
   const [manualText, setManualText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [activeType, setActiveType] = useState<ContentType>('afis');
@@ -422,6 +423,23 @@ export const ContentCreatorModule = () => {
         </div>
 
         <div className="relative group">
+          <div className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={() => setIsFullScreen(true)}
+              className="p-3 bg-white/90 backdrop-blur-sm text-kilim-blue rounded-2xl shadow-xl hover:bg-white transition-all"
+              title="Tam Ekran"
+            >
+              <Maximize2 className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => handleDownloadPoster()}
+              className="p-3 bg-white/90 backdrop-blur-sm text-emerald-600 rounded-2xl shadow-xl hover:bg-white transition-all"
+              title="İndir"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+          </div>
+
           <div 
             id="poster-preview"
             className={`bg-white border-2 border-[rgba(27,79,138,0.1)] rounded-3xl overflow-hidden transition-all duration-500 w-full ${activeFormat === 'square' ? 'aspect-square' : 'aspect-video'}`}
@@ -652,7 +670,7 @@ export const ContentCreatorModule = () => {
   return (
     <div className="w-full space-y-8 pb-20">
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-black text-kilim-blue-dark tracking-tighter">İçerik Üretici & Paylaşım</h2>
+        <h2 className="text-3xl font-black text-kilim-blue-dark tracking-tighter">İçerik Üretici & Paylaşım: <span className="text-kilim-red">{profile.title}</span></h2>
         <p className="text-slate-500 font-medium">Dosyalarınızı analiz edin, profesyonel içeriklere dönüştürün ve anında paylaşın.</p>
       </div>
 
@@ -773,6 +791,46 @@ export const ContentCreatorModule = () => {
       ) : (
         renderPreview()
       )}
+
+      {/* Full Screen Modal */}
+      <AnimatePresence>
+        {isFullScreen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 md:p-8"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="relative w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl"
+            >
+              <button 
+                onClick={() => setIsFullScreen(false)}
+                className="absolute top-4 right-4 z-50 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              
+              <div className="bg-[#FAF6F0] p-4 md:p-8 rounded-3xl">
+                {renderPosterContent(true)}
+              </div>
+
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4">
+                <button 
+                  onClick={() => handleDownloadPoster('poster-modal-content')}
+                  className="px-8 py-4 bg-kilim-blue text-white rounded-2xl font-black shadow-2xl flex items-center gap-3 hover:scale-105 transition-transform"
+                >
+                  <Download className="w-6 h-6" />
+                  YÜKSEK ÇÖZÜNÜRLÜKTE İNDİR
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Share Menu Pop-up */}
       <AnimatePresence>
