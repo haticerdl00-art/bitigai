@@ -1,4 +1,4 @@
-<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <rect width="512" height="512" rx="120" fill="#1a365d"/>
   <path d="M60 60 L452 60 L452 452 L60 452 Z" fill="none" stroke="#fef3c7" stroke-width="8" stroke-dasharray="20 10" opacity="0.3" />
   <g transform="translate(256, 256)">
