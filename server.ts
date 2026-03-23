@@ -38,7 +38,8 @@ async function startServer() {
   });
 
   // Market Data Endpoint (TCMB & Gold)
-  app.get(['/api/market/pulse', '/api/market/pulse/'], async (req, res) => {
+  const marketHandler = async (req: express.Request, res: express.Response) => {
+    console.log('Market pulse request received');
     // Fallback data in case API fails
     const fallbackData = {
       currencies: [
@@ -65,14 +66,18 @@ async function startServer() {
     try {
       // Fetch Market Data with timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout
       
+      console.log('Fetching external market data...');
       const response = await fetch('https://finans.truncgil.com/today.json', {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
 
-      if (!response.ok) throw new Error('Piyasa verilerine ulaşılamıyor');
+      if (!response.ok) {
+        console.warn(`External API returned ${response.status}. Using fallback.`);
+        return res.json(fallbackData);
+      }
       
       const text = await response.text();
       let data;
@@ -92,9 +97,11 @@ async function startServer() {
 
       // Check if data has expected keys, otherwise use fallback
       if (!data || !data['USD']) {
+        console.warn('External API data format unexpected. Using fallback.');
         return res.json(fallbackData);
       }
 
+      console.log('External market data fetched successfully');
       res.json({
         currencies: [
           { 
@@ -135,7 +142,10 @@ async function startServer() {
       // Return fallback data instead of error to keep UI functional
       res.json(fallbackData);
     }
-  });
+  };
+
+  app.get('/api/market/pulse', marketHandler);
+  app.get('/api/market/pulse/', marketHandler);
 
   // OCR Endpoint
   app.post('/api/ocr/process', (req, res) => {
