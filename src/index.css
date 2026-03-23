@@ -1,0 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&family=Raleway:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Merriweather", serif;
+  --font-boho: "Raleway", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* Kök Boya Paleti */
+  --color-kilim-blue: #1B4F8A;
+  --color-kilim-blue-dark: #0D2D52;
+  --color-kilim-blue-light: #2E6DB4;
+  --color-kilim-blue-pale: #EBF2FA;
+  --color-kilim-red: #8B1A1A;
+  --color-kilim-red-light: #B22222;
+  --color-kilim-green: #2D6A4F;
+  --color-kilim-green-light: #40916C;
+  --color-kilim-yellow: #C9A227;
+  --color-kilim-yellow-light: #F0C040;
+  --color-kilim-bg: #FAF6F0;
+  --color-kilim-card: #FFFFFF;
+  --color-kilim-dark: #1C1410;
+  --color-kilim-text: #2C1810;
+  --color-kilim-second: #6B5744;
+  --color-kilim-third: #A89080;
+  --color-kilim-border: #DDD0C0;
+
+  /* Redefine common Tailwind colors to hex to avoid oklch in html2canvas */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-300: #6ee7b7;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065f46;
+  --color-emerald-900: #064e3b;
+  --color-emerald-950: #022c22;
+
+  --color-rose-50: #fff1f2;
+  --color-rose-100: #ffe4e6;
+  --color-rose-200: #fecdd3;
+  --color-rose-300: #fda4af;
+  --color-rose-400: #fb7185;
+  --color-rose-500: #f43f5e;
+  --color-rose-600: #e11d48;
+  --color-rose-700: #be123c;
+  --color-rose-800: #9f1239;
+  --color-rose-900: #881337;
+  --color-rose-950: #4c0519;
+
+  --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 rgba(139, 26, 26, 0.4);
+    }
+    50% {
+      opacity: .8;
+      box-shadow: 0 0 20px 10px rgba(139, 26, 26, 0.2);
+    }
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-kilim-bg text-slate-900 font-sans antialiased;
+  }
+}
+
+.glass-card {
+  @apply bg-white/90 backdrop-blur-md border border-slate-200 shadow-sm rounded-3xl transition-all duration-300;
+}
+
+.glass-card:hover {
+  @apply shadow-md border-kilim-blue/20;
+}
+
+.sidebar-item-active {
+  @apply bg-kilim-blue/10 text-kilim-blue border-r-4 border-kilim-blue;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+}
