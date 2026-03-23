@@ -70,21 +70,31 @@ async function startServer() {
       
       console.log('Fetching external market data...');
       const response = await fetch('https://finans.truncgil.com/today.json', {
-        signal: controller.signal
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        }
       });
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.warn(`External API returned ${response.status}. Using fallback.`);
+        console.warn(`External API returned ${response.status} ${response.statusText}. Using fallback.`);
         return res.json(fallbackData);
       }
       
       const text = await response.text();
+      if (!text || text.trim().length === 0) {
+        console.warn('External API returned empty response. Using fallback.');
+        return res.json(fallbackData);
+      }
+
       let data;
       try {
         data = JSON.parse(text);
       } catch (parseError) {
         console.error('Market data JSON parse error:', parseError);
+        console.log('Raw response start:', text.substring(0, 100));
         return res.json(fallbackData);
       }
 

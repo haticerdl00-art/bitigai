@@ -13,7 +13,8 @@ import {
   Plus,
   Trash2,
   UserPlus,
-  UserMinus
+  UserMinus,
+  MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, Personnel } from '../types';
@@ -36,6 +37,11 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
   React.useEffect(() => {
     setFormData(profile);
   }, [profile]);
+
+  const DECLARATIONS = [
+    'KDV1', 'KDV2', 'Muhtasar (MPH)', 'Geçici Vergi', 'Yıllık Gelir/Kurumlar', 
+    'Damga Vergisi', 'Ba-Bs Formları', 'GEKAP', 'Turizm Payı', 'ÖTV', 'ÖİV'
+  ];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
@@ -70,6 +76,38 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
     }
   };
 
+  const handleArrayChange = (field: 'emails' | 'phones' | 'naceCodes', index: number, value: string) => {
+    setFormData(prev => {
+      const newArray = [...(prev[field] || [])];
+      newArray[index] = value;
+      return { ...prev, [field]: newArray };
+    });
+  };
+
+  const handleAddArrayItem = (field: 'emails' | 'phones' | 'naceCodes') => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: [...(prev[field] || []), '']
+    }));
+  };
+
+  const handleRemoveArrayItem = (field: 'emails' | 'phones' | 'naceCodes', index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: (prev[field] || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleDeclarationToggle = (dec: string) => {
+    setFormData(prev => {
+      const current = prev.selectedDeclarations || [];
+      const next = current.includes(dec) 
+        ? current.filter(d => d !== dec) 
+        : [...current, dec];
+      return { ...prev, selectedDeclarations: next };
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onUpdate(formData);
@@ -82,6 +120,7 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
       id: Date.now().toString(),
       fullName: '',
       role: '',
+      group: 'İşçi',
       idNumber: '',
       netSalary: 0,
       startDate: new Date().toISOString().split('T')[0],
@@ -110,12 +149,28 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
   const handleAddNew = () => {
     const newId = (companies.length + 1).toString();
     const newCompany: CompanyProfile = {
-      ...profile,
       id: newId,
       title: 'YENİ FİRMA ÜNVANI',
+      taxOffice: '',
       taxNumber: '',
+      tcNumber: '',
       sgkNumber: '',
+      legalStatus: 'Gerçek Kişi',
+      ledgerType: 'İşletme Defteri',
+      naceCodes: [],
+      startDate: '',
+      beratPreference: 'Aylık',
+      isExporter: false,
+      isImporter: false,
+      hasWithholdingSales: false,
+      hasWithholdingPurchases: false,
+      hasRefunds: false,
+      emails: ['', '', ''],
+      phones: ['', '', ''],
+      selectedDeclarations: [],
+      productionType: 'Seri Üretim',
       sector: 'Genel',
+      personnel: [],
       hrProfile: {
         totalWorkers: 0,
         femaleWorkers: 0,
@@ -124,7 +179,8 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
           retired: 0,
           disabled: 0,
           foreign: 0,
-          apprentice: 0
+          apprentice: 0,
+          management: 0
         }
       }
     };
@@ -249,7 +305,7 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
-              İşçi Bilgileri ({formData.personnel?.length || 0})
+              Personel Bilgileri ({formData.personnel?.length || 0})
             </button>
           </div>
 
@@ -291,11 +347,21 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-500 uppercase">Vergi / TC Kimlik No</label>
+                          <label className="text-xs font-bold text-slate-500 uppercase">Vergi No</label>
                           <input 
                             type="text" 
                             name="taxNumber"
                             value={formData.taxNumber}
+                            onChange={handleChange}
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-500 uppercase">TC Kimlik No</label>
+                          <input 
+                            type="text" 
+                            name="tcNumber"
+                            value={formData.tcNumber || ''}
                             onChange={handleChange}
                             className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
                           />
@@ -338,7 +404,7 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                             onChange={handleChange}
                             className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
                           >
-                            {['Gerçek Kişi', 'LTD', 'AŞ', 'Kooperatif', 'Dernek', 'Vakıf'].map(opt => (
+                            {['Gerçek Kişi', 'LTD', 'AŞ', 'Kooperatif', 'Dernek', 'Vakıf', 'Diğer'].map(opt => (
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
                           </select>
@@ -356,16 +422,28 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                             ))}
                           </select>
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-500 uppercase">NACE Kodu</label>
-                          <input 
-                            type="text" 
-                            name="naceCode"
-                            value={formData.naceCode}
-                            onChange={handleChange}
-                            placeholder="Örn: 69.20.01"
-                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
-                          />
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
+                            NACE Kodları
+                            <button type="button" onClick={() => handleAddArrayItem('naceCodes')} className="text-kilim-blue hover:underline text-[10px]">+ Ekle</button>
+                          </label>
+                          <div className="space-y-2">
+                            {(formData.naceCodes || []).map((code, idx) => (
+                              <div key={idx} className="flex gap-2">
+                                <input 
+                                  type="text" 
+                                  value={code}
+                                  onChange={(e) => handleArrayChange('naceCodes', idx, e.target.value)}
+                                  placeholder="Örn: 69.20.01"
+                                  className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                                />
+                                <button type="button" onClick={() => handleRemoveArrayItem('naceCodes', idx)} className="text-rose-500 p-2"><Trash2 size={14} /></button>
+                              </div>
+                            ))}
+                            {(formData.naceCodes || []).length === 0 && (
+                              <p className="text-[10px] text-slate-400 italic">NACE kodu eklenmemiş.</p>
+                            )}
+                          </div>
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-xs font-bold text-slate-500 uppercase">İşe Başlama Tarihi</label>
@@ -383,34 +461,56 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                             name="beratPreference"
                             value={formData.beratPreference}
                             onChange={handleChange}
-                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                            disabled={formData.ledgerType !== 'E-Defter (Bilanço)'}
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <option value="Aylık">Aylık</option>
                             <option value="Geçici (3 Aylık)">Geçici (3 Aylık)</option>
                           </select>
+                          {formData.ledgerType !== 'E-Defter (Bilanço)' && (
+                            <p className="text-[9px] text-amber-600 font-medium">Sadece E-Defter (Bilanço) firmaları için geçerlidir.</p>
+                          )}
                         </div>
-                        <div className="flex items-center gap-6 pt-4 md:col-span-2">
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="checkbox" 
-                              id="isExporter"
-                              name="isExporter"
-                              checked={formData.isExporter}
-                              onChange={handleChange}
-                              className="w-5 h-5 accent-emerald-600 rounded"
-                            />
-                            <label htmlFor="isExporter" className="text-sm font-bold text-slate-700 cursor-pointer">İhracat Yapıyor mu?</label>
+                        <div className="md:col-span-2 space-y-4 pt-4 border-t border-slate-100">
+                          <label className="text-xs font-bold text-slate-500 uppercase block">Firma Özellikleri</label>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {[
+                              { id: 'isExporter', label: 'İhracat Yapıyor mu?', name: 'isExporter' },
+                              { id: 'isImporter', label: 'İthalat Yapıyor mu?', name: 'isImporter' },
+                              { id: 'hasWithholdingSales', label: 'Tevkifatlı Satışı Var mı?', name: 'hasWithholdingSales' },
+                              { id: 'hasWithholdingPurchases', label: 'Tevkifatlı Alışı Var mı?', name: 'hasWithholdingPurchases' },
+                              { id: 'hasRefunds', label: 'İade Alıyor mu?', name: 'hasRefunds' },
+                            ].map(feat => (
+                              <div key={feat.id} className="flex items-center gap-2">
+                                <input 
+                                  type="checkbox" 
+                                  id={feat.id}
+                                  name={feat.name}
+                                  checked={(formData as any)[feat.name]}
+                                  onChange={handleChange}
+                                  className="w-4 h-4 accent-emerald-600 rounded"
+                                />
+                                <label htmlFor={feat.id} className="text-[11px] font-bold text-slate-700 cursor-pointer">{feat.label}</label>
+                              </div>
+                            ))}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="checkbox" 
-                              id="hasWithholdingSales"
-                              name="hasWithholdingSales"
-                              checked={formData.hasWithholdingSales}
-                              onChange={handleChange}
-                              className="w-5 h-5 accent-emerald-600 rounded"
-                            />
-                            <label htmlFor="hasWithholdingSales" className="text-sm font-bold text-slate-700 cursor-pointer">Tevkifatlı Satışı Var mı?</label>
+                        </div>
+
+                        <div className="md:col-span-2 space-y-4 pt-4 border-t border-slate-100">
+                          <label className="text-xs font-bold text-slate-500 uppercase block">Verilecek Beyannameler</label>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {DECLARATIONS.map(dec => (
+                              <div key={dec} className="flex items-center gap-2">
+                                <input 
+                                  type="checkbox" 
+                                  id={`dec-${dec}`}
+                                  checked={(formData.selectedDeclarations || []).includes(dec)}
+                                  onChange={() => handleDeclarationToggle(dec)}
+                                  className="w-4 h-4 accent-kilim-blue rounded"
+                                />
+                                <label htmlFor={`dec-${dec}`} className="text-[11px] font-medium text-slate-600 cursor-pointer">{dec}</label>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -419,6 +519,41 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
 
                   {/* İnsan Kaynakları Profili */}
                   <div className="space-y-6">
+                    <div className="glass-card p-6 border-kilim-blue-light/30">
+                      <h3 className="font-bold text-kilim-blue-light flex items-center gap-2 mb-6">
+                        <MessageCircle className="w-5 h-5 text-kilim-blue" />
+                        İletişim Bilgileri
+                      </h3>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase">E-Posta Adresleri</label>
+                          {[0, 1, 2].map(idx => (
+                            <input 
+                              key={idx}
+                              type="email" 
+                              value={formData.emails?.[idx] || ''}
+                              onChange={(e) => handleArrayChange('emails', idx, e.target.value)}
+                              placeholder={`E-Posta ${idx + 1}`}
+                              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all text-sm mb-2"
+                            />
+                          ))}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase">Telefon Numaraları</label>
+                          {[0, 1, 2].map(idx => (
+                            <input 
+                              key={idx}
+                              type="tel" 
+                              value={formData.phones?.[idx] || ''}
+                              onChange={(e) => handleArrayChange('phones', idx, e.target.value)}
+                              placeholder={`Telefon ${idx + 1}`}
+                              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all text-sm mb-2"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="glass-card p-6 border-kilim-blue-light/30">
                       <h3 className="font-bold text-kilim-blue-light flex items-center gap-2 mb-6">
                         <Users className="w-5 h-5 text-kilim-blue" />
@@ -462,6 +597,7 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                           <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Özel Personel Grupları</label>
                           <div className="grid grid-cols-2 gap-3">
                             {[
+                              { label: 'Yönetim', key: 'management' },
                               { label: 'Emekli', key: 'retired' },
                               { label: 'Engelli', key: 'disabled' },
                               { label: 'Yabancı', key: 'foreign' },
@@ -529,7 +665,7 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-kilim-blue-light flex items-center gap-2">
                     <Users className="w-5 h-5 text-kilim-blue" />
-                    İşçi Bilgileri Yönetimi
+                    Personel Bilgileri Yönetimi
                   </h3>
                   <button
                     type="button"
@@ -547,6 +683,7 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ad Soyad</th>
+                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup</th>
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Görev</th>
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">TC / SGK No</th>
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Maaş</th>
@@ -566,6 +703,20 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                                 placeholder="İsim Soyisim"
                                 className="w-full bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700"
                               />
+                            </td>
+                            <td className="p-3">
+                              <select
+                                value={p.group}
+                                onChange={(e) => handleUpdatePersonnel(p.id, 'group', e.target.value)}
+                                className="w-full bg-transparent border-none focus:ring-0 text-[11px] font-bold text-slate-600"
+                              >
+                                <option value="İşçi">İşçi</option>
+                                <option value="Yönetim">Yönetim</option>
+                                <option value="Emekli">Emekli</option>
+                                <option value="Engelli">Engelli</option>
+                                <option value="Yabancı">Yabancı</option>
+                                <option value="Çırak">Çırak</option>
+                              </select>
                             </td>
                             <td className="p-3">
                               <input 

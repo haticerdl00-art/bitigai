@@ -1233,44 +1233,62 @@ const ARACLAR = [
 // ─────────────────────────────────────────────
 // 8. BEYANNAME TAKİBİ
 // ─────────────────────────────────────────────
+const ALL_DECLARATIONS = [
+  { id: 'kdv1', label: 'KDV1', companyLabel: 'KDV1' },
+  { id: 'kdv2', label: 'KDV2', companyLabel: 'KDV2' },
+  { id: 'muhtasar', label: 'MUHSGK', companyLabel: 'Muhtasar (MPH)' },
+  { id: 'gecici', label: 'GEÇİCİ', companyLabel: 'Geçici Vergi' },
+  { id: 'yillik', label: 'YILLIK', companyLabel: 'Yıllık Gelir/Kurumlar' },
+  { id: 'damga', label: 'DAMGA', companyLabel: 'Damga Vergisi' },
+  { id: 'babs', label: 'BA-BS', companyLabel: 'Ba-Bs Formları' },
+  { id: 'gekap', label: 'GEKAP', companyLabel: 'GEKAP' },
+  { id: 'turizm', label: 'TURİZM', companyLabel: 'Turizm Payı' },
+  { id: 'otv', label: 'ÖTV', companyLabel: 'ÖTV' },
+  { id: 'oiv', label: 'ÖİV', companyLabel: 'ÖİV' },
+  { id: 'berat', label: 'BERAT', companyLabel: 'E-BERAT' }
+];
+
 function BeyannameTakibi({ companies = [] }: { companies?: CompanyProfile[] }) {
   const [activeTab, setActiveTab] = useState("genel"); // "genel" or "firma"
   const [firms, setFirms] = useState<any[]>([]);
 
   useEffect(() => {
     const stored = localStorage.getItem('beyanname_firms');
+    let parsed: any[] = [];
     if (stored) {
-      const parsed = JSON.parse(stored);
-      // Update names if companies changed but keep statuses
-      if (companies.length > 0) {
-        const updated = companies.map(c => {
-          const existing = parsed.find((p: any) => p.id === c.id);
-          return existing ? { ...existing, name: c.title } : {
-            id: c.id,
-            name: c.title,
-            kdv: "Bekliyor",
-            muhtasar: "Bekliyor",
-            gecici: "Bekliyor",
-            berat: "Bekliyor",
-            notes: ""
-          };
-        });
-        setFirms(updated);
-      } else {
-        setFirms(parsed);
+      try {
+        parsed = JSON.parse(stored);
+      } catch (e) {
+        parsed = [];
       }
-    } else if (companies.length > 0) {
-      const initialFirms = companies.map(c => ({
-        id: c.id,
-        name: c.title,
-        kdv: "Bekliyor",
-        muhtasar: "Bekliyor",
-        gecici: "Bekliyor",
-        berat: "Bekliyor",
-        notes: ""
-      }));
-      setFirms(initialFirms);
-      localStorage.setItem('beyanname_firms', JSON.stringify(initialFirms));
+    }
+
+    if (companies.length > 0) {
+      const updated = companies.map(c => {
+        const existing = parsed.find((p: any) => p.id === c.id);
+        const base = existing ? { ...existing, name: c.title } : {
+          id: c.id,
+          name: c.title,
+          notes: ""
+        };
+
+        // Sync declarations
+        ALL_DECLARATIONS.forEach(dec => {
+          const isSelected = (c.selectedDeclarations || []).includes(dec.companyLabel) || 
+                            (dec.id === 'berat' && c.ledgerType === 'E-Defter (Bilanço)');
+          
+          if (!isSelected) {
+            (base as any)[dec.id] = "İlgisiz";
+          } else if (!(base as any)[dec.id] || (base as any)[dec.id] === "İlgisiz") {
+            (base as any)[dec.id] = "Bekliyor";
+          }
+        });
+
+        return base;
+      });
+      setFirms(updated);
+    } else if (parsed.length > 0) {
+      setFirms(parsed);
     }
   }, [companies]);
 
@@ -1297,14 +1315,15 @@ function BeyannameTakibi({ companies = [] }: { companies?: CompanyProfile[] }) {
     "Bekliyor": { bg: C.sari + "15", text: C.sari, icon: <Clock size={12} /> },
     "Gecikti": { bg: C.kirmizi + "15", text: C.kirmizi, icon: <AlertCircle size={12} /> },
     "-": { bg: C.sinir + "30", text: C.ucuncu, icon: null },
-    "İlgisiz": { bg: C.sinir + "30", text: C.ucuncu, icon: null },
+    "İlgisiz": { bg: C.sinir + "10", text: C.ucuncu, icon: null },
   };
 
-  const cycleStatus = (firmId: number, field: string) => {
+  const cycleStatus = (firmId: string, field: string) => {
     const cycle = ["Verildi", "Bekliyor", "Gecikti", "-"];
     setFirms(prev => prev.map(f => {
       if (f.id === firmId) {
         const currentStatus = (f as any)[field];
+        if (currentStatus === "İlgisiz") return f; // Don't cycle if irrelevant
         const currentIndex = cycle.indexOf(currentStatus);
         const nextIndex = (currentIndex + 1) % cycle.length;
         return { ...f, [field]: cycle[nextIndex] };
@@ -1353,33 +1372,33 @@ function BeyannameTakibi({ companies = [] }: { companies?: CompanyProfile[] }) {
 
           <div className="glass-card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[1200px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
-                    <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Firma Adı</th>
-                    <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">KDV</th>
-                    <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">MUHSGK</th>
-                    <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">GEÇİCİ VERGİ</th>
-                    <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">E-BERAT</th>
+                    <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50 z-10">Firma Adı</th>
+                    {ALL_DECLARATIONS.map(dec => (
+                      <th key={dec.id} className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">{dec.label}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {firms.map(f => (
                     <tr key={f.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-4">
+                      <td className="p-4 sticky left-0 bg-white z-10 border-r border-slate-50">
                         <div className="flex flex-col">
-                          <span className="font-bold text-slate-800 text-sm">{f.name}</span>
-                          <span className="text-[10px] text-slate-400">Vergi No: 1234567890</span>
+                          <span className="font-bold text-slate-800 text-sm truncate max-w-[180px]">{f.name}</span>
+                          <span className="text-[10px] text-slate-400">Vergi No: {companies.find(c => c.id === f.id)?.tcNumber || '—'}</span>
                         </div>
                       </td>
-                      {["kdv", "muhtasar", "gecici", "berat"].map((field) => {
-                        const status = (f as any)[field];
+                      {ALL_DECLARATIONS.map((dec) => {
+                        const status = (f as any)[dec.id] || "İlgisiz";
                         const config = statusColors[status] || statusColors["-"];
                         return (
-                          <td key={field} className="p-4">
+                          <td key={dec.id} className="p-2">
                             <button 
-                              onClick={() => cycleStatus(f.id, field)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all hover:scale-105 active:scale-95 w-full justify-center"
+                              onClick={() => cycleStatus(f.id, dec.id)}
+                              disabled={status === "İlgisiz"}
+                              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg font-bold text-[10px] transition-all w-full justify-center ${status !== "İlgisiz" ? 'hover:scale-105 active:scale-95' : 'opacity-50 cursor-not-allowed'}`}
                               style={{ background: config.bg, color: config.text }}
                             >
                               {config.icon}
@@ -1427,21 +1446,20 @@ function BeyannameTakibi({ companies = [] }: { companies?: CompanyProfile[] }) {
                     <Badge label="AKTİF" renk={C.yesil} />
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    {[
-                      { label: "KDV", status: selectedFirm.kdv },
-                      { label: "MUHSGK", status: selectedFirm.muhtasar },
-                      { label: "GEÇİCİ", status: selectedFirm.gecici },
-                      { label: "BERAT", status: selectedFirm.berat },
-                    ].map(item => (
-                      <div key={item.label} className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">{item.label}</p>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{ background: statusColors[item.status]?.text || C.sinir }} />
-                          <span className="font-bold text-slate-700 text-sm">{item.status}</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+                    {ALL_DECLARATIONS.map(dec => {
+                      const status = (selectedFirm as any)[dec.id] || "İlgisiz";
+                      if (status === "İlgisiz") return null;
+                      return (
+                        <div key={dec.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">{dec.label}</p>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full" style={{ background: statusColors[status]?.text || C.sinir }} />
+                            <span className="font-bold text-slate-700 text-sm">{status}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="space-y-4">

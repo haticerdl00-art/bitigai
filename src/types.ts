@@ -31,6 +31,7 @@ export interface Personnel {
   netSalary: number;
   startDate: string;
   leaveStatus: 'Aktif' | 'İzinli' | 'Ayrıldı';
+  group: 'Yönetim' | 'İşçi' | 'Emekli' | 'Engelli' | 'Yabancı' | 'Çırak';
 }
 
 export interface CompanyProfile {
@@ -38,14 +39,21 @@ export interface CompanyProfile {
   title: string;
   taxOffice: string;
   taxNumber: string;
+  tcNumber?: string;
   sgkNumber: string;
-  legalStatus: 'Gerçek Kişi' | 'LTD' | 'AŞ' | 'Kooperatif' | 'Dernek' | 'Vakıf';
+  legalStatus: 'Gerçek Kişi' | 'LTD' | 'AŞ' | 'Kooperatif' | 'Dernek' | 'Vakıf' | 'Diğer';
   ledgerType: 'İşletme Defteri' | 'E-Defter (Bilanço)' | 'Serbest Meslek Makbuzu' | 'Basit Usul';
-  naceCode: string;
+  naceCodes: string[];
   startDate: string;
   beratPreference: 'Aylık' | 'Geçici (3 Aylık)';
   isExporter: boolean;
+  isImporter: boolean;
   hasWithholdingSales: boolean;
+  hasWithholdingPurchases: boolean;
+  hasRefunds: boolean;
+  emails: string[];
+  phones: string[];
+  selectedDeclarations: string[];
   productionType?: 'Seri Üretim' | 'Sipariş Bazlı';
   sector?: string;
   personnel?: Personnel[];
@@ -58,6 +66,7 @@ export interface CompanyProfile {
       disabled: number;
       foreign: number;
       apprentice: number;
+      management: number;
     };
   };
 }

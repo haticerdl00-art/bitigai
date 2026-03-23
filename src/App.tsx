@@ -109,21 +109,28 @@ const DEFAULT_COMPANY: CompanyProfile = {
   title: 'Lütfen Firma Ekleyin',
   taxOffice: '',
   taxNumber: '',
+  tcNumber: '',
   sgkNumber: '',
   legalStatus: 'Gerçek Kişi',
   ledgerType: 'İşletme Defteri',
-  naceCode: '',
+  naceCodes: [],
   startDate: '',
   beratPreference: 'Aylık',
   isExporter: false,
+  isImporter: false,
   hasWithholdingSales: false,
+  hasWithholdingPurchases: false,
+  hasRefunds: false,
+  emails: ['', '', ''],
+  phones: ['', '', ''],
+  selectedDeclarations: [],
   productionType: 'Seri Üretim',
   sector: '',
   hrProfile: {
     totalWorkers: 0,
     femaleWorkers: 0,
     maleWorkers: 0,
-    personnelGroups: { retired: 0, disabled: 0, foreign: 0, apprentice: 0 }
+    personnelGroups: { retired: 0, disabled: 0, foreign: 0, apprentice: 0, management: 0 }
   }
 };
 

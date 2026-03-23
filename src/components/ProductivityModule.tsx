@@ -125,7 +125,7 @@ export const ProductivityModule = ({ profile }: ProductivityModuleProps) => {
           - SGK No: ${profile.sgkNumber}
           - Hukuki Statü: ${profile.legalStatus}
           - Defter Türü: ${profile.ledgerType}
-          - NACE Kodu: ${profile.naceCode}
+          - NACE Kodları: ${profile.naceCodes?.join(', ') || '—'}
           - İşçi Sayısı: ${profile.hrProfile.totalWorkers}
 
           🛠️ 2. ANALİZ TALİMATLARI (Mizan & Denetim Merkezi)
