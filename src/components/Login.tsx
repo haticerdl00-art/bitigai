@@ -225,7 +225,7 @@ export const Login = ({ onLogin }: LoginProps) => {
                       type="text"
                       value={regFullName}
                       onChange={(e) => setRegFullName(e.target.value)}
-                      placeholder="Örn: Hatice Erdal"
+                      placeholder="Tam isminiz"
                       className="w-full px-4 py-3 bg-[#FAF7F2] border border-[#E8D5C4] rounded-xl focus:ring-2 focus:ring-[#28a745]/20 focus:border-[#28a745] outline-none transition-all text-sm"
                       required
                     />
@@ -236,7 +236,7 @@ export const Login = ({ onLogin }: LoginProps) => {
                       type="text"
                       value={regTitle}
                       onChange={(e) => setRegTitle(e.target.value)}
-                      placeholder="Örn: SMMM"
+                      placeholder="Unvanınız"
                       className="w-full px-4 py-3 bg-[#FAF7F2] border border-[#E8D5C4] rounded-xl focus:ring-2 focus:ring-[#28a745]/20 focus:border-[#28a745] outline-none transition-all text-sm"
                     />
                   </div>
