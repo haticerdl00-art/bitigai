@@ -1240,7 +1240,6 @@ const ALL_DECLARATIONS = [
   { id: 'gecici', label: 'GEÇİCİ', companyLabel: 'Geçici Vergi' },
   { id: 'yillik', label: 'YILLIK', companyLabel: 'Yıllık Gelir/Kurumlar' },
   { id: 'damga', label: 'DAMGA', companyLabel: 'Damga Vergisi' },
-  { id: 'babs', label: 'BA-BS', companyLabel: 'Ba-Bs Formları' },
   { id: 'gekap', label: 'GEKAP', companyLabel: 'GEKAP' },
   { id: 'turizm', label: 'TURİZM', companyLabel: 'Turizm Payı' },
   { id: 'otv', label: 'ÖTV', companyLabel: 'ÖTV' },
@@ -1790,12 +1789,31 @@ function CariHesapTahsilat({ companies = [] }: { companies?: CompanyProfile[] })
 // ─────────────────────────────────────────────
 function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
   const [selectedFirm, setSelectedFirm] = useState(companies.length > 0 ? companies[0].title : "");
+  const [messages, setMessages] = useState<any[]>([
+    { id: 1, sender: 'Sistem', text: 'Hoş geldiniz! Müşterilerinize buradan mesaj gönderebilirsiniz.', time: '09:00', type: 'received' },
+    { id: 2, sender: 'Müşteri', text: 'KDV beyannamesi onaylandı mı?', time: '10:15', type: 'received' },
+  ]);
+  const [newMessage, setNewMessage] = useState('');
 
   useEffect(() => {
     if (companies.length > 0 && !selectedFirm) {
       setSelectedFirm(companies[0].title);
     }
   }, [companies]);
+
+  const handleSendMessage = () => {
+    if (!newMessage.trim()) return;
+    const msg = {
+      id: Date.now(),
+      sender: 'Siz',
+      text: newMessage,
+      time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+      type: 'sent'
+    };
+    setMessages([...messages, msg]);
+    setNewMessage('');
+  };
+
   const templates = [
     { id: 1, title: "Evrak Talebi", content: "Sayın {firma}, {ay} dönemine ait mizan ve faturalarınızı beklemekteyiz." },
     { id: 2, title: "Ödeme Hatırlatma", content: "Sayın {firma}, {tutar} tutarındaki gecikmiş bakiyenizin ödenmesini rica ederiz." },
@@ -1849,8 +1867,19 @@ function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
                 Mesajlaşmak için bir firma seçin.
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 italic text-sm">
-                Henüz mesaj geçmişi bulunmuyor.
+              <div className="space-y-4">
+                {messages.map(msg => (
+                  <div key={msg.id} className={`flex ${msg.type === 'sent' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${
+                      msg.type === 'sent' ? 'bg-kilim-red text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none'
+                    }`}>
+                      <p>{msg.text}</p>
+                      <span className={`text-[10px] mt-1 block ${msg.type === 'sent' ? 'text-white/70' : 'text-slate-400'}`}>
+                        {msg.time}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1858,7 +1887,11 @@ function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
           <div className="p-4 border-t border-slate-100 bg-white">
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
               {templates.map(t => (
-                <button key={t.id} className="whitespace-nowrap px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold hover:bg-kilim-red hover:text-white transition-all">
+                <button 
+                  key={t.id} 
+                  onClick={() => setNewMessage(t.content.replace('{firma}', selectedFirm || 'Değerli Müşterimiz').replace('{ay}', 'Mart'))}
+                  className="whitespace-nowrap px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold hover:bg-kilim-red hover:text-white transition-all"
+                >
                   {t.title}
                 </button>
               ))}
@@ -1866,10 +1899,16 @@ function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
             <div className="flex gap-2">
               <input 
                 type="text" 
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                 placeholder="Mesajınızı yazın..." 
                 className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-kilim-red/20 outline-none"
               />
-              <button className="bg-kilim-red text-white p-2 rounded-xl hover:bg-kilim-red-dark transition-colors">
+              <button 
+                onClick={handleSendMessage}
+                className="bg-kilim-red text-white p-2 rounded-xl hover:bg-kilim-red-dark transition-colors"
+              >
                 <ArrowRight size={20} />
               </button>
             </div>
@@ -1898,21 +1937,27 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
   useEffect(() => {
     const selectedCompany = companies.find(c => c.id === secilenFirmaId);
     if (selectedCompany && selectedCompany.personnel) {
-      setPersonnel(selectedCompany.personnel.map(p => ({
-        ...p,
-        firmaId: selectedCompany.id,
-        ad: p.fullName,
-        tc: p.idNumber,
-        gorev: p.role,
-        brut: p.netSalary * 1.4, // Basit bir brüt tahmini
-        giris: p.startDate,
-        durum: p.leaveStatus,
-        izinHak: 14,
-        izinKul: 0,
-        sgkNo: p.idNumber,
-        tesvik: "5510",
-        tesvikBitis: "2026-12-31"
-      })));
+      setPersonnel(selectedCompany.personnel.map(p => {
+        // Huzur Hakkı tespiti (Profil verisinden gelen type veya isim/rol bazlı)
+        const isHuzurHakki = p.type === 'huzur_hakki' || p.fullName.includes('Recep Baş') || p.fullName.includes('Selim Baş') || p.role.includes('Yönetim');
+        
+        return {
+          ...p,
+          firmaId: selectedCompany.id,
+          ad: p.fullName,
+          tc: p.idNumber,
+          gorev: p.role,
+          brut: p.netSalary * 1.4, // Basit bir brüt tahmini
+          giris: p.startDate,
+          durum: p.leaveStatus,
+          izinHak: 14,
+          izinKul: 0,
+          sgkNo: p.idNumber,
+          tesvik: isHuzurHakki ? "Yok" : "5510",
+          tesvikBitis: isHuzurHakki ? "-" : "2026-12-31",
+          type: isHuzurHakki ? 'huzur_hakki' : 'normal'
+        };
+      }));
     } else {
       setPersonnel([]);
     }
@@ -1924,7 +1969,24 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
 
   const firmaPersonel = personnel.filter(p => p.firmaId === secilenFirmaId);
 
-  const hesaplaBordro = (brut: number) => {
+  const hesaplaBordro = (brut: number, type: 'normal' | 'huzur_hakki' = 'normal') => {
+    if (type === 'huzur_hakki') {
+      // Huzur Hakkı: SGK yok, sadece Gelir Vergisi ve Damga Vergisi
+      const gelirVergisi = brut * 0.15; // Basit %15
+      const damgaVergisi = brut * 0.00759;
+      const net = brut - gelirVergisi - damgaVergisi;
+      return { 
+        net, 
+        sgkIsci: 0, 
+        gelirVergisi, 
+        damgaVergisi, 
+        sgkIsveren: 0, 
+        toplamMaliyet: brut,
+        issizlikIsci: 0,
+        issizlikIsveren: 0
+      };
+    }
+
     const sgkIsci = brut * 0.14;
     const issizlikIsci = brut * 0.01;
     const gelirVergisiMatrahi = brut - (sgkIsci + issizlikIsci);
@@ -1934,7 +1996,7 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
     const sgkIsveren = brut * 0.155;
     const issizlikIsveren = brut * 0.02;
     const toplamMaliyet = brut + sgkIsveren + issizlikIsveren;
-    return { net, sgkIsci, gelirVergisi, damgaVergisi, sgkIsveren, toplamMaliyet };
+    return { net, sgkIsci, gelirVergisi, damgaVergisi, sgkIsveren, toplamMaliyet, issizlikIsci, issizlikIsveren };
   };
 
   const kidemYilHesapla = (giris: string) => {
@@ -1952,8 +2014,8 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
   };
 
   const toplamBrut = firmaPersonel.reduce((acc, p) => acc + p.brut, 0);
-  const toplamNet = firmaPersonel.reduce((acc, p) => acc + hesaplaBordro(p.brut).net, 0);
-  const toplamMaliyet = firmaPersonel.reduce((acc, p) => acc + hesaplaBordro(p.brut).toplamMaliyet, 0);
+  const toplamNet = firmaPersonel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).net, 0);
+  const toplamMaliyet = firmaPersonel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).toplamMaliyet, 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
@@ -2030,7 +2092,7 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
             <tbody>
               {firmaPersonel.map(p => {
                 const isExpanded = expandedId === p.id;
-                const payroll = hesaplaBordro(p.brut);
+                const payroll = hesaplaBordro(p.brut, p.type);
                 const kidem = kidemYilHesapla(p.giris);
                 const kalanIzin = p.izinHak - p.izinKul;
 
@@ -2046,13 +2108,16 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
                           <div style={{ width: 36, height: 36, borderRadius: 10, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>👤</div>
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: C.metin }}>{p.ad}</div>
-                            <div style={{ fontSize: 10, color: C.ucuncu, fontWeight: 600 }}>{p.gorev}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ fontSize: 10, color: C.ucuncu, fontWeight: 600 }}>{p.gorev}</div>
+                              {p.type === 'huzur_hakki' && <Badge label="Huzur Hakkı" renk={C.kirmizi} />}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td style={{ padding: "16px 20px" }}>
                         <div style={{ fontSize: 12, fontFamily: "monospace", color: C.ikinci }}>{p.tc}</div>
-                        <div style={{ fontSize: 10, color: C.ucuncu }}>SGK: {p.sgkNo}</div>
+                        <div style={{ fontSize: 10, color: C.ucuncu }}>{p.type === 'huzur_hakki' ? 'SGK Muaf' : `SGK: ${p.sgkNo}`}</div>
                       </td>
                       <td style={{ padding: "16px 20px" }}>
                         <div style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>{para(payroll.net)}</div>
@@ -2098,13 +2163,15 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
                               {/* Bordro Detayı */}
                               <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
                                 <div style={{ fontSize: 11, fontWeight: 900, color: C.metin, textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                                  <Calculator size={14} color={C.mavi} /> Maaş & Vergi Dökümü
+                                  <Calculator size={14} color={C.mavi} /> {p.type === 'huzur_hakki' ? 'Huzur Hakkı Dökümü' : 'Maaş & Vergi Dökümü'}
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
-                                    <span style={{ color: C.ikinci }}>SGK İşçi Payı (%14)</span>
-                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(payroll.sgkIsci)}</span>
-                                  </div>
+                                  {p.type !== 'huzur_hakki' && (
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
+                                      <span style={{ color: C.ikinci }}>SGK İşçi Payı (%14)</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(payroll.sgkIsci)}</span>
+                                    </div>
+                                  )}
                                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
                                     <span style={{ color: C.ikinci }}>Gelir Vergisi (%15)</span>
                                     <span style={{ fontWeight: 700, color: C.metin }}>{para(payroll.gelirVergisi)}</span>
@@ -2113,13 +2180,15 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
                                     <span style={{ color: C.ikinci }}>Damga Vergisi</span>
                                     <span style={{ fontWeight: 700, color: C.metin }}>{para(payroll.damgaVergisi)}</span>
                                   </div>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
-                                    <span style={{ color: C.ikinci }}>SGK İşveren Payı (%15.5)</span>
-                                    <span style={{ fontWeight: 700, color: C.yesil }}>{para(payroll.sgkIsveren)}</span>
-                                  </div>
+                                  {p.type !== 'huzur_hakki' && (
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
+                                      <span style={{ color: C.ikinci }}>SGK İşveren Payı (%15.5)</span>
+                                      <span style={{ fontWeight: 700, color: C.yesil }}>{para(payroll.sgkIsveren)}</span>
+                                    </div>
+                                  )}
                                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 900, paddingTop: 8 }}>
-                                    <span style={{ color: C.metin }}>Toplam Maliyet</span>
-                                    <span style={{ color: C.kirmizi }}>{para(payroll.toplamMaliyet)}</span>
+                                    <span style={{ color: C.metin }}>{p.type === 'huzur_hakki' ? 'Net Ödeme' : 'Toplam Maliyet'}</span>
+                                    <span style={{ color: C.kirmizi }}>{para(p.type === 'huzur_hakki' ? payroll.net : payroll.toplamMaliyet)}</span>
                                   </div>
                                 </div>
                               </div>

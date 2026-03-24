@@ -55,6 +55,7 @@ export const ContentCreatorModule = () => {
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [activeType, setActiveType] = useState<ContentType>('afis');
+  const [downloadFormat, setDownloadFormat] = useState<'png' | 'jpeg'>('jpeg');
   const [activeFormat, setActiveFormat] = useState<FormatType>('square');
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showPosterModal, setShowPosterModal] = useState(false);
@@ -138,9 +139,9 @@ export const ContentCreatorModule = () => {
     const signature = `\n\n*SMMM Hatice ERDAL*\n_BİTİG AI Analizidir_`;
     
     // Always download first as per user request
-    await handleDownloadPoster(showPosterModal ? 'poster-modal-content' : 'poster-preview');
+    await handleDownloadPoster(showPosterModal ? 'poster-modal-content' : 'poster-preview', downloadFormat);
     
-    alert('Afişiniz cihazınıza başarıyla indirildi. Şimdi WhatsApp\'ı açıp galeriden bu görseli seçerek paylaşabilirsiniz.');
+    alert(`Afişiniz (${downloadFormat.toUpperCase()}) cihazınıza başarıyla indirildi. Şimdi WhatsApp'ı açıp galeriden bu görseli seçerek paylaşabilirsiniz.`);
 
     if (platform === 'whatsapp') {
       const text = activeType === 'hap-not' 
@@ -156,7 +157,7 @@ export const ContentCreatorModule = () => {
     setShowShareMenu(false);
   };
 
-  const handleDownloadPoster = async (elementId: string = 'poster-preview') => {
+  const handleDownloadPoster = async (elementId: string = 'poster-preview', format: 'png' | 'jpeg' = 'png') => {
     if (typeof html2canvas === 'undefined') {
       alert('Görsel oluşturma modülü yükleniyor, lütfen tekrar deneyin');
       return;
@@ -186,22 +187,10 @@ export const ContentCreatorModule = () => {
               const element = allElements[i] as HTMLElement;
               const style = window.getComputedStyle(element);
               
-              // Helper to convert oklch to rgb if needed
-              // Since we can't easily parse oklch in JS without a library,
-              // we'll just force important elements to have explicit hex/rgb styles
-              // if they are known to use Tailwind's default palette.
-              
-              // A more generic approach: if the computed style contains "oklch", 
-              // we try to set it to something safe or just let the browser handle the conversion
-              // by setting the style property directly (which often forces a conversion in the computed style)
-              
               const properties = ['color', 'backgroundColor', 'borderColor', 'outlineColor', 'columnRuleColor', 'textDecorationColor'];
               properties.forEach(prop => {
                 const value = (style as any)[prop];
                 if (value && value.includes('oklch')) {
-                  // If it's oklch, we try to set it to a safe fallback or just use the current value
-                  // but forced to a standard format if possible.
-                  // Actually, setting it to itself sometimes forces the browser to resolve it to RGB in the clone.
                   element.style[prop as any] = value;
                 }
               });
@@ -210,13 +199,14 @@ export const ContentCreatorModule = () => {
         }
       });
       
-      const dataUrl = canvas.toDataURL('image/png', 1.0);
+      const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+      const dataUrl = canvas.toDataURL(mimeType, 0.9);
       
       // Create hidden link for forced download
       const link = document.createElement('a');
       link.style.display = 'none';
       link.href = dataUrl;
-      link.download = 'BITIG_AFIS.png';
+      link.download = `BITIG_AFIS.${format}`;
       document.body.appendChild(link);
       
       try {
@@ -406,8 +396,44 @@ export const ContentCreatorModule = () => {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
       >
-        <div className="flex flex-col sm:flex-row items-center justify-end gap-4">
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100">
+          <div className="flex items-center gap-2 p-1 bg-slate-50 rounded-2xl">
+            {[
+              { id: 'afis', label: 'AFİŞ', icon: ImageIcon },
+              { id: 'hap-not', label: 'HAP NOT', icon: FileText },
+              { id: 'ozet', label: 'ÖZET', icon: Layout },
+            ].map(type => (
+              <button
+                key={type.id}
+                onClick={() => setActiveType(type.id as ContentType)}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all ${
+                  activeType === type.id 
+                    ? 'bg-white text-kilim-blue shadow-sm' 
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <type.icon className="w-4 h-4" />
+                {type.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 p-1 bg-slate-50 rounded-2xl">
+              <button 
+                onClick={() => setDownloadFormat('png')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${downloadFormat === 'png' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}
+              >
+                PNG
+              </button>
+              <button 
+                onClick={() => setDownloadFormat('jpeg')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${downloadFormat === 'jpeg' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+              >
+                JPEG
+              </button>
+            </div>
+
             <button 
               onClick={() => {
                 setFile(null);
@@ -432,11 +458,18 @@ export const ContentCreatorModule = () => {
               <Maximize2 className="w-5 h-5" />
             </button>
             <button 
-              onClick={() => handleDownloadPoster()}
+              onClick={() => handleDownloadPoster('poster-preview', 'png')}
               className="p-3 bg-white/90 backdrop-blur-sm text-emerald-600 rounded-2xl shadow-xl hover:bg-white transition-all"
-              title="İndir"
+              title="PNG Olarak İndir"
             >
               <Download className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => handleDownloadPoster('poster-preview', 'jpeg')}
+              className="p-3 bg-white/90 backdrop-blur-sm text-blue-600 rounded-2xl shadow-xl hover:bg-white transition-all"
+              title="JPEG Olarak İndir"
+            >
+              <ImageIcon className="w-5 h-5" />
             </button>
           </div>
 

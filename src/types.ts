@@ -32,6 +32,7 @@ export interface Personnel {
   startDate: string;
   leaveStatus: 'Aktif' | 'İzinli' | 'Ayrıldı';
   group: 'Yönetim' | 'İşçi' | 'Emekli' | 'Engelli' | 'Yabancı' | 'Çırak';
+  type?: 'normal' | 'huzur_hakki';
 }
 
 export interface CompanyProfile {

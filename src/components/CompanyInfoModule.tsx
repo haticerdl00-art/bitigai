@@ -40,7 +40,7 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
 
   const DECLARATIONS = [
     'KDV1', 'KDV2', 'Muhtasar (MPH)', 'Geçici Vergi', 'Yıllık Gelir/Kurumlar', 
-    'Damga Vergisi', 'Ba-Bs Formları', 'GEKAP', 'Turizm Payı', 'ÖTV', 'ÖİV'
+    'Damga Vergisi', 'GEKAP', 'Turizm Payı', 'ÖTV', 'ÖİV'
   ];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -684,6 +684,7 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                         <tr className="bg-slate-50 border-b border-slate-200">
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ad Soyad</th>
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup</th>
+                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tür</th>
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Görev</th>
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">TC / SGK No</th>
                           <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Maaş</th>
@@ -716,6 +717,16 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                                 <option value="Engelli">Engelli</option>
                                 <option value="Yabancı">Yabancı</option>
                                 <option value="Çırak">Çırak</option>
+                              </select>
+                            </td>
+                            <td className="p-3">
+                              <select
+                                value={p.type || 'normal'}
+                                onChange={(e) => handleUpdatePersonnel(p.id, 'type', e.target.value)}
+                                className="w-full bg-transparent border-none focus:ring-0 text-[11px] font-bold text-slate-600"
+                              >
+                                <option value="normal">Normal</option>
+                                <option value="huzur_hakki">Huzur Hakkı</option>
                               </select>
                             </td>
                             <td className="p-3">
