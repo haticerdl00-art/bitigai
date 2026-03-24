@@ -40,10 +40,13 @@ export const MarketPulse = () => {
     setBistData(null);
     setStocks([]);
 
+    console.log('Fetching market data from /api/market/pulse...');
     try {
       const response = await fetch('/api/market/pulse');
+      console.log('Market pulse response status:', response.status);
       
       const contentType = response.headers.get('content-type');
+      console.log('Market pulse content type:', contentType);
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
         console.error('Expected JSON but got:', text.substring(0, 500));
@@ -56,13 +59,16 @@ export const MarketPulse = () => {
         throw new Error(data.error || 'Veriler alınamadı');
       }
       
-      setMarketData([...data.currencies, ...data.gold]);
+      const currencies = (data.currencies || []).map((c: any) => ({ ...c, type: 'currency' }));
+      const gold = (data.gold || []).map((g: any) => ({ ...g, type: 'gold' }));
+      
+      setMarketData([...currencies, ...gold]);
       setBistData({
         label: 'BIST 100',
-        value: data.bist.value,
-        change: data.bist.change
+        value: data.bist?.value || '9150.00',
+        change: data.bist?.change || 0
       });
-      setStocks(data.stocks);
+      setStocks(data.stocks || []);
     } catch (err: any) {
       console.error('Market data error:', err);
       setError(err.message || 'Veri şu an güncellenemedi');

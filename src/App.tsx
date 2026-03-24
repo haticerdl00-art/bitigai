@@ -219,6 +219,7 @@ export default function App() {
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY);
 
   // Firebase Data Sync & Migration
+  // 1. Fetch Companies (Only depends on Auth)
   React.useEffect(() => {
     if (!isAuthenticated || !auth.currentUser) {
       setCompanies([]);
@@ -226,6 +227,7 @@ export default function App() {
     }
 
     const userId = auth.currentUser.uid;
+    console.log('Subscribing to companies for user:', userId);
     const companiesRef = collection(db, 'companies');
     const q = query(companiesRef, where('ownerId', '==', userId));
 
@@ -234,31 +236,18 @@ export default function App() {
       snapshot.forEach((doc) => {
         companiesData.push({ id: doc.id, ...doc.data() } as CompanyProfile);
       });
-      console.log('Fetched companies:', companiesData.length);
+      console.log('Fetched companies from Firestore:', companiesData.length, companiesData.map(c => c.title));
       setCompanies(companiesData);
-      
-      // Update selected company profile if it exists in the new data
-      if (selectedCompanyId) {
-        const found = companiesData.find(c => c.id === selectedCompanyId);
-        if (found) {
-          setCompanyProfile(found);
-        } else if (companiesData.length > 0) {
-          setCompanyProfile(companiesData[0]);
-          setDoc(doc(db, 'users', userId, 'settings', 'selectedCompany'), { id: companiesData[0].id }, { merge: true });
-        }
-      } else if (companiesData.length > 0) {
-        setCompanyProfile(companiesData[0]);
-        setDoc(doc(db, 'users', userId, 'settings', 'selectedCompany'), { id: companiesData[0].id }, { merge: true });
-      }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'companies');
     });
 
-    // Migration Logic
+    // Migration Logic (Run once on auth)
     const migrateData = async () => {
       const saved = localStorage.getItem('companies_data');
       if (saved) {
         try {
+          console.log('Found local data, migrating...');
           const localCompanies = JSON.parse(saved) as CompanyProfile[];
           const batch = writeBatch(db);
           
@@ -278,9 +267,35 @@ export default function App() {
     };
 
     migrateData();
-
     return () => unsubscribe();
-  }, [isAuthenticated, selectedCompanyId]);
+  }, [isAuthenticated]);
+
+  // 2. Sync Selected Company Profile
+  React.useEffect(() => {
+    if (companies.length === 0) {
+      setCompanyProfile(DEFAULT_COMPANY);
+      return;
+    }
+
+    if (selectedCompanyId) {
+      const found = companies.find(c => c.id === selectedCompanyId);
+      if (found) {
+        setCompanyProfile(found);
+      } else {
+        // If selected company not found in list, fall back to first one
+        setCompanyProfile(companies[0]);
+        if (auth.currentUser) {
+          setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'selectedCompany'), { id: companies[0].id }, { merge: true });
+        }
+      }
+    } else {
+      // No selection, pick first one
+      setCompanyProfile(companies[0]);
+      if (auth.currentUser) {
+        setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'selectedCompany'), { id: companies[0].id }, { merge: true });
+      }
+    }
+  }, [companies, selectedCompanyId, isAuthenticated]);
 
   const handleSetCompanyProfile = async (profile: CompanyProfile) => {
     setCompanyProfile(profile);

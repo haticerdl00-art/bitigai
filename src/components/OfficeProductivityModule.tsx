@@ -1448,6 +1448,20 @@ function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfi
     }
   };
 
+  if (companies.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-dashed border-slate-200 text-center space-y-4">
+        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+          <Building2 className="w-8 h-8 text-slate-300" />
+        </div>
+        <div>
+          <h3 className="font-bold text-slate-800">Henüz Firma Eklenmemiş</h3>
+          <p className="text-sm text-slate-500 max-w-xs mx-auto">Beyanname takibi yapabilmek için önce profilinizden firma eklemelisiniz.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Tab Switcher */}
@@ -2149,6 +2163,20 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
   const toplamBrut = firmaPersonel.reduce((acc, p) => acc + p.brut, 0);
   const toplamNet = firmaPersonel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).net, 0);
   const toplamMaliyet = firmaPersonel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).toplamMaliyet, 0);
+
+  if (companies.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-dashed border-slate-200 text-center space-y-4">
+        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+          <Users className="w-8 h-8 text-slate-300" />
+        </div>
+        <div>
+          <h3 className="font-bold text-slate-800">Henüz Firma Eklenmemiş</h3>
+          <p className="text-sm text-slate-500 max-w-xs mx-auto">Personel ve bordro yönetimi için önce profilinizden firma eklemelisiniz.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
