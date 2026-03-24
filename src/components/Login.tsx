@@ -9,6 +9,21 @@ interface LoginProps {
 
 export const Login = ({ onLogin }: LoginProps) => {
   const [showKVKK, setShowKVKK] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLoginClick = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await onLogin();
+    } catch (err: any) {
+      console.error("Login component error:", err);
+      setError(err.message || "Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2] p-6 relative overflow-hidden">
@@ -44,12 +59,23 @@ export const Login = ({ onLogin }: LoginProps) => {
               <p className="text-sm text-[#8D6E63]">Uygulamaya erişmek için Google hesabınızla giriş yapın.</p>
             </div>
 
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl text-center">
+                {error}
+              </div>
+            )}
+
             <button
-              onClick={onLogin}
-              className="w-full py-4 bg-white text-[#5D4037] font-bold rounded-xl border border-[#E8D5C4] hover:bg-[#FAF7F2] shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+              onClick={handleLoginClick}
+              disabled={isLoading}
+              className="w-full py-4 bg-white text-[#5D4037] font-bold rounded-xl border border-[#E8D5C4] hover:bg-[#FAF7F2] shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-              <span>Google ile Giriş Yap</span>
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-[#5D4037] border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+              )}
+              <span>{isLoading ? 'Giriş Yapılıyor...' : 'Google ile Giriş Yap'}</span>
             </button>
 
             <div className="pt-4 border-t border-[#E8D5C4]">

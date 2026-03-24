@@ -42,6 +42,23 @@ service cloud.firestore {
     //   - type: string (required, enum: ["sent", "received"])
     //   - createdAt: string (required, date-time format)
     //
+    // Collection: /users/{userId}
+    // Document ID: userId (unique string)
+    // Fields:
+    //   - id: string (optional)
+    //   - fullName: string (required)
+    //   - username: string (optional)
+    //   - title: string (optional)
+    //   - email: string (required, email format)
+    //   - phone: string (optional)
+    //
+    // Collection: /users/{userId}/settings/{settingId}
+    // Document ID: settingId (unique string)
+    // Fields:
+    //   - id: string (optional)
+    //   - order: list (optional)
+    //   - updatedAt: timestamp (optional)
+    //
     // ===============================================================
 
     // ===============================================================
@@ -84,6 +101,16 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
 
+    function isValidUser(data) {
+      return hasRequiredFields(['fullName', 'email']) &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 100 &&
+             isValidEmail(data.email);
+    }
+
+    function isValidSettings(data) {
+      return true; // Simple validation for settings
+    }
+
     function isValidCompany(data) {
       return hasRequiredFields(['title', 'ownerId']) &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
@@ -110,6 +137,17 @@ service cloud.firestore {
     // ===============================================================
     // Rules
     // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+
+      match /settings/{settingId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidSettings(request.resource.data);
+      }
+    }
 
     match /companies/{companyId} {
       allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;

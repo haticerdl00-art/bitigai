@@ -47,9 +47,41 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["companyId", "text", "type"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Kullanıcı profil bilgileri.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "username": { "type": "string" },
+        "title": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["fullName", "email"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Kullanıcı ayarları.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "order": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Kullanıcı profilleri"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "Kullanıcı ayarları"
+    },
     "/companies/{companyId}": {
       "schema": "Company",
       "description": "Firmaların listesi"
