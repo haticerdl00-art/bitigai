@@ -11,7 +11,7 @@ interface Message {
   isStreaming?: boolean;
 }
 
-export const ChatModule = ({ companies = [] }: { companies?: any[] }) => {
+export const ChatModule = ({ companies = [], userId }: { companies?: any[], userId?: string }) => {
   const [messages, setMessages] = useState<Message[]>([
     { id: '1', role: 'model', text: 'Merhaba! Ben eylem odaklı akıllı asistanınızım. Size mevzuat danışmanlığı yapabilir, notlarınızı kaydedebilir veya beyanname süreçlerinizi takip edebilirim. Nasıl yardımcı olabilirim?' }
   ]);
@@ -118,7 +118,9 @@ export const ChatModule = ({ companies = [] }: { companies?: any[] }) => {
       while ((match = actionRegex.exec(fullText)) !== null) {
         try {
           const actionData = JSON.parse(match[1]);
-          handleAssistantAction(actionData);
+          if (userId) {
+            await handleAssistantAction(actionData, userId, companies);
+          }
         } catch (e) {
           console.error("Action parse error:", e);
         }

@@ -59,6 +59,20 @@ import { ContentCreatorModule } from './components/ContentCreatorModule';
 import { fetchLatestLegislation } from './services/geminiService';
 import { ModuleId, UserProfile, CompanyProfile } from './types';
 import { MEVZUAT_DATA } from './data/legislationData';
+import { auth, loginWithGoogle, logout, db, handleFirestoreError, OperationType } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  setDoc, 
+  doc, 
+  deleteDoc, 
+  getDocs,
+  writeBatch,
+  serverTimestamp
+} from 'firebase/firestore';
 
 // Components for each module (simplified for initial structure)
 const ModulePlaceholder = ({ title, description }: { title: string, description: string }) => (
@@ -136,42 +150,162 @@ const DEFAULT_COMPANY: CompanyProfile = {
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('is_authenticated') === 'true';
-  });
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('user_profile_v2');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [companies, setCompanies] = useState<CompanyProfile[]>(() => {
-    const saved = localStorage.getItem('companies_data');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing companies data:', e);
-      }
-    }
-    return [];
-  });
-  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => {
-    const saved = localStorage.getItem('selected_company_id');
-    if (saved) {
-      const found = companies.find(c => c.id === saved);
-      if (found) return found;
-    }
-    return companies[0] || DEFAULT_COMPANY;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
 
-  const handleSetCompanyProfile = (profile: CompanyProfile) => {
+  // Firebase Auth Listener
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setIsAuthenticated(true);
+        
+        // Fetch user profile from Firestore
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setUser({ id: docSnap.id, ...docSnap.data() } as UserProfile);
+          } else {
+            // Initialize profile if it doesn't exist
+            const initialProfile: UserProfile = {
+              id: firebaseUser.uid,
+              fullName: firebaseUser.displayName || 'Kullanıcı',
+              username: firebaseUser.email?.split('@')[0] || 'user',
+              title: 'Mali Müşavir',
+              email: firebaseUser.email || '',
+              phone: firebaseUser.phoneNumber || ''
+            };
+            setDoc(userDocRef, initialProfile);
+            setUser(initialProfile);
+          }
+        });
+
+        // Fetch settings (sidebar, active module, etc.)
+        const sidebarRef = doc(db, 'users', firebaseUser.uid, 'settings', 'sidebar');
+        onSnapshot(sidebarRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const order = docSnap.data().order as ModuleId[];
+            const savedModules = order.map(id => defaultModules.find(m => m.id === id)).filter(Boolean) as typeof defaultModules;
+            const missingModules = defaultModules.filter(m => !order.includes(m.id));
+            setSidebarModules([...savedModules, ...missingModules]);
+          }
+        });
+
+        const activeModuleRef = doc(db, 'users', firebaseUser.uid, 'settings', 'activeModule');
+        onSnapshot(activeModuleRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setActiveModule(docSnap.data().id as ModuleId);
+          }
+        });
+
+        const selectedCompanyRef = doc(db, 'users', firebaseUser.uid, 'settings', 'selectedCompany');
+        onSnapshot(selectedCompanyRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setSelectedCompanyId(docSnap.data().id);
+          }
+        });
+
+      } else {
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY);
+
+  // Firebase Data Sync & Migration
+  React.useEffect(() => {
+    if (!isAuthenticated || !auth.currentUser) {
+      setCompanies([]);
+      return;
+    }
+
+    const userId = auth.currentUser.uid;
+    const companiesRef = collection(db, 'companies');
+    const q = query(companiesRef, where('ownerId', '==', userId));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const companiesData: CompanyProfile[] = [];
+      snapshot.forEach((doc) => {
+        companiesData.push({ id: doc.id, ...doc.data() } as CompanyProfile);
+      });
+      setCompanies(companiesData);
+      
+      // Update selected company profile if it exists in the new data
+      if (selectedCompanyId) {
+        const found = companiesData.find(c => c.id === selectedCompanyId);
+        if (found) {
+          setCompanyProfile(found);
+        } else if (companiesData.length > 0) {
+          setCompanyProfile(companiesData[0]);
+          setDoc(doc(db, 'users', userId, 'settings', 'selectedCompany'), { id: companiesData[0].id }, { merge: true });
+        }
+      } else if (companiesData.length > 0) {
+        setCompanyProfile(companiesData[0]);
+        setDoc(doc(db, 'users', userId, 'settings', 'selectedCompany'), { id: companiesData[0].id }, { merge: true });
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'companies');
+    });
+
+    // Migration Logic
+    const migrateData = async () => {
+      const saved = localStorage.getItem('companies_data');
+      if (saved) {
+        try {
+          const localCompanies = JSON.parse(saved) as CompanyProfile[];
+          const batch = writeBatch(db);
+          
+          for (const comp of localCompanies) {
+            const newDocRef = doc(collection(db, 'companies'));
+            const { id, ...rest } = comp;
+            batch.set(newDocRef, { ...rest, ownerId: userId });
+          }
+          
+          await batch.commit();
+          localStorage.removeItem('companies_data');
+          console.log('Migration successful');
+        } catch (error) {
+          console.error('Migration failed:', error);
+        }
+      }
+    };
+
+    migrateData();
+
+    return () => unsubscribe();
+  }, [isAuthenticated]);
+
+  const handleSetCompanyProfile = async (profile: CompanyProfile) => {
     setCompanyProfile(profile);
-    localStorage.setItem('selected_company_id', profile.id);
+    if (!auth.currentUser) return;
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'selectedCompany'), {
+        id: profile.id,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser.uid}/settings/selectedCompany`);
+    }
   };
   const [activeModule, setActiveModule] = useState<ModuleId>(ModuleId.DASHBOARD);
 
-  const handleSetActiveModule = (id: ModuleId) => {
+  const handleSetActiveModule = async (id: ModuleId) => {
     setActiveModule(id);
-    localStorage.setItem('active_module_v3', id);
+    if (!auth.currentUser) return;
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'activeModule'), {
+        id,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser.uid}/settings/activeModule`);
+    }
   };
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -223,80 +357,92 @@ export default function App() {
     { id: ModuleId.PROFIL, title: 'Profil', icon: User, desc: 'Kullanıcı profil bilgileri ve hesap ayarları.' },
   ];
 
-  const [sidebarModules, setSidebarModules] = useState(() => {
-    const saved = localStorage.getItem('sidebar_order_v3');
-    if (saved) {
-      try {
-        const order = JSON.parse(saved) as ModuleId[];
-        const savedModules = order.map(id => defaultModules.find(m => m.id === id)).filter(Boolean) as typeof defaultModules;
-        const missingModules = defaultModules.filter(m => !order.includes(m.id));
-        return [...savedModules, ...missingModules];
-      } catch (e) {
-        return defaultModules;
-      }
-    }
-    return defaultModules;
-  });
+  const [sidebarModules, setSidebarModules] = useState<typeof defaultModules>(defaultModules);
 
-  const handleReorder = (newOrder: typeof sidebarModules) => {
+  const handleReorder = async (newOrder: typeof sidebarModules) => {
     setSidebarModules(newOrder);
-    localStorage.setItem('sidebar_order_v3', JSON.stringify(newOrder.map(m => m.id)));
-  };
-
-  const handleLogin = (name: string, title: string) => {
-    setIsAuthenticated(true);
-    const profile = {
-      fullName: name,
-      username: title,
-      email: '',
-      phone: ''
-    };
-    setUser(profile);
-    localStorage.setItem('is_authenticated', 'true');
-    localStorage.setItem('user_profile_v2', JSON.stringify(profile));
-  };
-
-  const handleUpdateProfile = (updatedProfile: UserProfile) => {
-    setUser(updatedProfile);
-    localStorage.setItem('user_profile_v2', JSON.stringify(updatedProfile));
-  };
-
-  const handleUpdateCompanyProfile = (updatedProfile: CompanyProfile) => {
-    const newCompanies = companies.map(c => c.id === updatedProfile.id ? updatedProfile : c);
-    setCompanies(newCompanies);
-    handleSetCompanyProfile(updatedProfile);
-    localStorage.setItem('companies_data', JSON.stringify(newCompanies));
-  };
-
-  const handleAddCompany = (newCompany: CompanyProfile) => {
-    const newCompanies = [...companies, newCompany];
-    setCompanies(newCompanies);
-    handleSetCompanyProfile(newCompany);
-    localStorage.setItem('companies_data', JSON.stringify(newCompanies));
-  };
-
-  const handleDeleteCompany = (id: string) => {
-    const updated = companies.filter(c => c.id !== id);
-    setCompanies(updated);
-    localStorage.setItem('companies_data', JSON.stringify(updated));
-    
-    // Clean up associated data
-    localStorage.removeItem(`mizan_data_${id}`);
-    
-    if (companyProfile && companyProfile.id === id) {
-      if (updated.length > 0) {
-        handleSetCompanyProfile(updated[0]);
-      } else {
-        handleSetCompanyProfile(DEFAULT_COMPANY);
-      }
+    if (!auth.currentUser) return;
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'sidebar'), {
+        order: newOrder.map(m => m.id),
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser.uid}/settings/sidebar`);
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUser(null);
-    localStorage.removeItem('is_authenticated');
-    localStorage.removeItem('user_profile_v2');
+  const handleLogin = async () => {
+    try {
+      await loginWithGoogle();
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
+  };
+
+  const handleUpdateProfile = async (updatedProfile: UserProfile) => {
+    setUser(updatedProfile);
+    if (!auth.currentUser) return;
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid), {
+        ...updatedProfile,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser.uid}`);
+    }
+  };
+
+  const handleUpdateCompanyProfile = async (updatedProfile: CompanyProfile) => {
+    if (!auth.currentUser) return;
+    try {
+      const { id, ...rest } = updatedProfile;
+      await setDoc(doc(db, 'companies', id), { ...rest, ownerId: auth.currentUser.uid });
+      handleSetCompanyProfile(updatedProfile);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `companies/${updatedProfile.id}`);
+    }
+  };
+
+  const handleAddCompany = async (newCompany: CompanyProfile) => {
+    if (!auth.currentUser) return;
+    try {
+      const newDocRef = doc(collection(db, 'companies'));
+      const { id, ...rest } = newCompany;
+      const finalCompany = { ...rest, id: newDocRef.id, ownerId: auth.currentUser.uid };
+      await setDoc(newDocRef, finalCompany);
+      handleSetCompanyProfile(finalCompany as CompanyProfile);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'companies');
+    }
+  };
+
+  const handleDeleteCompany = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'companies', id));
+      
+      // Clean up associated data
+      localStorage.removeItem(`mizan_data_${id}`);
+      
+      if (companyProfile && companyProfile.id === id) {
+        const updated = companies.filter(c => c.id !== id);
+        if (updated.length > 0) {
+          handleSetCompanyProfile(updated[0]);
+        } else {
+          handleSetCompanyProfile(DEFAULT_COMPANY);
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `companies/${id}`);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
   const handleDeleteAllData = () => {
@@ -307,6 +453,10 @@ export default function App() {
   };
 
   if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!isAuthReady) {
     return <LoadingScreen />;
   }
 
@@ -323,18 +473,18 @@ export default function App() {
           </div>
         );
       case ModuleId.CHAT:
-        return <ChatModule companies={companies} />;
+        return <ChatModule userId={user?.id} companies={companies} />;
       case ModuleId.MEVZUAT:
         return <LegislationModule profile={companyProfile} companies={companies} />;
       case ModuleId.OCR:
-        return <OCRModule onTransfer={(data) => {
+        return <OCRModule profile={companyProfile} onTransfer={(data) => {
           setOcrTransferData([data]);
           handleSetActiveModule(ModuleId.FIS_AKTARIM);
         }} />;
       case ModuleId.CONTENT_CREATOR:
-        return <ContentCreatorModule />;
+        return <ContentCreatorModule user={user} />;
       case ModuleId.FIS_AKTARIM:
-        return <VoucherTransferModule initialData={ocrTransferData || undefined} />;
+        return <VoucherTransferModule initialData={ocrTransferData || undefined} profile={companyProfile} />;
       case ModuleId.NAKIT_AKIS:
         return <CashFlowModule profile={companyProfile} />;
       case ModuleId.MALIYET_ANALIZI:
@@ -344,7 +494,7 @@ export default function App() {
       case ModuleId.MUSTERI_ILETISIM:
       case ModuleId.PERSONEL_BORDRO:
       case ModuleId.HESAPLAMALAR:
-        return <OfficeProductivityModule activeTab={activeModule} companies={companies} />;
+        return <OfficeProductivityModule activeTab={activeModule} companies={companies} profile={companyProfile} />;
       case ModuleId.FIRMA_BILGISI:
         return (
           <CompanyInfoModule 

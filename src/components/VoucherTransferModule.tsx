@@ -1,8 +1,22 @@
-import React, { useState, useRef } from 'react';
-import { Download, Plus, Trash2, FileSpreadsheet, Search, Upload, Loader2, FileText } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Download, Plus, Trash2, FileSpreadsheet, Search, Upload, Loader2, FileText, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { analyzeVoucher } from '../services/geminiService';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { 
+  collection, 
+  doc, 
+  onSnapshot, 
+  addDoc, 
+  setDoc,
+  deleteDoc, 
+  query, 
+  orderBy, 
+  serverTimestamp,
+  getDocs
+} from 'firebase/firestore';
+import { CompanyProfile } from '../types';
 
 interface VoucherRow {
   id: string;
@@ -61,32 +75,97 @@ const MIZAN_MAPPING: Record<string, string> = {
   '7/10 TEV. GİDER': '770.23',
 };
 
-export const VoucherTransferModule = ({ initialData }: { initialData?: any[] }) => {
-  const [rows, setRows] = useState<VoucherRow[]>(() => {
-    if (initialData && initialData.length > 0) {
-      return initialData.map(d => ({
-        id: crypto.randomUUID(),
-        faturaTarihi: d.faturaTarihi || '',
-        faturaNo: d.faturaNo || '',
-        vkn: d.vkn || '',
-        cari: d.cari || '',
-        matrah: d.matrah || '',
-        kdvOrani: d.kdvOrani || '',
-        kdvTutari: d.kdvTutari || '',
-        kdvDahilToplam: d.kdvDahilToplam || '',
-        toplamTutar: d.toplamTutar || '',
-        faturaTuru: d.faturaTuru || '',
-        faturaTipi: d.faturaTipi || 'Alış',
-        hesapKodu: d.hesapKodu || ''
-      }));
-    }
-    return [{ id: crypto.randomUUID(), faturaTarihi: '', faturaNo: '', vkn: '', cari: '', matrah: '', kdvOrani: '', kdvTutari: '', kdvDahilToplam: '', toplamTutar: '', faturaTuru: '', faturaTipi: 'Alış', hesapKodu: '' }];
-  });
+export const VoucherTransferModule = ({ initialData, profile }: { initialData?: any[], profile?: CompanyProfile }) => {
+  const [rows, setRows] = useState<VoucherRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<string[]>([]);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [accountHistory, setAccountHistory] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!profile?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const vouchersRef = collection(db, 'companies', profile.id, 'vouchers');
+    const q = query(vouchersRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const vouchersData: VoucherRow[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        vouchersData.push({
+          id: doc.id,
+          faturaTarihi: data.faturaTarihi || '',
+          faturaNo: data.faturaNo || '',
+          vkn: data.vkn || '',
+          cari: data.cari || '',
+          matrah: data.matrah || '',
+          kdvOrani: data.kdvOrani || '',
+          kdvTutari: data.kdvTutari || '',
+          kdvDahilToplam: data.kdvDahilToplam || '',
+          toplamTutar: data.toplamTutar || '',
+          faturaTuru: data.faturaTuru || '',
+          faturaTipi: data.faturaTipi || 'Alış',
+          hesapKodu: data.hesapKodu || '',
+          tevkifatOrani: data.tevkifatOrani,
+          tevkifatTutari: data.tevkifatTutari,
+          tevkifatKodu: data.tevkifatKodu,
+          iskontoTutari: data.iskontoTutari,
+          iadeTutari: data.iadeTutari,
+        });
+      });
+
+      if (vouchersData.length === 0 && initialData && initialData.length > 0) {
+        setRows(initialData.map(d => ({
+          id: crypto.randomUUID(),
+          ...d,
+          faturaTipi: d.faturaTipi || 'Alış'
+        })));
+      } else if (vouchersData.length > 0) {
+        setRows(vouchersData);
+      } else {
+        setRows([{ id: crypto.randomUUID(), faturaTarihi: '', faturaNo: '', vkn: '', cari: '', matrah: '', kdvOrani: '', kdvTutari: '', kdvDahilToplam: '', toplamTutar: '', faturaTuru: '', faturaTipi: 'Alış', hesapKodu: '' }]);
+      }
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `companies/${profile.id}/vouchers`);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [profile?.id, initialData]);
+
+  const saveToFirestore = async () => {
+    if (!profile?.id || !auth.currentUser) return;
+    setIsSaving(true);
+    try {
+      const vouchersRef = collection(db, 'companies', profile.id, 'vouchers');
+      
+      // For simplicity, we'll save each row. In a real app, you might want a batch or only save changed rows.
+      for (const row of rows) {
+        if (!row.faturaTarihi && !row.cari) continue; // Skip empty rows
+        
+        const { id, ...data } = row;
+        const docRef = doc(vouchersRef, id);
+        await setDoc(docRef, {
+          ...data,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(), // This will be ignored if doc exists and we use merge, but setDoc overwrites
+          ownerId: auth.currentUser.uid
+        }, { merge: true });
+      }
+      alert("Veriler başarıyla kaydedildi.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `companies/${profile.id}/vouchers`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const optionalColumns = [
     { id: 'tevkifatOrani', label: 'Tevkifat Oranı' },
@@ -520,6 +599,14 @@ export const VoucherTransferModule = ({ initialData }: { initialData?: any[] }) 
           >
             <Plus className="w-4 h-4" />
             Yeni Satır Ekle
+          </button>
+          <button 
+            onClick={saveToFirestore}
+            disabled={isSaving}
+            className="flex items-center gap-2 px-4 py-2 bg-kilim-blue text-white rounded-xl hover:bg-kilim-blue/90 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Buluta Kaydet
           </button>
           <button 
             onClick={exportToExcel}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
   Upload, 
@@ -20,6 +20,17 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, CompanyDocument } from '../types';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  serverTimestamp 
+} from 'firebase/firestore';
 
 interface DocumentsModuleProps {
   companies: CompanyProfile[];
@@ -29,52 +40,39 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
   const [selectedCompany, setSelectedCompany] = useState<CompanyProfile | null>(companies[0] || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('Tümü');
+  const [documents, setDocuments] = useState<CompanyDocument[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock documents data
-  const [documents, setDocuments] = useState<CompanyDocument[]>([
-    {
-      id: '1',
-      companyId: '1',
-      title: '2024 Vergi Levhası',
-      type: 'Vergi Levhası',
-      uploadDate: '2024-01-15',
-      fileUrl: '#',
-      fileType: 'pdf',
-      status: 'Geçerli'
-    },
-    {
-      id: '2',
-      companyId: '1',
-      title: 'İmza Sirküleri - 2025',
-      type: 'İmza Sirküsü',
-      uploadDate: '2025-02-10',
-      fileUrl: '#',
-      fileType: 'pdf',
-      status: 'Geçerli',
-      expiryDate: '2026-02-10'
-    },
-    {
-      id: '3',
-      companyId: '1',
-      title: 'Ticaret Sicil Gazetesi - Kuruluş',
-      type: 'Ticaret Sicil Gazetesi',
-      uploadDate: '2020-01-01',
-      fileUrl: '#',
-      fileType: 'pdf',
-      status: 'Geçerli'
-    },
-    {
-      id: '4',
-      companyId: '2',
-      title: 'Faaliyet Belgesi',
-      type: 'Faaliyet Belgesi',
-      uploadDate: '2024-11-20',
-      fileUrl: '#',
-      fileType: 'pdf',
-      status: 'Süresi Dolmuş',
-      expiryDate: '2025-02-20'
-    }
-  ]);
+  useEffect(() => {
+    if (!selectedCompany || !auth.currentUser) return;
+
+    setLoading(true);
+    const docsRef = collection(db, 'documents');
+    const q = query(
+      docsRef, 
+      where('companyId', '==', selectedCompany.id),
+      where('ownerId', '==', auth.currentUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docsData: CompanyDocument[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        docsData.push({
+          id: doc.id,
+          ...data,
+          uploadDate: data.uploadDate?.toDate ? data.uploadDate.toDate().toISOString().split('T')[0] : data.uploadDate
+        } as CompanyDocument);
+      });
+      setDocuments(docsData);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'documents');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [selectedCompany]);
 
   const documentTypes = [
     'Vergi Levhası',
@@ -90,34 +88,44 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
   ];
 
   const filteredDocs = documents.filter(doc => {
-    const matchesCompany = selectedCompany ? doc.companyId === selectedCompany.id : true;
     const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          doc.type.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterType === 'Tümü' || doc.type === filterType;
-    return matchesCompany && matchesSearch && matchesFilter;
+    return matchesSearch && matchesFilter;
   });
 
-  const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !selectedCompany || !auth.currentUser) return;
 
-    // Simulate upload
-    const newDoc: CompanyDocument = {
-      id: Math.random().toString(36).substr(2, 9),
-      companyId: selectedCompany?.id || '1',
-      title: file.name,
-      type: 'Diğer',
-      uploadDate: new Date().toISOString().split('T')[0],
-      fileUrl: URL.createObjectURL(file),
-      fileType: (file.name.split('.').pop()?.toLowerCase() as any) || 'pdf',
-      status: 'Geçerli'
-    };
-    setDocuments([...documents, newDoc]);
+    try {
+      // In a real app, we would upload to Firebase Storage first
+      // For now, we store metadata and a local URL (which won't persist across sessions/users)
+      const newDocMetadata = {
+        companyId: selectedCompany.id,
+        ownerId: auth.currentUser.uid,
+        title: file.name,
+        type: 'Diğer',
+        uploadDate: serverTimestamp(),
+        fileUrl: URL.createObjectURL(file), // Local URL for demo
+        fileType: (file.name.split('.').pop()?.toLowerCase() as any) || 'pdf',
+        status: 'Geçerli',
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'documents'), newDocMetadata);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'documents');
+    }
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Bu belgeyi silmek istediğinize emin misiniz?')) {
-      setDocuments(documents.filter(doc => doc.id !== id));
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Bu belgeyi silmek istediğinize emin misiniz?')) {
+      try {
+        await deleteDoc(doc(db, 'documents', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `documents/${id}`);
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -44,6 +44,8 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, MizanData } from '../types';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 interface CashFlowModuleProps {
   profile: CompanyProfile;
@@ -64,13 +66,25 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
     otherRefunds: 0
   });
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [mizanData, setMizanData] = useState<MizanData | null>(null);
 
-  const mizanData = useMemo(() => {
-    const saved = localStorage.getItem(`mizan_data_${profile.id}`);
-    if (saved) {
-      return JSON.parse(saved) as MizanData;
-    }
-    return null;
+  useEffect(() => {
+    if (!profile.id || !auth.currentUser) return;
+
+    const mizanRef = doc(db, 'companies', profile.id, 'mizan', 'current');
+    const unsubscribe = onSnapshot(mizanRef, (doc) => {
+      if (doc.exists()) {
+        setMizanData(doc.data() as MizanData);
+        setMizanUploaded(true);
+      } else {
+        setMizanData(null);
+        setMizanUploaded(false);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `companies/${profile.id}/mizan/current`);
+    });
+
+    return () => unsubscribe();
   }, [profile.id]);
 
   const currentLiquidity = useMemo(() => {

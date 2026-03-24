@@ -32,6 +32,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import html2canvas from 'html2canvas';
 import { analyzeDocumentForContent } from '../services/geminiService';
 
+import { UserProfile } from '../types';
+
 type ContentType = 'hap-not' | 'ozet' | 'afis';
 type FormatType = 'square' | 'horizontal';
 
@@ -47,7 +49,7 @@ interface AnalysisResult {
   };
 }
 
-export const ContentCreatorModule = () => {
+export const ContentCreatorModule = ({ user }: { user: UserProfile | null }) => {
   const [file, setFile] = useState<File | null>(null);
   const [manualText, setManualText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -84,7 +86,7 @@ export const ContentCreatorModule = () => {
   };
 
   // Profile integration
-  const profile = JSON.parse(localStorage.getItem('user_profile_v2') || '{"fullName": "Hatice Erdal", "username": "Mali Müşavir"}');
+  const profile = user || { fullName: "Hatice Erdal", username: "hatice", title: "Mali Müşavir" };
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {

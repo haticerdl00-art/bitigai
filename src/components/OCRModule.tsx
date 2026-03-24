@@ -12,8 +12,17 @@ import {
   Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
 import { GoogleGenAI, Type } from "@google/genai";
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  addDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
+
+import { CompanyProfile } from '../types';
 
 interface OCRField {
   key: string;
@@ -28,7 +37,7 @@ interface OCRResult {
   sourceId: string;
 }
 
-export const OCRModule = ({ onTransfer }: { onTransfer: (data: any) => void }) => {
+export const OCRModule = ({ onTransfer, profile }: { onTransfer: (data: any) => void, profile: CompanyProfile }) => {
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState<'fatura' | 'mizan'>('fatura');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -138,14 +147,17 @@ export const OCRModule = ({ onTransfer }: { onTransfer: (data: any) => void }) =
   };
 
   const handleConfirm = async () => {
-    if (!result) return;
+    if (!result || !auth.currentUser) return;
     
+    const companyId = profile.id;
+
     if (docType === 'mizan') {
       // Handle Mizan Data
       const parseVal = (val: string) => parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
       
       const mizanData = {
-        companyId: localStorage.getItem('selected_company_id') || 'default',
+        companyId,
+        ownerId: auth.currentUser.uid,
         period: new Date().toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }),
         accounts: result.fields.map(f => ({
           code: f.key.split(' ')[0],
@@ -162,14 +174,19 @@ export const OCRModule = ({ onTransfer }: { onTransfer: (data: any) => void }) =
           adatRisk131: parseVal(result.fields.find(f => f.key.includes('131'))?.value || '0') > 50000,
           adatRisk331: parseVal(result.fields.find(f => f.key.includes('331'))?.value || '0') > 50000,
           highCashRisk: parseVal(result.fields.find(f => f.key.includes('100'))?.value || '0') > 100000,
-        }
+        },
+        updatedAt: serverTimestamp()
       };
 
-      localStorage.setItem(`mizan_data_${mizanData.companyId}`, JSON.stringify(mizanData));
-      alert('Mizan verileri başarıyla kaydedildi ve Finansal Durum sayfasına aktarıldı.');
-      setResult(null);
-      setFile(null);
-      setPreviewUrl(null);
+      try {
+        await setDoc(doc(db, 'companies', companyId, 'mizan', 'current'), mizanData);
+        alert('Mizan verileri başarıyla kaydedildi ve Finansal Durum sayfasına aktarıldı.');
+        setResult(null);
+        setFile(null);
+        setPreviewUrl(null);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `companies/${companyId}/mizan/current`);
+      }
       return;
     }
 
@@ -183,26 +200,21 @@ export const OCRModule = ({ onTransfer }: { onTransfer: (data: any) => void }) =
       kdv: result.fields.find(f => f.key === 'KDV Tutarı')?.value.replace(/[^0-9,.]/g, '').replace(',', '.') || '',
       kdvDahilToplam: result.fields.find(f => f.key === 'KDV Dahil Toplam')?.value.replace(/[^0-9,.]/g, '').replace(',', '.') || '',
       faturaTipi: result.fields.find(f => f.key === 'Fatura Tipi')?.value || 'Alış', // Alış/Satış
-      kaynakBelgeId: result.sourceId
+      kaynakBelgeId: result.sourceId,
+      ownerId: auth.currentUser.uid,
+      createdAt: serverTimestamp()
     };
 
     try {
-      const response = await fetch('/api/fis/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(transferData)
-      });
-      const data = await response.json();
-      if (data.success) {
-        onTransfer(transferData);
-        alert(`Fiş oluşturuldu! ID: ${data.fisId}`);
-        setResult(null);
-        setFile(null);
-        setPreviewUrl(null);
-      }
+      const vouchersRef = collection(db, 'companies', companyId, 'vouchers');
+      await addDoc(vouchersRef, transferData);
+      onTransfer(transferData);
+      alert(`Fiş oluşturuldu ve aktarıldı!`);
+      setResult(null);
+      setFile(null);
+      setPreviewUrl(null);
     } catch (error) {
-      console.error('Transfer Error:', error);
-      alert('Aktarım sırasında bir hata oluştu.');
+      handleFirestoreError(error, OperationType.CREATE, `companies/${companyId}/vouchers`);
     }
   };
 

@@ -73,8 +73,10 @@ export interface CompanyProfile {
 }
 
 export interface UserProfile {
+  id?: string;
   fullName: string;
   username: string;
+  title?: string;
   email: string;
   phone: string;
   instagram?: string;

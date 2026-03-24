@@ -12,18 +12,37 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { getCalendarItems, CalendarItem } from '../utils/calendarUtils';
 
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+
 type BeratPreference = 'aylik' | 'gecici';
 
 export const CalendarModule = () => {
   const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 3)); // Starting at March 2026 as per user context
-  const [beratPreference, setBeratPreference] = useState<BeratPreference>(() => {
-    const saved = localStorage.getItem('berat_preference');
-    return (saved as BeratPreference) || 'aylik';
-  });
+  const [beratPreference, setBeratPreference] = useState<BeratPreference>('aylik');
 
-  const handleSetBeratPreference = (pref: BeratPreference) => {
+  React.useEffect(() => {
+    if (!auth.currentUser) return;
+    const settingsRef = doc(db, 'users', auth.currentUser.uid, 'settings', 'calendar');
+    const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setBeratPreference(docSnap.data().beratPreference as BeratPreference);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleSetBeratPreference = async (pref: BeratPreference) => {
     setBeratPreference(pref);
-    localStorage.setItem('berat_preference', pref);
+    if (!auth.currentUser) return;
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'calendar'), {
+        beratPreference: pref,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser.uid}/settings/calendar`);
+    }
   };
 
   const calendarItems = useMemo(() => {

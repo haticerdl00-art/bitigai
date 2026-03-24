@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Firma bilgilerini saklayan ana varlık.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "vkn": { "type": "string" },
+        "taxOffice": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "ownerId": { "type": "string", "description": "Firmayı oluşturan mali müşavirin UID'si" }
+      },
+      "required": ["title", "ownerId"]
+    },
+    "Personnel": {
+      "title": "Personnel",
+      "description": "Firmaya bağlı çalışan personel bilgileri.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "idNumber": { "type": "string" },
+        "role": { "type": "string" },
+        "netSalary": { "type": "number" },
+        "startDate": { "type": "string", "format": "date" },
+        "leaveStatus": { "type": "string", "enum": ["Aktif", "İzinli", "Ayrıldı"] },
+        "type": { "type": "string", "enum": ["normal", "huzur_hakki"] }
+      },
+      "required": ["companyId", "fullName", "type"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Müşteri iletişim mesajları.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyId": { "type": "string" },
+        "sender": { "type": "string" },
+        "text": { "type": "string" },
+        "time": { "type": "string" },
+        "type": { "type": "string", "enum": ["sent", "received"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "text", "type"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Firmaların listesi"
+    },
+    "/companies/{companyId}/personnel/{personnelId}": {
+      "schema": "Personnel",
+      "description": "Firmaya ait personel listesi"
+    },
+    "/companies/{companyId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Firmaya ait mesaj geçmişi"
+    }
+  }
+}

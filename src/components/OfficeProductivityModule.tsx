@@ -30,10 +30,26 @@ import {
   Building2,
   Users,
   Calendar,
-  X
+  X,
+  Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { CompanyProfile } from "../types";
+import { CompanyProfile, Personnel } from "../types";
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { 
+  collection, 
+  doc, 
+  onSnapshot, 
+  addDoc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy, 
+  serverTimestamp,
+  getDocs
+} from 'firebase/firestore';
 
 // ═══════════════════════════════════════════════════════════════
 // KÖK BOYA PALETİ
@@ -207,21 +223,38 @@ const Bolum = ({ children }: { children: React.ReactNode }) => {
 // ─────────────────────────────────────────────
 // 3. PANEL (DASHBOARD)
 // ─────────────────────────────────────────────
-function Panel() {
+function Panel({ profile }: { profile?: CompanyProfile }) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [generalNotes, setGeneralNotes] = useState("");
 
-  const loadData = () => {
-    const storedTasks = localStorage.getItem('bitig_tasks');
-    if (storedTasks) setTasks(JSON.parse(storedTasks).slice(0, 5));
-    const storedNotes = localStorage.getItem('bitig_general_notes');
-    if (storedNotes) setGeneralNotes(storedNotes);
-  };
-
   useEffect(() => {
-    loadData();
-    window.addEventListener('storage', loadData);
-    return () => window.removeEventListener('storage', loadData);
+    if (!auth.currentUser) return;
+
+    const userId = auth.currentUser.uid;
+    
+    // Fetch user tasks
+    const tasksRef = collection(db, 'users', userId, 'tasks');
+    const qTasks = query(tasksRef, orderBy('createdAt', 'desc'));
+    const unsubscribeTasks = onSnapshot(qTasks, (snapshot) => {
+      const tasksData: any[] = [];
+      snapshot.forEach((doc) => {
+        tasksData.push({ id: doc.id, ...doc.data() });
+      });
+      setTasks(tasksData.slice(0, 5));
+    });
+
+    // Fetch user notes
+    const notesRef = doc(db, 'users', userId, 'settings', 'general_notes');
+    const unsubscribeNotes = onSnapshot(notesRef, (doc) => {
+      if (doc.exists()) {
+        setGeneralNotes(doc.data().text);
+      }
+    });
+
+    return () => {
+      unsubscribeTasks();
+      unsubscribeNotes();
+    };
   }, []);
 
   return (
@@ -898,19 +931,60 @@ function KDVHesap() {
 // ─────────────────────────────────────────────
 // 3. FİNANSAL DURUM — Firma Analiz Merkezi
 // ─────────────────────────────────────────────
-function FinansalDurum() {
+function FinansalDurum({ profile }: { profile?: CompanyProfile }) {
   const [aktifSekme, setAktifSekme] = useState("bilanco");
+  const [mizanData, setMizanData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock bilanço verileri
-  const donenVT = 928500; const duranVT = 385000;
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const mizanRef = doc(db, 'companies', profile.id, 'mizan', 'current');
+    const unsubscribe = onSnapshot(mizanRef, (doc) => {
+      if (doc.exists()) {
+        setMizanData(doc.data());
+      } else {
+        setMizanData(null);
+      }
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `companies/${profile.id}/mizan/current`);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [profile?.id]);
+
+  // Mock data fallback if no mizan data
+  const data = mizanData?.summary || {
+    totalCash: 258000,
+    totalBank: 670500,
+    totalReceivables: 342000,
+    totalPayables: 215000,
+    totalAktif: 1313500,
+    netKar: 93750,
+    brutKar: 265000,
+    netSatis: 725000,
+    ozkaynakT: 528800,
+    kvykT: 404700,
+    uvykT: 380000,
+  };
+
+  const donenVT = (data.totalCash || 0) + (data.totalBank || 0) + (data.totalReceivables || 0) + 180000 + 148500; // Simplified
+  const duranVT = 385000;
   const toplamAktif = donenVT + duranVT;
-  const kvykT = 404700; const uvykT = 380000; const ozkaynakT = 528800;
-  const netSatis = 725000; const brutKar = 265000; const netKar = 93750;
-  const brutKarMarji = (brutKar / netSatis) * 100;
-  const netKarMarji = (netKar / netSatis) * 100;
-  const cariOran = donenVT / kvykT;
-  const borcOzkaynak = (kvykT + uvykT) / ozkaynakT;
-  const roe = (netKar / ozkaynakT) * 100;
+  const kvykT = data.kvykT || 404700; 
+  const uvykT = data.uvykT || 380000; 
+  const ozkaynakT = data.ozkaynakT || 528800;
+  const netSatis = data.netSatis || 725000; 
+  const brutKar = data.brutKar || 265000; 
+  const netKar = data.netKar || 93750;
+  
+  const brutKarMarji = netSatis > 0 ? (brutKar / netSatis) * 100 : 0;
+  const netKarMarji = netSatis > 0 ? (netKar / netSatis) * 100 : 0;
+  const cariOran = kvykT > 0 ? donenVT / kvykT : 0;
+  const borcOzkaynak = ozkaynakT > 0 ? (kvykT + uvykT) / ozkaynakT : 0;
+  const roe = ozkaynakT > 0 ? (netKar / ozkaynakT) * 100 : 0;
 
   const sekmeler = [
     { id: "bilanco", label: "Bilanço" },
@@ -918,6 +992,14 @@ function FinansalDurum() {
     { id: "rasyo", label: "Rasyo Analizi" },
     { id: "kdv", label: "KDV & Teknik" },
   ];
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
+        <Loader2 className="animate-spin text-kilim-blue" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -927,8 +1009,10 @@ function FinansalDurum() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 18 }}>📊</span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.metin }}>BİTİG TEKNOLOJİ A.Ş. — Şubat 2026</div>
-            <div style={{ fontSize: 12, color: C.ikinci }}>Mizan yüklendi · Son güncelleme: 04.03.2026</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.metin }}>{profile?.title || 'Firma Seçilmedi'} — {mizanData?.period || 'Dönem Belirtilmedi'}</div>
+            <div style={{ fontSize: 12, color: C.ikinci }}>
+              {mizanData ? `Mizan yüklendi · Son güncelleme: ${mizanData.updatedAt?.toDate().toLocaleDateString('tr-TR') || 'Bilinmiyor'}` : 'Mizan verisi bulunamadı. Lütfen OCR modülünden mizan yükleyin.'}
+            </div>
           </div>
         </div>
         <button style={{ background: C.bilgi, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>🔄 Mizan Güncelle</button>
@@ -1226,7 +1310,7 @@ const ARACLAR = [
   { id: "kira", ikon: "🏢", baslik: "Kira Artış Oranı", renk: C.basari, aciklama: "TÜFE & ÜFE bazlı, TBK Md.344 uyumlu hesaplama", Bilesen: KiraArtisi },
   { id: "ydeg", ikon: "📊", baslik: "Yeniden Değerleme", renk: C.bilgi, aciklama: "VUK yeniden değerleme oranı, 522 hesap hesaplama", Bilesen: YenidenDegerleme },
   { id: "kdv", ikon: "🧾", baslik: "KDV Hesaplamaları", renk: C.uyari, aciklama: "Dahil/Hariç dönüşüm, Özel matrah, Tevkifat oranı", Bilesen: KDVHesap },
-  { id: "finans", ikon: "📈", baslik: "Finansal Durum", renk: C.mor, aciklama: "Bilanço, Gelir Tablosu ve Rasyo Analizi Merkezi", Bilesen: FinansalDurum },
+  { id: "finans", ikon: "📈", baslik: "Finansal Durum", renk: C.mor, aciklama: "Bilanço, Gelir Tablosu ve Rasyo Analizi Merkezi", Bilesen: (props: any) => <FinansalDurum {...props} /> },
   { id: "sgk", ikon: "🛡️", baslik: "SGK Teşvik Raporu", renk: C.basari, aciklama: "5510, 6111 ve 17103 teşvikleri için firma bazlı analiz", Bilesen: SGKTesvik },
 ];
 
@@ -1247,31 +1331,37 @@ const ALL_DECLARATIONS = [
   { id: 'berat', label: 'BERAT', companyLabel: 'E-BERAT' }
 ];
 
-function BeyannameTakibi({ companies = [] }: { companies?: CompanyProfile[] }) {
+function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
   const [activeTab, setActiveTab] = useState("genel"); // "genel" or "firma"
   const [firms, setFirms] = useState<any[]>([]);
+  const [selectedFirmId, setSelectedFirmId] = useState<string | null>(null);
+  const [noteInput, setNoteInput] = useState("");
+  const currentPeriod = "2024-03"; // Hardcoded for now, could be dynamic
 
   useEffect(() => {
-    const stored = localStorage.getItem('beyanname_firms');
-    let parsed: any[] = [];
-    if (stored) {
-      try {
-        parsed = JSON.parse(stored);
-      } catch (e) {
-        parsed = [];
-      }
-    }
+    if (companies.length === 0 || !auth.currentUser) return;
 
-    if (companies.length > 0) {
+    const userId = auth.currentUser.uid;
+    const trackingRef = collection(db, 'beyanname_tracking');
+    const q = query(trackingRef, where('period', '==', currentPeriod), where('ownerId', '==', userId));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const trackingData: any = {};
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        trackingData[data.companyId] = data;
+      });
+
       const updated = companies.map(c => {
-        const existing = parsed.find((p: any) => p.id === c.id);
-        const base = existing ? { ...existing, name: c.title } : {
+        const existing = trackingData[c.id];
+        const base = {
           id: c.id,
           name: c.title,
-          notes: ""
+          notes: existing?.notes || "",
+          ...existing?.statuses
         };
 
-        // Sync declarations
+        // Sync declarations with company profile
         ALL_DECLARATIONS.forEach(dec => {
           const isSelected = (c.selectedDeclarations || []).includes(dec.companyLabel) || 
                             (dec.id === 'berat' && c.ledgerType === 'E-Defter (Bilanço)');
@@ -1286,28 +1376,12 @@ function BeyannameTakibi({ companies = [] }: { companies?: CompanyProfile[] }) {
         return base;
       });
       setFirms(updated);
-    } else if (parsed.length > 0) {
-      setFirms(parsed);
-    }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'beyanname_tracking');
+    });
+
+    return () => unsubscribe();
   }, [companies]);
-
-  useEffect(() => {
-    const handleStorage = () => {
-      const stored = localStorage.getItem('beyanname_firms');
-      if (stored) setFirms(JSON.parse(stored));
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
-
-  useEffect(() => {
-    if (firms.length > 0) {
-      localStorage.setItem('beyanname_firms', JSON.stringify(firms));
-    }
-  }, [firms]);
-
-  const [selectedFirmId, setSelectedFirmId] = useState<string | null>(null);
-  const [noteInput, setNoteInput] = useState("");
 
   const statusColors: any = {
     "Verildi": { bg: C.yesil + "15", text: C.yesil, icon: <CheckCircle2 size={12} /> },
@@ -1317,31 +1391,61 @@ function BeyannameTakibi({ companies = [] }: { companies?: CompanyProfile[] }) {
     "İlgisiz": { bg: C.sinir + "10", text: C.ucuncu, icon: null },
   };
 
-  const cycleStatus = (firmId: string, field: string) => {
+  const cycleStatus = async (firmId: string, field: string) => {
     const cycle = ["Verildi", "Bekliyor", "Gecikti", "-"];
-    setFirms(prev => prev.map(f => {
-      if (f.id === firmId) {
-        const currentStatus = (f as any)[field];
-        if (currentStatus === "İlgisiz") return f; // Don't cycle if irrelevant
-        const currentIndex = cycle.indexOf(currentStatus);
-        const nextIndex = (currentIndex + 1) % cycle.length;
-        return { ...f, [field]: cycle[nextIndex] };
-      }
-      return f;
-    }));
+    const firm = firms.find(f => f.id === firmId);
+    if (!firm) return;
+
+    const currentStatus = firm[field];
+    if (currentStatus === "İlgisiz") return;
+
+    const currentIndex = cycle.indexOf(currentStatus);
+    const nextIndex = (currentIndex + 1) % cycle.length;
+    const nextStatus = cycle[nextIndex];
+
+    try {
+      const docId = `${firmId}_${currentPeriod}`;
+      const docRef = doc(db, 'beyanname_tracking', docId);
+      
+      const statuses = { ...firm };
+      delete statuses.id;
+      delete statuses.name;
+      delete statuses.notes;
+      statuses[field] = nextStatus;
+
+      await setDoc(docRef, {
+        companyId: firmId,
+        period: currentPeriod,
+        statuses,
+        notes: firm.notes,
+        updatedAt: serverTimestamp(),
+        ownerId: auth.currentUser?.uid
+      }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `beyanname_tracking/${firmId}_${currentPeriod}`);
+    }
   };
 
   const selectedFirm = firms.find(f => f.id === selectedFirmId);
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!selectedFirmId || !noteInput.trim()) return;
-    setFirms(prev => prev.map(f => {
-      if (f.id === selectedFirmId) {
-        return { ...f, notes: f.notes ? f.notes + "\n" + noteInput : noteInput };
-      }
-      return f;
-    }));
-    setNoteInput("");
+    const firm = firms.find(f => f.id === selectedFirmId);
+    if (!firm) return;
+
+    try {
+      const docId = `${selectedFirmId}_${currentPeriod}`;
+      const docRef = doc(db, 'beyanname_tracking', docId);
+      const newNotes = firm.notes ? firm.notes + "\n" + noteInput : noteInput;
+
+      await updateDoc(docRef, {
+        notes: newNotes,
+        updatedAt: serverTimestamp()
+      });
+      setNoteInput("");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `beyanname_tracking/${selectedFirmId}_${currentPeriod}`);
+    }
   };
 
   return (
@@ -1520,7 +1624,7 @@ function BeyannameTakibi({ companies = [] }: { companies?: CompanyProfile[] }) {
 // ─────────────────────────────────────────────
 // 9. CARİ HESAP & TAHSİLAT
 // ─────────────────────────────────────────────
-function CariHesapTahsilat({ companies = [] }: { companies?: CompanyProfile[] }) {
+function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
@@ -1787,31 +1891,51 @@ function CariHesapTahsilat({ companies = [] }: { companies?: CompanyProfile[] })
 // ─────────────────────────────────────────────
 // 10. MÜŞTERİ İLETİŞİM & BİLDİRİM
 // ─────────────────────────────────────────────
-function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
-  const [selectedFirm, setSelectedFirm] = useState(companies.length > 0 ? companies[0].title : "");
-  const [messages, setMessages] = useState<any[]>([
-    { id: 1, sender: 'Sistem', text: 'Hoş geldiniz! Müşterilerinize buradan mesaj gönderebilirsiniz.', time: '09:00', type: 'received' },
-    { id: 2, sender: 'Müşteri', text: 'KDV beyannamesi onaylandı mı?', time: '10:15', type: 'received' },
-  ]);
+function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
+  const [selectedFirmId, setSelectedFirmId] = useState(companies.length > 0 ? companies[0].id : "");
+  const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
 
   useEffect(() => {
-    if (companies.length > 0 && !selectedFirm) {
-      setSelectedFirm(companies[0].title);
+    if (companies.length > 0 && !selectedFirmId) {
+      setSelectedFirmId(companies[0].id);
     }
   }, [companies]);
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
-    const msg = {
-      id: Date.now(),
-      sender: 'Siz',
-      text: newMessage,
-      time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-      type: 'sent'
-    };
-    setMessages([...messages, msg]);
-    setNewMessage('');
+  useEffect(() => {
+    if (!selectedFirmId) return;
+
+    const messagesRef = collection(db, 'companies', selectedFirmId, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs: any[] = [];
+      snapshot.forEach((doc) => {
+        msgs.push({ id: doc.id, ...doc.data() });
+      });
+      setMessages(msgs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `companies/${selectedFirmId}/messages`);
+    });
+
+    return () => unsubscribe();
+  }, [selectedFirmId]);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedFirmId) return;
+    try {
+      const messagesRef = collection(db, 'companies', selectedFirmId, 'messages');
+      await addDoc(messagesRef, {
+        sender: 'Siz',
+        text: newMessage,
+        time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: serverTimestamp(),
+        type: 'sent'
+      });
+      setNewMessage('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `companies/${selectedFirmId}/messages`);
+    }
   };
 
   const templates = [
@@ -1820,6 +1944,8 @@ function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
     { id: 3, title: "Beyanname Bildirimi", content: "Sayın {firma}, {ay} dönemi KDV beyannameniz verilmiştir. Tahakkuk fişi ektedir." },
     { id: 4, title: "Genel Hatırlatma", content: "Sayın {firma}, yarın yapılacak olan toplantı saat 14:00'e alınmıştır." },
   ];
+
+  const selectedFirm = companies.find(c => c.id === selectedFirmId);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1830,8 +1956,8 @@ function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
             {companies.map(c => (
               <button 
                 key={c.id}
-                onClick={() => setSelectedFirm(c.title)}
-                className={`w-full text-left p-3 rounded-xl text-xs font-bold transition-all ${selectedFirm === c.title ? 'bg-kilim-red text-white shadow-lg shadow-kilim-red/20' : 'hover:bg-slate-50 text-slate-600'}`}
+                onClick={() => setSelectedFirmId(c.id)}
+                className={`w-full text-left p-3 rounded-xl text-xs font-bold transition-all ${selectedFirmId === c.id ? 'bg-kilim-red text-white shadow-lg shadow-kilim-red/20' : 'hover:bg-slate-50 text-slate-600'}`}
               >
                 {c.title}
               </button>
@@ -1848,10 +1974,10 @@ function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-kilim-blue/10 flex items-center justify-center text-kilim-blue font-bold">
-                {selectedFirm ? selectedFirm[0] : "?"}
+                {selectedFirm ? selectedFirm.title[0] : "?"}
               </div>
               <div>
-                <h4 className="font-bold text-kilim-blue-dark text-sm">{selectedFirm || "Firma Seçilmedi"}</h4>
+                <h4 className="font-bold text-kilim-blue-dark text-sm">{selectedFirm?.title || "Firma Seçilmedi"}</h4>
                 {selectedFirm && <span className="text-[10px] text-emerald-500 font-bold">● Çevrimiçi</span>}
               </div>
             </div>
@@ -1889,7 +2015,7 @@ function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
               {templates.map(t => (
                 <button 
                   key={t.id} 
-                  onClick={() => setNewMessage(t.content.replace('{firma}', selectedFirm || 'Değerli Müşterimiz').replace('{ay}', 'Mart'))}
+                  onClick={() => setNewMessage(t.content.replace('{firma}', selectedFirm?.title || 'Değerli Müşterimiz').replace('{ay}', 'Mart'))}
                   className="whitespace-nowrap px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold hover:bg-kilim-red hover:text-white transition-all"
                 >
                   {t.title}
@@ -1923,7 +2049,7 @@ function MusteriIletisim({ companies = [] }: { companies?: CompanyProfile[] }) {
 // 11. PERSONEL & BORDRO (REDESIGN)
 // ─────────────────────────────────────────────
 
-function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
+function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
   const [secilenFirmaId, setSecilenFirmaId] = useState<string>(companies.length > 0 ? companies[0].id : "");
   const [personnel, setPersonnel] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
@@ -1935,19 +2061,23 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
   }, [companies]);
 
   useEffect(() => {
-    const selectedCompany = companies.find(c => c.id === secilenFirmaId);
-    if (selectedCompany && selectedCompany.personnel) {
-      setPersonnel(selectedCompany.personnel.map(p => {
-        // Huzur Hakkı tespiti (Profil verisinden gelen type veya isim/rol bazlı)
+    if (!secilenFirmaId) return;
+
+    const personnelRef = collection(db, 'companies', secilenFirmaId, 'personnel');
+    const unsubscribe = onSnapshot(personnelRef, (snapshot) => {
+      const persData: any[] = [];
+      snapshot.forEach((doc) => {
+        const p = doc.data() as Personnel;
         const isHuzurHakki = p.type === 'huzur_hakki' || p.fullName.includes('Recep Baş') || p.fullName.includes('Selim Baş') || p.role.includes('Yönetim');
         
-        return {
+        persData.push({
           ...p,
-          firmaId: selectedCompany.id,
+          id: doc.id,
+          firmaId: secilenFirmaId,
           ad: p.fullName,
           tc: p.idNumber,
           gorev: p.role,
-          brut: p.netSalary * 1.4, // Basit bir brüt tahmini
+          brut: p.netSalary * 1.4,
           giris: p.startDate,
           durum: p.leaveStatus,
           izinHak: 14,
@@ -1956,12 +2086,15 @@ function PersonelBordro({ companies = [] }: { companies?: CompanyProfile[] }) {
           tesvik: isHuzurHakki ? "Yok" : "5510",
           tesvikBitis: isHuzurHakki ? "-" : "2026-12-31",
           type: isHuzurHakki ? 'huzur_hakki' : 'normal'
-        };
-      }));
-    } else {
-      setPersonnel([]);
-    }
-  }, [secilenFirmaId, companies]);
+        });
+      });
+      setPersonnel(persData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `companies/${secilenFirmaId}/personnel`);
+    });
+
+    return () => unsubscribe();
+  }, [secilenFirmaId]);
 
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState<any>(null);
@@ -2509,19 +2642,19 @@ function SGKTesvikRedesign() {
 // ─────────────────────────────────────────────
 // 13. ANA MODÜL SARMALAYICI
 // ─────────────────────────────────────────────
-export const OfficeProductivityModule = ({ activeTab, companies = [] }: { activeTab: string, companies?: CompanyProfile[] }) => {
+export const OfficeProductivityModule = ({ activeTab, companies = [], profile }: { activeTab: string, companies?: CompanyProfile[], profile?: CompanyProfile }) => {
   const renderTool = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Panel />;
+        return <Panel profile={profile} />;
       case 'beyanname':
-        return <BeyannameTakibi companies={companies} />;
+        return <BeyannameTakibi companies={companies} profile={profile} />;
       case 'cari-hesap':
-        return <CariHesapTahsilat companies={companies} />;
+        return <CariHesapTahsilat companies={companies} profile={profile} />;
       case 'musteri-iletisim':
-        return <MusteriIletisim companies={companies} />;
+        return <MusteriIletisim companies={companies} profile={profile} />;
       case 'personel-bordro':
-        return <PersonelBordro companies={companies} />;
+        return <PersonelBordro companies={companies} profile={profile} />;
       case 'hesaplamalar':
       default:
         return (

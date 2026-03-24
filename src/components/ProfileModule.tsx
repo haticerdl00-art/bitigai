@@ -130,14 +130,14 @@ export const ProfileModule = ({ profile, onUpdate, onDeleteAll }: ProfileModuleP
                 {isEditing ? (
                   <input 
                     type="text"
-                    value={editedProfile.username}
-                    onChange={(e) => setEditedProfile({...editedProfile, username: e.target.value})}
+                    value={editedProfile.title || ''}
+                    onChange={(e) => setEditedProfile({...editedProfile, title: e.target.value})}
                     className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
                   />
                 ) : (
                   <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <ShieldCheck className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm font-medium text-slate-700">{profile.username}</span>
+                    <span className="text-sm font-medium text-slate-700">{profile.title || 'Belirtilmemiş'}</span>
                   </div>
                 )}
               </div>

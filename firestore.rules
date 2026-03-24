@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /companies/{companyId}
+    // Document ID: companyId (unique string)
+    // Fields:
+    //   - id: string (required)
+    //   - title: string (required, 1-100 chars)
+    //   - vkn: string (optional, 10-11 chars)
+    //   - taxOffice: string (optional)
+    //   - address: string (optional)
+    //   - phone: string (optional)
+    //   - email: string (optional, email format)
+    //   - ownerId: string (required, immutable) - The UID of the creator
+    //
+    // Collection: /companies/{companyId}/personnel/{personnelId}
+    // Document ID: personnelId (unique string)
+    // Fields:
+    //   - id: string (required)
+    //   - companyId: string (required, immutable)
+    //   - fullName: string (required, 1-100 chars)
+    //   - idNumber: string (optional, 11 chars)
+    //   - role: string (optional)
+    //   - netSalary: number (required, positive)
+    //   - startDate: string (required, date format)
+    //   - leaveStatus: string (required, enum: ["Aktif", "İzinli", "Ayrıldı"])
+    //   - type: string (required, enum: ["normal", "huzur_hakki"])
+    //
+    // Collection: /companies/{companyId}/messages/{messageId}
+    // Document ID: messageId (unique string)
+    // Fields:
+    //   - id: string (required)
+    //   - companyId: string (required, immutable)
+    //   - sender: string (required)
+    //   - text: string (required, 1-2000 chars)
+    //   - time: string (required)
+    //   - type: string (required, enum: ["sent", "received"])
+    //   - createdAt: string (required, date-time format)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isCompanyOwner(companyId) {
+      return isAuthenticated() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}.*");
+    }
+
+    function isPositive(val) {
+      return val is number && val >= 0;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidCompany(data) {
+      return hasRequiredFields(['title', 'ownerId']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+             data.ownerId == request.auth.uid &&
+             (!('email' in data) || isValidEmail(data.email));
+    }
+
+    function isValidPersonnel(data) {
+      return hasRequiredFields(['companyId', 'fullName', 'netSalary', 'type']) &&
+             data.companyId is string &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 100 &&
+             isPositive(data.netSalary) &&
+             data.type in ['normal', 'huzur_hakki'] &&
+             (!('leaveStatus' in data) || data.leaveStatus in ["Aktif", "İzinli", "Ayrıldı"]);
+    }
+
+    function isValidMessage(data) {
+      return hasRequiredFields(['companyId', 'text', 'type']) &&
+             data.companyId is string &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 2000 &&
+             data.type in ['sent', 'received'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /companies/{companyId} {
+      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidCompany(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid && 
+                      isValidCompany(request.resource.data) &&
+                      request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+
+      match /personnel/{personnelId} {
+        allow read: if isCompanyOwner(companyId);
+        allow create: if isCompanyOwner(companyId) && isValidPersonnel(request.resource.data);
+        allow update: if isCompanyOwner(companyId) && isValidPersonnel(request.resource.data) &&
+                        request.resource.data.companyId == resource.data.companyId;
+        allow delete: if isCompanyOwner(companyId);
+      }
+
+      match /messages/{messageId} {
+        allow read: if isCompanyOwner(companyId);
+        allow create: if isCompanyOwner(companyId) && isValidMessage(request.resource.data);
+        allow update: if isCompanyOwner(companyId) && isValidMessage(request.resource.data) &&
+                        request.resource.data.companyId == resource.data.companyId;
+        allow delete: if isCompanyOwner(companyId);
+      }
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
