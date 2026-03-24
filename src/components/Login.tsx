@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Shield, X, Sparkles } from 'lucide-react';
+import { Shield, X, Sparkles, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AppLogo } from './Logo';
+import { loginWithEmail, registerWithEmail } from '../firebase';
 
 interface LoginProps {
   onLogin: () => void;
@@ -11,15 +12,46 @@ export const Login = ({ onLogin }: LoginProps) => {
   const [showKVKK, setShowKVKK] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  
+  // Form states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
 
-  const handleLoginClick = async () => {
+  const handleGoogleLogin = async () => {
     setIsLoading(true);
     setError(null);
     try {
       await onLogin();
     } catch (err: any) {
-      console.error("Login component error:", err);
-      setError(err.message || "Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.");
+      console.error("Google Login error:", err);
+      setError(err.message || "Google ile giriş yapılırken bir hata oluştu.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (isRegistering) {
+        if (!fullName) throw new Error("Lütfen adınızı ve soyadınızı giriniz.");
+        await registerWithEmail(email, password, fullName);
+      } else {
+        await loginWithEmail(email, password);
+      }
+    } catch (err: any) {
+      console.error("Email Auth error:", err);
+      let message = "Bir hata oluştu.";
+      if (err.code === 'auth/user-not-found') message = "Kullanıcı bulunamadı.";
+      else if (err.code === 'auth/wrong-password') message = "Hatalı şifre.";
+      else if (err.code === 'auth/email-already-in-use') message = "Bu e-posta adresi zaten kullanımda.";
+      else if (err.code === 'auth/invalid-email') message = "Geçersiz e-posta adresi.";
+      else if (err.code === 'auth/weak-password') message = "Şifre çok zayıf (en az 6 karakter).";
+      setError(err.message || message);
     } finally {
       setIsLoading(false);
     }
@@ -55,8 +87,12 @@ export const Login = ({ onLogin }: LoginProps) => {
         <div className="bg-white/90 backdrop-blur-md p-8 rounded-[2rem] shadow-xl border border-white/50 relative">
           <div className="space-y-6">
             <div className="text-center space-y-2">
-              <h2 className="text-xl font-serif font-bold text-[#5D4037]">Hoş Geldiniz</h2>
-              <p className="text-sm text-[#8D6E63]">Uygulamaya erişmek için Google hesabınızla giriş yapın.</p>
+              <h2 className="text-xl font-serif font-bold text-[#5D4037]">
+                {isRegistering ? 'Hesap Oluştur' : 'Hoş Geldiniz'}
+              </h2>
+              <p className="text-sm text-[#8D6E63]">
+                {isRegistering ? 'Bilgilerinizi girerek kayıt olun.' : 'Uygulamaya erişmek için giriş yapın.'}
+              </p>
             </div>
 
             {error && (
@@ -65,18 +101,82 @@ export const Login = ({ onLogin }: LoginProps) => {
               </div>
             )}
 
-            <button
-              onClick={handleLoginClick}
-              disabled={isLoading}
-              className="w-full py-4 bg-white text-[#5D4037] font-bold rounded-xl border border-[#E8D5C4] hover:bg-[#FAF7F2] shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-[#5D4037] border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+            <form onSubmit={handleEmailAuth} className="space-y-4">
+              {isRegistering && (
+                <div className="relative">
+                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8D6E63]" />
+                  <input
+                    type="text"
+                    placeholder="Ad Soyad"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 bg-[#FAF7F2] border border-[#E8D5C4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8D6E63]/20 transition-all"
+                    required
+                  />
+                </div>
               )}
-              <span>{isLoading ? 'Giriş Yapılıyor...' : 'Google ile Giriş Yap'}</span>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8D6E63]" />
+                <input
+                  type="email"
+                  placeholder="E-posta Adresi"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-[#FAF7F2] border border-[#E8D5C4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8D6E63]/20 transition-all"
+                  required
+                />
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8D6E63]" />
+                <input
+                  type="password"
+                  placeholder="Şifre"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-[#FAF7F2] border border-[#E8D5C4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8D6E63]/20 transition-all"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-4 bg-[#5D4037] text-white font-bold rounded-xl hover:bg-[#4E342E] shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>{isRegistering ? 'Kayıt Ol' : 'Giriş Yap'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="relative flex items-center justify-center py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[#E8D5C4]"></div>
+              </div>
+              <span className="relative px-4 bg-white text-[10px] text-[#A1887F] font-bold uppercase tracking-widest">veya</span>
+            </div>
+
+            <button
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="w-full py-4 bg-white text-[#5D4037] font-bold rounded-xl border border-[#E8D5C4] hover:bg-[#FAF7F2] shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+              <span>Google ile Devam Et</span>
             </button>
+
+            <div className="text-center">
+              <button
+                onClick={() => setIsRegistering(!isRegistering)}
+                className="text-xs text-[#8D6E63] font-bold hover:text-[#5D4037] transition-colors"
+              >
+                {isRegistering ? 'Zaten hesabınız var mı? Giriş yapın' : 'Hesabınız yok mu? Kayıt olun'}
+              </button>
+            </div>
 
             <div className="pt-4 border-t border-[#E8D5C4]">
               <p className="text-[10px] text-center text-[#A1887F] leading-relaxed">

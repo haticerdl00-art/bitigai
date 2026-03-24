@@ -1,5 +1,14 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  onAuthStateChanged, 
+  User,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile
+} from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 
 // Import the Firebase configuration
@@ -83,6 +92,27 @@ export const loginWithGoogle = async () => {
     return result.user;
   } catch (error) {
     console.error("Login Error:", error);
+    throw error;
+  }
+};
+
+export const loginWithEmail = async (email: string, pass: string) => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    return result.user;
+  } catch (error) {
+    console.error("Email Login Error:", error);
+    throw error;
+  }
+};
+
+export const registerWithEmail = async (email: string, pass: string, fullName: string) => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, pass);
+    await updateProfile(result.user, { displayName: fullName });
+    return result.user;
+  } catch (error) {
+    console.error("Registration Error:", error);
     throw error;
   }
 };
