@@ -31,16 +31,18 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Bildirim Sayacı Endpoint (Moved to top for priority)
-  app.get('/api/notifications/count', (req, res) => {
+  // Bildirim Sayacı Endpoint
+  const notificationHandler = (req: express.Request, res: express.Response) => {
     console.log('Serving notification count...');
     res.json({ count: 5 });
-  });
+  };
+
+  app.get('/api/notifications/count', notificationHandler);
+  app.get('/api/notifications/count/', notificationHandler);
 
   // Market Data Endpoint (TCMB & Gold)
   const marketHandler = async (req: express.Request, res: express.Response) => {
     console.log('Market pulse request received');
-    // Fallback data in case API fails
     const fallbackData = {
       currencies: [
         { label: 'Dolar', value: '32.15', change: 0.12, unit: 'TL' },
@@ -215,9 +217,21 @@ async function startServer() {
     });
   }
 
+  // Error handling for startup
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+
+  process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+  });
+
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log('API routes initialized: /api/health, /api/notifications/count, /api/market/pulse');
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+});

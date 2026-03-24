@@ -234,6 +234,7 @@ export default function App() {
       snapshot.forEach((doc) => {
         companiesData.push({ id: doc.id, ...doc.data() } as CompanyProfile);
       });
+      console.log('Fetched companies:', companiesData.length);
       setCompanies(companiesData);
       
       // Update selected company profile if it exists in the new data
@@ -279,7 +280,7 @@ export default function App() {
     migrateData();
 
     return () => unsubscribe();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, selectedCompanyId]);
 
   const handleSetCompanyProfile = async (profile: CompanyProfile) => {
     setCompanyProfile(profile);
@@ -319,6 +320,14 @@ export default function App() {
   }, []);
 
   React.useEffect(() => {
+    if (!isAuthenticated) {
+      setNotificationCount(0);
+      return;
+    }
+
+    let retryCount = 0;
+    const maxRetries = 3;
+
     const fetchNotificationCount = async () => {
       try {
         const response = await fetch('/api/notifications/count');
@@ -331,14 +340,30 @@ export default function App() {
         }
         const data = await response.json();
         setNotificationCount(data.count);
+        retryCount = 0; // Reset on success
       } catch (error) {
-        console.error('Notification count fetch error:', error);
+        // Only log if we've exhausted retries or it's not a fetch failure
+        if (retryCount < maxRetries) {
+          retryCount++;
+          setTimeout(fetchNotificationCount, 2000 * retryCount);
+        } else {
+          console.error('Notification count fetch error:', error);
+        }
       }
     };
-    fetchNotificationCount();
+
+    // Initial delay to ensure server is ready
+    const initialTimer = setTimeout(() => {
+      console.log('Starting initial notification count fetch...');
+      fetchNotificationCount();
+    }, 3000);
     const interval = setInterval(fetchNotificationCount, 300000); // 5 minutes
-    return () => clearInterval(interval);
-  }, []);
+    
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [isAuthenticated]);
 
   const defaultModules = [
     { id: ModuleId.DASHBOARD, title: 'Panel', icon: LayoutDashboard, desc: 'Genel durum ve akıllı mali takvim özeti.' },

@@ -2643,6 +2643,7 @@ function SGKTesvikRedesign() {
 // 13. ANA MODÜL SARMALAYICI
 // ─────────────────────────────────────────────
 export const OfficeProductivityModule = ({ activeTab, companies = [], profile }: { activeTab: string, companies?: CompanyProfile[], profile?: CompanyProfile }) => {
+  console.log('OfficeProductivityModule render:', { activeTab, companiesCount: companies.length });
   const renderTool = () => {
     switch (activeTab) {
       case 'dashboard':
