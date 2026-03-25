@@ -31,14 +31,19 @@ export const MarketPulse = () => {
   const [bistData, setBistData] = useState<MarketData | null>(null);
   const [stocks, setStocks] = useState<StockData[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const fetchMarketData = async () => {
     setIsRefreshing(true);
     setError(null);
-    // Clear old data to avoid showing outdated/misleading figures while loading
-    setMarketData([]);
-    setBistData(null);
-    setStocks([]);
+    
+    // Don't clear old data if we already have some to avoid flickering
+    // Only clear if it's the first load or if there's an error
+    if (marketData.length === 0) {
+      setMarketData([]);
+      setBistData(null);
+      setStocks([]);
+    }
 
     console.log('Fetching market data from /api/market/pulse...');
     try {
@@ -46,11 +51,8 @@ export const MarketPulse = () => {
       console.log('Market pulse response status:', response.status);
       
       const contentType = response.headers.get('content-type');
-      console.log('Market pulse content type:', contentType);
       if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Expected JSON but got:', text.substring(0, 500));
-        throw new Error(`Sunucudan geçersiz yanıt alındı (${response.status} ${response.statusText})`);
+        throw new Error(`Sunucudan geçersiz yanıt alındı (${response.status})`);
       }
 
       const data = await response.json();
@@ -69,6 +71,7 @@ export const MarketPulse = () => {
         change: data.bist?.change || 0
       });
       setStocks(data.stocks || []);
+      setLastUpdated(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err: any) {
       console.error('Market data error:', err);
       setError(err.message || 'Veri şu an güncellenemedi');
@@ -103,7 +106,7 @@ export const MarketPulse = () => {
     return (
       <div className="bg-[#FDF5E6] border border-kilim-blue-dark/10 rounded-[2rem] p-12 flex flex-col items-center justify-center shadow-sm gap-4">
         <RefreshCw className="w-8 h-8 text-kilim-blue animate-spin" />
-        <p className="text-xs font-bold text-kilim-blue-dark uppercase tracking-widest animate-pulse">Veriler Güncelleniyor...</p>
+        <p className="text-xs font-bold text-kilim-blue-dark uppercase tracking-widest animate-pulse">Piyasa Verileri Alınıyor...</p>
       </div>
     );
   }
@@ -129,7 +132,7 @@ export const MarketPulse = () => {
   }
 
   return (
-    <div className="bg-[#FDF5E6] border border-kilim-blue-dark/10 rounded-[2rem] p-6 shadow-sm space-y-6 overflow-hidden">
+    <div className="bg-[#FDF5E6] border border-kilim-blue-dark/10 rounded-[2rem] p-6 shadow-sm space-y-6 overflow-hidden relative">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-white/80 shadow-sm border border-kilim-blue-dark/5 flex items-center justify-center">
@@ -137,7 +140,10 @@ export const MarketPulse = () => {
           </div>
           <div>
             <h3 className="font-black text-kilim-blue-dark text-sm uppercase tracking-tighter">Piyasa Nabzı</h3>
-            <p className="text-[8px] text-slate-400 font-bold uppercase">Kaynak: TCMB & Canlı Veri</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[8px] text-slate-400 font-bold uppercase">Kaynak: TCMB & Canlı Veri</p>
+              {lastUpdated && <p className="text-[8px] text-emerald-600 font-bold uppercase">• Son Güncelleme: {lastUpdated}</p>}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -146,6 +152,7 @@ export const MarketPulse = () => {
             onClick={handleRefresh}
             disabled={isRefreshing}
             className={`p-2 bg-white/80 hover:bg-white rounded-xl transition-all shadow-sm border border-kilim-blue-dark/5 ${isRefreshing ? 'animate-spin' : ''}`}
+            title="Verileri Güncelle"
           >
             <RefreshCw className="w-4 h-4 text-slate-400" />
           </button>

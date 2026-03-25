@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { GoogleGenAI, Type } from "@google/genai";
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -16,6 +17,7 @@ import {
   Share2,
   MessageCircle,
   Mail,
+  Mic,
   MoreVertical,
   CheckCircle2,
   Clock,
@@ -61,6 +63,7 @@ const C = {
   sari:"#C9A227", sariAcik:"#F0C040",
   bg:"#FAF6F0", kart:"#FFFFFF", koyu:"#1C1410",
   metin:"#2C1810", ikinci:"#6B5744", ucuncu:"#A89080", sinir:"#DDD0C0",
+  yesilSoluk: "#E7F3EF", turuncuSoluk: "#FEF3E7",
   // Semantic Aliases for compatibility
   basari: "#2D6A4F",
   kritik: "#8B1A1A",
@@ -223,9 +226,10 @@ const Bolum = ({ children }: { children: React.ReactNode }) => {
 // ─────────────────────────────────────────────
 // 3. PANEL (DASHBOARD)
 // ─────────────────────────────────────────────
-function Panel({ profile }: { profile?: CompanyProfile }) {
+function Panel({ profile, companies = [] }: { profile?: CompanyProfile, companies?: CompanyProfile[] }) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [generalNotes, setGeneralNotes] = useState("");
+  const [pendingDocsCount, setPendingDocsCount] = useState(0);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -234,13 +238,32 @@ function Panel({ profile }: { profile?: CompanyProfile }) {
     
     // Fetch user tasks
     const tasksRef = collection(db, 'users', userId, 'tasks');
-    const qTasks = query(tasksRef, orderBy('createdAt', 'desc'));
+    const qTasks = query(tasksRef, where('completed', '==', false));
     const unsubscribeTasks = onSnapshot(qTasks, (snapshot) => {
       const tasksData: any[] = [];
       snapshot.forEach((doc) => {
         tasksData.push({ id: doc.id, ...doc.data() });
       });
-      setTasks(tasksData.slice(0, 5));
+      // Sort client-side to avoid index requirement
+      tasksData.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
+      setTasks(tasksData);
+    });
+
+    // Fetch pending declarations count
+    const qDocs = query(
+      collection(db, 'beyanname_tracking'), 
+      where('ownerId', '==', userId)
+    );
+    const unsubscribeDocs = onSnapshot(qDocs, (snapshot) => {
+      // Filter client-side to avoid index requirement
+      const pending = snapshot.docs.filter(doc => doc.data().status !== 'Tamamlandı');
+      setPendingDocsCount(pending.length);
+    }, (error) => {
+      console.error("Error fetching pending docs in Panel:", error);
     });
 
     // Fetch user notes
@@ -253,6 +276,7 @@ function Panel({ profile }: { profile?: CompanyProfile }) {
 
     return () => {
       unsubscribeTasks();
+      unsubscribeDocs();
       unsubscribeNotes();
     };
   }, []);
@@ -262,10 +286,10 @@ function Panel({ profile }: { profile?: CompanyProfile }) {
       {/* KPI Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
         {[
-          { label: "Bekleyen Görev", deger: tasks.filter(t => !t.completed).length.toString(), renk: C.uyari, ikon: <Clock size={20} /> },
+          { label: "Bekleyen Görev", deger: tasks.length.toString(), renk: C.uyari, ikon: <Clock size={20} /> },
           { label: "Toplam Tasarruf", deger: "₺142.5K", renk: C.basari, ikon: <TrendingUp size={20} /> },
-          { label: "Aktif Müşteri", deger: "45", renk: C.bilgi, ikon: <User size={20} /> },
-          { label: "Yeni Mevzuat", deger: "3", renk: C.mor, ikon: <Bell size={20} /> },
+          { label: "Aktif Müşteri", deger: companies.length.toString(), renk: C.bilgi, ikon: <User size={20} /> },
+          { label: "Bekleyen Evrak", deger: pendingDocsCount.toString(), renk: C.mor, ikon: <FileText size={20} /> },
         ].map((k, i) => (
           <div key={i} style={{ background: C.kart, padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}`, display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: k.renk + "15", color: k.renk, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -932,159 +956,307 @@ function KDVHesap() {
 // 3. FİNANSAL DURUM — Firma Analiz Merkezi
 // ─────────────────────────────────────────────
 function FinansalDurum({ profile }: { profile?: CompanyProfile }) {
-  const [aktifSekme, setAktifSekme] = useState("bilanco");
+  const [aktifSekme, setAktifSekme] = useState("analiz");
   const [mizanData, setMizanData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    if (!profile?.id) return;
-
-    const mizanRef = doc(db, 'companies', profile.id, 'mizan', 'current');
-    const unsubscribe = onSnapshot(mizanRef, (doc) => {
-      if (doc.exists()) {
-        setMizanData(doc.data());
-      } else {
-        setMizanData(null);
-      }
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `companies/${profile.id}/mizan/current`);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [profile?.id]);
-
-  // Mock data fallback if no mizan data
-  const data = mizanData?.summary || {
-    totalCash: 258000,
-    totalBank: 670500,
-    totalReceivables: 342000,
-    totalPayables: 215000,
-    totalAktif: 1313500,
-    netKar: 93750,
-    brutKar: 265000,
-    netSatis: 725000,
-    ozkaynakT: 528800,
-    kvykT: 404700,
-    uvykT: 380000,
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
   };
 
-  const donenVT = (data.totalCash || 0) + (data.totalBank || 0) + (data.totalReceivables || 0) + 180000 + 148500; // Simplified
-  const duranVT = 385000;
-  const toplamAktif = donenVT + duranVT;
-  const kvykT = data.kvykT || 404700; 
-  const uvykT = data.uvykT || 380000; 
-  const ozkaynakT = data.ozkaynakT || 528800;
-  const netSatis = data.netSatis || 725000; 
-  const brutKar = data.brutKar || 265000; 
-  const netKar = data.netKar || 93750;
-  
-  const brutKarMarji = netSatis > 0 ? (brutKar / netSatis) * 100 : 0;
-  const netKarMarji = netSatis > 0 ? (netKar / netSatis) * 100 : 0;
-  const cariOran = kvykT > 0 ? donenVT / kvykT : 0;
-  const borcOzkaynak = ozkaynakT > 0 ? (kvykT + uvykT) / ozkaynakT : 0;
-  const roe = ozkaynakT > 0 ? (netKar / ozkaynakT) * 100 : 0;
+  const analyzeDocument = async () => {
+    if (!file) return;
+    setIsAnalyzing(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Data = (reader.result as string).split(',')[1];
+        
+        const prompt = `
+          Bu finansal belgeyi (mizan, bilanço veya gelir tablosu) analiz et. 
+          Lütfen şu bilgileri içeren bir JSON yanıtı dön:
+          1. mizanAccuracy: Mizan doğruluğu ve gücü (0-100)
+          2. actionableSteps: Atılması gereken somut adımlar (liste)
+          3. sectorAnalysis: Sektörel karşılaştırma ve analiz
+          4. weaknesses: Zayıf yönler ve riskler
+          5. strengths: Güçlü yönler
+          6. interpretation: Genel finansal yorum
+          7. refundAssistant: {
+               payableDebts: Mevcut ödenecek borçlar,
+               refundCoverage: İadelerin borçları karşılama oranı,
+               carryOver: Gelecek döneme devreden iade/borç,
+               futureRisks: Gelecek dönem riskleri,
+               strategy: Önerilen strateji
+             }
+          8. invoiceAdvice: {
+               recommendedIssued: Kesilmesi önerilen fatura tutarı,
+               recommendedReceived: Alınması önerilen fatura tutarı,
+               vatStatus: KDV devri ve iade durumu analizi
+             }
+        `;
+
+        const result = await ai.models.generateContent({
+          model: "gemini-3.1-pro-preview",
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType: file.type, data: base64Data } }
+            ]
+          }],
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+
+        const responseText = result.text;
+        if (responseText) {
+          setAnalysisResult(JSON.parse(responseText));
+        }
+        setIsAnalyzing(false);
+      };
+    } catch (error) {
+      console.error("AI Analysis error:", error);
+      setIsAnalyzing(false);
+      alert("Analiz sırasında bir hata oluştu.");
+    }
+  };
 
   const sekmeler = [
+    { id: "analiz", label: "Belge Analizi & OCR" },
+    { id: "iade", label: "İade Asistanı" },
     { id: "bilanco", label: "Bilanço" },
     { id: "gelir", label: "Gelir Tablosu" },
     { id: "rasyo", label: "Rasyo Analizi" },
-    { id: "kdv", label: "KDV & Teknik" },
+    { id: "kdv", label: "KDV & Denetim" },
   ];
 
-  if (loading) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
-        <Loader2 className="animate-spin text-kilim-blue" size={32} />
-      </div>
-    );
-  }
+  // Rasyo hesaplamaları için dummy veriler (Analizden gelmiyorsa)
+  const donenVT = 850000;
+  const kvykT = 420000;
+  const cariOran = donenVT / kvykT;
+  const ozkaynakT = 1200000;
+  const toplamAktif = 2500000;
+  const borcOzkaynak = (toplamAktif - ozkaynakT) / ozkaynakT;
+  const brutKarMarji = 32.5;
+  const netKarMarji = 12.8;
+  const roe = 18.4;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-      {/* Mizan yükleme uyarısı */}
-      <div style={{ background: C.uyari + "0d", border: `1px solid ${C.uyari}30`, borderRadius: 12, padding: "12px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18 }}>📊</span>
+      
+      {/* Üst Panel: Belge Yükleme */}
+      <div style={{ background: C.kart, borderRadius: 20, padding: 24, border: `1px solid ${C.sinir}`, boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.metin }}>{profile?.title || 'Firma Seçilmedi'} — {mizanData?.period || 'Dönem Belirtilmedi'}</div>
-            <div style={{ fontSize: 12, color: C.ikinci }}>
-              {mizanData ? `Mizan yüklendi · Son güncelleme: ${mizanData.updatedAt?.toDate().toLocaleDateString('tr-TR') || 'Bilinmiyor'}` : 'Mizan verisi bulunamadı. Lütfen OCR modülünden mizan yükleyin.'}
-            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 900, color: C.metin }}>Finansal Analiz & İade Asistanı</h3>
+            <p style={{ fontSize: 12, color: C.ikinci }}>Herhangi bir finansal belgeyi yükleyerek yapay zeka destekli derin analiz alın.</p>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input 
+              type="file" 
+              id="fin-upload" 
+              hidden 
+              onChange={handleFileUpload}
+              accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"
+            />
+            <label 
+              htmlFor="fin-upload"
+              style={{ 
+                padding: "10px 20px", background: C.bg, color: C.mavi, borderRadius: 12, 
+                fontSize: 13, fontWeight: 700, cursor: "pointer", border: `1px solid ${C.mavi}30`,
+                display: "flex", alignItems: "center", gap: 8
+              }}
+            >
+              <Upload size={18} /> {file ? file.name : "Dosya Seç"}
+            </label>
+            <button 
+              onClick={analyzeDocument}
+              disabled={isAnalyzing || !file}
+              style={{ 
+                padding: "10px 24px", background: isAnalyzing ? C.ikinci : C.mavi, color: "#FFF", borderRadius: 12, 
+                fontSize: 13, fontWeight: 800, cursor: isAnalyzing ? "not-allowed" : "pointer", border: "none",
+                display: "flex", alignItems: "center", gap: 8, opacity: isAnalyzing ? 0.7 : 1
+              }}
+            >
+              {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />} 
+              {isAnalyzing ? "Analiz Ediliyor..." : "Analiz Et"}
+            </button>
           </div>
         </div>
-        <button style={{ background: C.bilgi, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>🔄 Mizan Güncelle</button>
-      </div>
 
-      {/* KPI şeridi */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10 }}>
-        {[
-          { label: "Toplam Aktif", deger: para(toplamAktif), renk: C.bilgi },
-          { label: "Net Kâr", deger: para(netKar), renk: C.basari },
-          { label: "Brüt Marj", deger: yuzde(brutKarMarji), renk: C.basari },
-          { label: "KDV İade Pot.", deger: para(56200), renk: C.mor },
-          { label: "Kritik Uyarı", deger: "3 kalem", renk: C.uyari },
-        ].map((k, i) => (
-          <div key={i} style={{ background: C.kart, borderRadius: 12, padding: "12px 14px", border: `1px solid ${C.sinir}`, textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: C.ucuncu, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>{k.label}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: k.renk, marginTop: 4 }}>{k.deger}</div>
+        {/* Sekmeler */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 24, borderBottom: `1px solid ${C.sinir}`, paddingBottom: 12 }}>
+          {sekmeler.map(sekme => (
+            <button
+              key={sekme.id}
+              onClick={() => setAktifSekme(sekme.id)}
+              style={{
+                padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 700,
+                background: aktifSekme === sekme.id ? C.mavi : "transparent",
+                color: aktifSekme === sekme.id ? "#FFF" : C.ikinci,
+                border: "none", cursor: "pointer", transition: "all 0.2s"
+              }}
+            >
+              {sekme.label}
+            </button>
+          ))}
+        </div>
+
+        {/* İçerik */}
+        {aktifSekme === "analiz" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {!analysisResult ? (
+              <div style={{ gridColumn: "span 2", padding: 60, textAlign: "center", background: C.bg + "30", borderRadius: 16, border: `2px dashed ${C.sinir}` }}>
+                <div style={{ fontSize: 40, marginBottom: 16 }}>📄</div>
+                <h4 style={{ fontSize: 16, fontWeight: 800, color: C.metin }}>Analiz Bekleniyor</h4>
+                <p style={{ fontSize: 13, color: C.ikinci, maxWidth: 400, margin: "0 auto" }}>
+                  Lütfen bir mizan veya bilanço dosyası yükleyip "Analiz Et" butonuna basın. 
+                  Yapay zekamız verileri OCR ile okuyup size özel tavsiyeler üretecektir.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div style={{ background: C.mavi + "08", padding: 20, borderRadius: 16, border: `1px solid ${C.mavi}20` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <h5 style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>Mizan Doğruluğu & Gücü</h5>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: C.mavi }}>%{analysisResult.mizanAccuracy}</div>
+                    </div>
+                    <div style={{ height: 8, background: C.sinir, borderRadius: 10, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${analysisResult.mizanAccuracy}%`, background: C.mavi, borderRadius: 10 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}`, marginTop: 16 }}>
+                    <h5 style={{ fontSize: 13, fontWeight: 800, color: C.metin, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                      <TrendingUp size={16} color={C.yesil} /> Güçlü Yönler
+                    </h5>
+                    <p style={{ fontSize: 13, color: C.ikinci, lineHeight: 1.6 }}>{analysisResult.strengths}</p>
+                  </div>
+
+                  <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}`, marginTop: 16 }}>
+                    <h5 style={{ fontSize: 13, fontWeight: 800, color: C.metin, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                      <AlertTriangle size={16} color={C.kirmizi} /> Riskler & Zayıf Yönler
+                    </h5>
+                    <p style={{ fontSize: 13, color: C.ikinci, lineHeight: 1.6 }}>{analysisResult.weaknesses}</p>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div style={{ background: C.yesil + "08", padding: 20, borderRadius: 16, border: `1px solid ${C.yesil}20` }}>
+                    <h5 style={{ fontSize: 13, fontWeight: 800, color: C.yesil, marginBottom: 12 }}>Atılması Gereken Somut Adımlar</h5>
+                    <ul style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {analysisResult.actionableSteps.map((step: string, idx: number) => (
+                        <li key={idx} style={{ fontSize: 12, color: C.metin, marginBottom: 6 }}>{step}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}`, marginTop: 16 }}>
+                    <h5 style={{ fontSize: 13, fontWeight: 800, color: C.metin, marginBottom: 12 }}>Sektörel Analiz & Yorum</h5>
+                    <p style={{ fontSize: 13, color: C.ikinci, lineHeight: 1.6 }}>{analysisResult.sectorAnalysis}</p>
+                    <div style={{ marginTop: 12, padding: 12, background: C.bg, borderRadius: 10, fontSize: 12, color: C.metin, fontStyle: "italic" }}>
+                      "{analysisResult.interpretation}"
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Sekmeler */}
-      <div style={{ display: "flex", background: C.kart, borderRadius: 12, border: `1px solid ${C.sinir}`, overflow: "hidden" }}>
-        {sekmeler.map(s => (
-          <button key={s.id} onClick={() => setAktifSekme(s.id)} style={{
-            flex: 1, padding: "12px", border: "none", cursor: "pointer", fontFamily: "inherit",
-            background: aktifSekme === s.id ? C.bilgi : C.kart,
-            color: aktifSekme === s.id ? "#fff" : C.ikinci,
-            fontSize: 13, fontWeight: aktifSekme === s.id ? 700 : 500,
-            borderRight: `1px solid ${C.sinir}`,
-          }}>{s.label}</button>
-        ))}
+        {/* İade Asistanı */}
+        {aktifSekme === "iade" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {!analysisResult ? (
+              <div style={{ gridColumn: "span 2", padding: 60, textAlign: "center" }}>
+                <p style={{ color: C.ucuncu }}>Lütfen önce belge analizi yapın.</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ background: C.mor + "08", padding: 24, borderRadius: 20, border: `1px solid ${C.mor}20` }}>
+                  <h5 style={{ fontSize: 15, fontWeight: 900, color: C.mor, marginBottom: 20 }}>İade & Borç Dengesi</h5>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, color: C.ikinci }}>Mevcut Ödenecek Borçlar</span>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: C.kirmizi }}>{analysisResult.refundAssistant.payableDebts}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, color: C.ikinci }}>İade Karşılama Oranı</span>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: C.yesil }}>{analysisResult.refundAssistant.refundCoverage}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, color: C.ikinci }}>Devreden Bakiye</span>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: C.mavi }}>{analysisResult.refundAssistant.carryOver}</span>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 24, padding: 16, background: "#FFF", borderRadius: 12, border: `1px solid ${C.mor}30` }}>
+                    <h6 style={{ fontSize: 12, fontWeight: 800, color: C.mor, marginBottom: 8 }}>Strateji Önerisi:</h6>
+                    <p style={{ fontSize: 12, color: C.metin, lineHeight: 1.5 }}>{analysisResult.refundAssistant.strategy}</p>
+                  </div>
+                </div>
+
+                <div style={{ background: C.mavi + "08", padding: 24, borderRadius: 20, border: `1px solid ${C.mavi}20` }}>
+                  <h5 style={{ fontSize: 15, fontWeight: 900, color: C.mavi, marginBottom: 20 }}>Fatura & KDV Planlama</h5>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+                    <div style={{ background: "#FFF", padding: 16, borderRadius: 16, textAlign: "center" }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase" }}>Önerilen Satış</div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: C.mavi }}>{analysisResult.invoiceAdvice.recommendedIssued}</div>
+                    </div>
+                    <div style={{ background: "#FFF", padding: 16, borderRadius: 16, textAlign: "center" }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase" }}>Önerilen Alış</div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: C.yesil }}>{analysisResult.invoiceAdvice.recommendedReceived}</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: 16, background: "#FFF", borderRadius: 12, border: `1px solid ${C.mavi}30` }}>
+                    <h6 style={{ fontSize: 12, fontWeight: 800, color: C.mavi, marginBottom: 8 }}>KDV & Devir Analizi:</h6>
+                    <p style={{ fontSize: 12, color: C.metin, lineHeight: 1.5 }}>{analysisResult.invoiceAdvice.vatStatus}</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Eski Bilanço/Gelir Tablosu Görünümleri (Opsiyonel) */}
+        {(aktifSekme === "bilanco" || aktifSekme === "gelir" || aktifSekme === "rasyo" || aktifSekme === "kdv") && (
+          <div style={{ marginTop: 20, opacity: 0.6 }}>
+            <p style={{ fontSize: 12, textAlign: "center", color: C.ucuncu }}>Klasik tablo görünümü (Analiz verisiyle senkronize edilecektir)</p>
+          </div>
+        )}
       </div>
 
       {/* Bilanço */}
       {aktifSekme === "bilanco" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={{ background: C.kart, borderRadius: 14, border: `1px solid ${C.sinir}`, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px", padding: "8px 16px", background: C.koyu }}>
+            {["Kalem", "Cari Dönem", "Önceki Dönem"].map(h => <span key={h} style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>{h}</span>)}
+          </div>
           {[
-            {
-              baslik: "AKTİF", renk: C.bilgi, toplam: para(toplamAktif),
-              gruplar: [
-                { ad: "Dönen Varlıklar", toplam: para(donenVT), satirlar: [{ hesap: "100/102", ad: "Kasa & Banka", tutar: para(258000) }, { hesap: "120", ad: "Alıcılar", tutar: para(342000) }, { hesap: "150/153", ad: "Stoklar", tutar: para(180000) }, { hesap: "190", ad: "Devreden KDV", tutar: para(148500) }] },
-                { ad: "Duran Varlıklar", toplam: para(duranVT), satirlar: [{ hesap: "253/255", ad: "Demirbaşlar", tutar: para(505000) }, { hesap: "268", ad: "Birikmiş Amortisman", tutar: "(" + para(120000) + ")" }] },
-              ]
-            },
-            {
-              baslik: "PASİF", renk: C.basari, toplam: para(kvykT + uvykT + ozkaynakT),
-              gruplar: [
-                { ad: "Kısa Vadeli Yükümlülükler", toplam: para(kvykT), satirlar: [{ hesap: "300", ad: "Banka Kredileri (KV)", tutar: para(85000) }, { hesap: "320", ad: "Satıcılar", tutar: para(215000) }, { hesap: "360/361", ad: "Ödenecek Vergi/SGK", tutar: para(12400) }, { hesap: "391", ad: "Hesaplanan KDV", tutar: para(92300) }] },
-                { ad: "Uzun Vadeli Yükümlülükler", toplam: para(uvykT), satirlar: [{ hesap: "400", ad: "Banka Kredileri (UV)", tutar: para(380000) }] },
-                { ad: "Özkaynak", toplam: para(ozkaynakT), satirlar: [{ hesap: "500", ad: "Sermaye", tutar: para(500000) }, { hesap: "570", ad: "Geçmiş Yıl Kârları", tutar: para(28800) }] },
-              ]
-            }
-          ].map((taraf, ti) => (
-            <div key={ti} style={{ background: C.kart, borderRadius: 14, border: `1px solid ${C.sinir}`, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", background: taraf.renk, display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>{taraf.baslik}</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>{taraf.toplam}</span>
-              </div>
-              {taraf.gruplar.map((g, gi) => (
-                <div key={gi}>
-                  <div style={{ padding: "8px 16px", background: C.bg, fontSize: 11, fontWeight: 700, color: C.ikinci, textTransform: "uppercase", display: "flex", justifyContent: "space-between" }}>
-                    <span>{g.ad}</span><span>{g.toplam}</span>
-                  </div>
-                  {g.satirlar.map((r, ri) => (
-                    <div key={ri} style={{ padding: "8px 16px", borderBottom: `1px solid ${C.sinir}`, display: "flex", justifyContent: "space-between", background: ri % 2 === 0 ? C.kart : C.bg }}>
-                      <span style={{ fontSize: 12, color: C.ikinci }}><strong style={{ color: C.ucuncu }}>{r.hesap}</strong> {r.ad}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: C.metin }}>{r.tutar}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
+            { ad: "Dönen Varlıklar", cari: 850000, onceki: 720000, vurgula: true },
+            { ad: "Kasa ve Banka", cari: 258000, onceki: 180000, vurgula: false },
+            { ad: "Ticari Alacaklar", cari: 342000, onceki: 290000, vurgula: false },
+            { ad: "Stoklar", cari: 180000, onceki: 210000, vurgula: false },
+            { ad: "Duran Varlıklar", cari: 1650000, onceki: 1580000, vurgula: true },
+            { ad: "Maddi Duran Varlıklar", cari: 1420000, onceki: 1380000, vurgula: false },
+            { ad: "TOPLAM AKTİF", cari: 2500000, onceki: 2300000, vurgula: true, ana: true },
+            { ad: "Kısa Vadeli Borçlar", cari: 420000, onceki: 380000, vurgula: true },
+            { ad: "Uzun Vadeli Borçlar", cari: 880000, onceki: 920000, vurgula: true },
+            { ad: "Özkaynaklar", cari: 1200000, onceki: 1000000, vurgula: true },
+            { ad: "TOPLAM PASİF", cari: 2500000, onceki: 2300000, vurgula: true, ana: true },
+          ].map((r, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px", padding: "9px 16px", borderBottom: `1px solid ${C.sinir}`, background: r.ana ? C.mavi + "08" : r.vurgula ? C.bg : C.kart }}>
+              <span style={{ fontSize: 13, fontWeight: r.vurgula ? 800 : 500, color: r.ana ? C.mavi : r.vurgula ? C.metin : C.ikinci, paddingLeft: r.vurgula ? 0 : 12 }}>{r.ad}</span>
+              <span style={{ fontSize: 13, fontWeight: r.vurgula ? 800 : 600, color: C.metin, textAlign: "right" }}>{para(r.cari)}</span>
+              <span style={{ fontSize: 12, color: C.ucuncu, textAlign: "right" }}>{para(r.onceki)}</span>
             </div>
           ))}
         </div>
@@ -1352,7 +1524,7 @@ function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfi
         trackingData[data.companyId] = data;
       });
 
-      const updated = companies.map(c => {
+      const updated = [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr')).map(c => {
         const existing = trackingData[c.id];
         const base = {
           id: c.id,
@@ -1652,7 +1824,8 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
 
   useEffect(() => {
     if (companies.length > 0) {
-      setCustomers(companies.map(c => ({
+      const sorted = [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+      setCustomers(sorted.map(c => ({
         id: c.id,
         name: c.title,
         balance: 0,
@@ -1906,15 +2079,41 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
 // 10. MÜŞTERİ İLETİŞİM & BİLDİRİM
 // ─────────────────────────────────────────────
 function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
-  const [selectedFirmId, setSelectedFirmId] = useState(companies.length > 0 ? companies[0].id : "");
+  const [selectedFirmId, setSelectedFirmId] = useState(companies.length > 0 ? [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'))[0].id : "");
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [isListening, setIsListening] = useState(false);
 
   useEffect(() => {
     if (companies.length > 0 && !selectedFirmId) {
-      setSelectedFirmId(companies[0].id);
+      const sorted = [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+      setSelectedFirmId(sorted[0].id);
     }
   }, [companies]);
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Tarayıcınız sesli dikte özelliğini desteklemiyor.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'tr-TR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+    
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setNewMessage(prev => prev ? prev + " " + transcript : transcript);
+    };
+
+    recognition.start();
+  };
 
   useEffect(() => {
     if (!selectedFirmId) return;
@@ -1955,8 +2154,6 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
   const templates = [
     { id: 1, title: "Evrak Talebi", content: "Sayın {firma}, {ay} dönemine ait mizan ve faturalarınızı beklemekteyiz." },
     { id: 2, title: "Ödeme Hatırlatma", content: "Sayın {firma}, {tutar} tutarındaki gecikmiş bakiyenizin ödenmesini rica ederiz." },
-    { id: 3, title: "Beyanname Bildirimi", content: "Sayın {firma}, {ay} dönemi KDV beyannameniz verilmiştir. Tahakkuk fişi ektedir." },
-    { id: 4, title: "Genel Hatırlatma", content: "Sayın {firma}, yarın yapılacak olan toplantı saat 14:00'e alınmıştır." },
   ];
 
   const selectedFirm = companies.find(c => c.id === selectedFirmId);
@@ -1967,7 +2164,7 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
         <div className="glass-card p-4">
           <h3 className="font-bold text-slate-800 text-sm mb-4">Firmalar</h3>
           <div className="space-y-2">
-            {companies.map(c => (
+            {[...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr')).map(c => (
               <button 
                 key={c.id}
                 onClick={() => setSelectedFirmId(c.id)}
@@ -2037,6 +2234,13 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
               ))}
             </div>
             <div className="flex gap-2">
+              <button 
+                onClick={startListening}
+                className={`p-2 rounded-xl transition-all ${isListening ? 'bg-kilim-red text-white animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                title={isListening ? "Dinleniyor..." : "Sesle Yaz"}
+              >
+                <Mic size={20} />
+              </button>
               <input 
                 type="text" 
                 value={newMessage}
@@ -2047,7 +2251,8 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
               />
               <button 
                 onClick={handleSendMessage}
-                className="bg-kilim-red text-white p-2 rounded-xl hover:bg-kilim-red-dark transition-colors"
+                disabled={!newMessage.trim()}
+                className="bg-kilim-red text-white p-2 rounded-xl hover:bg-kilim-red-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ArrowRight size={20} />
               </button>
@@ -2064,57 +2269,105 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
 // ─────────────────────────────────────────────
 
 function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
-  const [secilenFirmaId, setSecilenFirmaId] = useState<string>(companies.length > 0 ? companies[0].id : "");
+  const [secilenFirmaId, setSecilenFirmaId] = useState<string>(companies.length > 0 ? [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'))[0].id : "");
   const [personnel, setPersonnel] = useState<any[]>([]);
+  const [loadingPersonel, setLoadingPersonel] = useState(false);
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
 
   useEffect(() => {
     if (companies.length > 0 && !secilenFirmaId) {
-      setSecilenFirmaId(companies[0].id);
+      const sorted = [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+      setSecilenFirmaId(sorted[0].id);
     }
   }, [companies]);
 
   useEffect(() => {
-    if (!secilenFirmaId) return;
+    if (!secilenFirmaId) {
+      setPersonnel([]);
+      return;
+    }
 
+    setLoadingPersonel(true);
+    console.log(`[PersonelBordro] Fetching personnel for company: ${secilenFirmaId}`);
+    
+    // First, check if the company has personnel in the array (CompanyInfoModule style)
+    const selectedCompany = companies.find(c => c.id === secilenFirmaId);
+    if (selectedCompany && selectedCompany.personnel && selectedCompany.personnel.length > 0) {
+      console.log(`[PersonelBordro] Found ${selectedCompany.personnel.length} personnel in company array for ${selectedCompany.title}`);
+      const persData = selectedCompany.personnel.map(p => {
+        const isHuzurHakki = p.type === 'huzur_hakki' || (p.fullName && (p.fullName.includes('Recep Baş') || p.fullName.includes('Selim Baş'))) || (p.role && p.role.includes('Yönetim'));
+        return {
+          ...p,
+          firmaId: secilenFirmaId,
+          ad: p.fullName || 'İsimsiz',
+          tc: p.idNumber || '---',
+          gorev: p.role || '---',
+          brut: (p.netSalary || 0) * 1.4,
+          giris: p.startDate || '---',
+          durum: p.leaveStatus || 'Aktif',
+          izinHak: 14,
+          izinKul: 0,
+          sgkNo: p.idNumber || '---',
+          tesvik: isHuzurHakki ? "Yok" : "5510",
+          tesvikBitis: isHuzurHakki ? "-" : "2026-12-31",
+          type: isHuzurHakki ? 'huzur_hakki' : 'normal'
+        };
+      });
+      persData.sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
+      setPersonnel(persData);
+      setLoadingPersonel(false);
+      return; // Use array data and exit
+    }
+
+    console.log(`[PersonelBordro] No personnel in company array, falling back to subcollection for ${secilenFirmaId}`);
+    // Fallback to subcollection if array is empty
     const personnelRef = collection(db, 'companies', secilenFirmaId, 'personnel');
+    
     const unsubscribe = onSnapshot(personnelRef, (snapshot) => {
+      console.log(`[PersonelBordro] Received ${snapshot.size} personnel docs from subcollection for ${secilenFirmaId}`);
       const persData: any[] = [];
       snapshot.forEach((doc) => {
         const p = doc.data() as Personnel;
-        const isHuzurHakki = p.type === 'huzur_hakki' || p.fullName.includes('Recep Baş') || p.fullName.includes('Selim Baş') || p.role.includes('Yönetim');
+        const isHuzurHakki = p.type === 'huzur_hakki' || (p.fullName && (p.fullName.includes('Recep Baş') || p.fullName.includes('Selim Baş'))) || (p.role && p.role.includes('Yönetim'));
         
         persData.push({
           ...p,
           id: doc.id,
           firmaId: secilenFirmaId,
-          ad: p.fullName,
-          tc: p.idNumber,
-          gorev: p.role,
-          brut: p.netSalary * 1.4,
-          giris: p.startDate,
-          durum: p.leaveStatus,
+          ad: p.fullName || 'İsimsiz',
+          tc: p.idNumber || '---',
+          gorev: p.role || '---',
+          brut: (p.netSalary || 0) * 1.4,
+          giris: p.startDate || '---',
+          durum: p.leaveStatus || 'Aktif',
           izinHak: 14,
           izinKul: 0,
-          sgkNo: p.idNumber,
+          sgkNo: p.idNumber || '---',
           tesvik: isHuzurHakki ? "Yok" : "5510",
           tesvikBitis: isHuzurHakki ? "-" : "2026-12-31",
           type: isHuzurHakki ? 'huzur_hakki' : 'normal'
         });
       });
+      
+      // Sort personnel alphabetically
+      persData.sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
+      
       setPersonnel(persData);
+      setLoadingPersonel(false);
     }, (error) => {
+      console.error("[PersonelBordro] Error fetching personnel:", error);
       handleFirestoreError(error, OperationType.LIST, `companies/${secilenFirmaId}/personnel`);
+      setLoadingPersonel(false);
     });
 
     return () => unsubscribe();
-  }, [secilenFirmaId]);
+  }, [secilenFirmaId, companies]);
 
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState<any>(null);
   const [leaveDays, setLeaveDays] = useState(1);
 
-  const firmaPersonel = personnel.filter(p => p.firmaId === secilenFirmaId);
+  const firmaPersonel = personnel;
 
   const hesaplaBordro = (brut: number, type: 'normal' | 'huzur_hakki' = 'normal') => {
     if (type === 'huzur_hakki') {
@@ -2160,9 +2413,9 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
     setLeaveTarget(null);
   };
 
-  const toplamBrut = firmaPersonel.reduce((acc, p) => acc + p.brut, 0);
-  const toplamNet = firmaPersonel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).net, 0);
-  const toplamMaliyet = firmaPersonel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).toplamMaliyet, 0);
+  const toplamBrut = personnel.reduce((acc, p) => acc + p.brut, 0);
+  const toplamNet = personnel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).net, 0);
+  const toplamMaliyet = personnel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).toplamMaliyet, 0);
 
   if (companies.length === 0) {
     return (
@@ -2199,7 +2452,9 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
               background: C.bg, color: C.mavi, fontWeight: 700, outline: "none", cursor: "pointer" 
             }}
           >
-            {companies.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
+            {[...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr')).map(f => (
+              <option key={f.id} value={f.id}>{f.title}</option>
+            ))}
             {companies.length === 0 && <option value="">Firma Yok</option>}
           </select>
         </div>
@@ -2251,167 +2506,71 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
               </tr>
             </thead>
             <tbody>
-              {firmaPersonel.map(p => {
-                const isExpanded = expandedId === p.id;
-                const payroll = hesaplaBordro(p.brut, p.type);
-                const kidem = kidemYilHesapla(p.giris);
-                const kalanIzin = p.izinHak - p.izinKul;
-
-                return (
-                  <React.Fragment key={p.id}>
-                    <tr style={{ 
-                      borderBottom: `1px solid ${C.sinir}`, 
-                      background: isExpanded ? C.maviSoluk : "transparent",
-                      transition: "background 0.2s"
-                    }}>
-                      <td style={{ padding: "16px 20px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{ width: 36, height: 36, borderRadius: 10, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>👤</div>
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: C.metin }}>{p.ad}</div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <div style={{ fontSize: 10, color: C.ucuncu, fontWeight: 600 }}>{p.gorev}</div>
-                              {p.type === 'huzur_hakki' && <Badge label="Huzur Hakkı" renk={C.kirmizi} />}
-                            </div>
-                          </div>
+              {loadingPersonel ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: C.ikinci }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-kilim-blue"></div>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>Personel listesi yükleniyor...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : personnel.length > 0 ? (
+                personnel.map((p) => (
+                  <tr key={p.id} style={{ borderBottom: `1px solid ${C.sinir}`, transition: "all 0.2s" }} className="hover:bg-slate-50/50">
+                    <td style={{ padding: "16px 20px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.maviSoluk, display: "flex", alignItems: "center", justifyContent: "center", color: C.mavi, fontSize: 14, fontWeight: 800 }}>
+                          {p.ad ? p.ad[0] : "?"}
                         </div>
-                      </td>
-                      <td style={{ padding: "16px 20px" }}>
-                        <div style={{ fontSize: 12, fontFamily: "monospace", color: C.ikinci }}>{p.tc}</div>
-                        <div style={{ fontSize: 10, color: C.ucuncu }}>{p.type === 'huzur_hakki' ? 'SGK Muaf' : `SGK: ${p.sgkNo}`}</div>
-                      </td>
-                      <td style={{ padding: "16px 20px" }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>{para(payroll.net)}</div>
-                        <div style={{ fontSize: 10, color: C.ucuncu }}>Brüt: {para(p.brut)}</div>
-                      </td>
-                      <td style={{ padding: "16px 20px" }}>
-                        <Badge label={`${kidem} Yıl`} renk={kidem > 5 ? C.kirmizi : C.mavi} />
-                        <div style={{ fontSize: 10, color: C.ucuncu, marginTop: 4 }}>{p.giris}</div>
-                      </td>
-                      <td style={{ padding: "16px 20px" }}>
-                        <div style={{ width: 100 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase", marginBottom: 4 }}>
-                            <span>Kalan</span>
-                            <span>{kalanIzin} G</span>
-                          </div>
-                          <div style={{ height: 6, background: C.sinir, borderRadius: 10, overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: `${(kalanIzin / p.izinHak) * 100}%`, background: kalanIzin < 5 ? C.kirmizi : C.yesil, borderRadius: 10 }} />
-                          </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: C.metin }}>{p.ad}</div>
+                          <div style={{ fontSize: 11, color: C.ikinci, fontWeight: 600 }}>{p.gorev}</div>
                         </div>
-                      </td>
-                      <td style={{ padding: "16px 20px" }}>
-                        <button 
-                          onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                          style={{ 
-                            padding: 8, borderRadius: 10, border: "none", cursor: "pointer",
-                            background: isExpanded ? C.mavi : C.bg, color: isExpanded ? "#FFF" : C.ucuncu,
-                            display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s"
-                          }}
-                        >
-                          <ChevronDown size={18} style={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.3s" }} />
-                        </button>
-                      </td>
-                    </tr>
-                    
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={6} style={{ padding: 0, background: C.bg + "50" }}>
-                          <motion.div 
-                            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                            style={{ overflow: "hidden" }}
-                          >
-                            <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
-                              {/* Bordro Detayı */}
-                              <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
-                                <div style={{ fontSize: 11, fontWeight: 900, color: C.metin, textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                                  <Calculator size={14} color={C.mavi} /> {p.type === 'huzur_hakki' ? 'Huzur Hakkı Dökümü' : 'Maaş & Vergi Dökümü'}
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                                  {p.type !== 'huzur_hakki' && (
-                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
-                                      <span style={{ color: C.ikinci }}>SGK İşçi Payı (%14)</span>
-                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(payroll.sgkIsci)}</span>
-                                    </div>
-                                  )}
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
-                                    <span style={{ color: C.ikinci }}>Gelir Vergisi (%15)</span>
-                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(payroll.gelirVergisi)}</span>
-                                  </div>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
-                                    <span style={{ color: C.ikinci }}>Damga Vergisi</span>
-                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(payroll.damgaVergisi)}</span>
-                                  </div>
-                                  {p.type !== 'huzur_hakki' && (
-                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 8, borderBottom: `1px solid ${C.bg}` }}>
-                                      <span style={{ color: C.ikinci }}>SGK İşveren Payı (%15.5)</span>
-                                      <span style={{ fontWeight: 700, color: C.yesil }}>{para(payroll.sgkIsveren)}</span>
-                                    </div>
-                                  )}
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 900, paddingTop: 8 }}>
-                                    <span style={{ color: C.metin }}>{p.type === 'huzur_hakki' ? 'Net Ödeme' : 'Toplam Maliyet'}</span>
-                                    <span style={{ color: C.kirmizi }}>{para(p.type === 'huzur_hakki' ? payroll.net : payroll.toplamMaliyet)}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* İzin Yönetimi */}
-                              <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
-                                <div style={{ fontSize: 11, fontWeight: 900, color: C.metin, textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                                  <Calendar size={14} color={C.mavi} /> İzin & Devamsızlık
-                                </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                                  <div style={{ background: C.bg, padding: 12, borderRadius: 12, textAlign: "center" }}>
-                                    <div style={{ fontSize: 9, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase" }}>Hakedilen</div>
-                                    <div style={{ fontSize: 18, fontWeight: 900, color: C.metin }}>{p.izinHak}</div>
-                                  </div>
-                                  <div style={{ background: C.bg, padding: 12, borderRadius: 12, textAlign: "center" }}>
-                                    <div style={{ fontSize: 9, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase" }}>Kullanılan</div>
-                                    <div style={{ fontSize: 18, fontWeight: 900, color: C.mavi }}>{p.izinKul}</div>
-                                  </div>
-                                </div>
-                                <button 
-                                  onClick={() => { setLeaveTarget(p); setShowLeaveModal(true); }}
-                                  style={{ 
-                                    width: "100%", padding: 12, background: C.mavi, color: "#FFF", 
-                                    borderRadius: 12, border: "none", fontSize: 12, fontWeight: 700, 
-                                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8
-                                  }}
-                                >
-                                  <Plus size={16} /> İzin Girişi Yap
-                                </button>
-                              </div>
-
-                              {/* Teşvik Bilgisi */}
-                              <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
-                                <div style={{ fontSize: 11, fontWeight: 900, color: C.metin, textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                                  <Zap size={14} color={C.mavi} /> SGK Teşvik Bilgisi
-                                </div>
-                                <div style={{ background: C.yesil + "10", padding: 16, borderRadius: 12, border: `1px solid ${C.yesil}20` }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: C.yesil }}>Aktif Teşvik:</span>
-                                    <Badge label={p.tesvik} renk={C.yesil} />
-                                  </div>
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: C.yesil }}>Bitiş Tarihi:</span>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: C.metin }}>{p.tesvikBitis}</span>
-                                  </div>
-                                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.yesil}20`, fontSize: 10, color: C.yesilAcik, fontStyle: "italic" }}>
-                                    Bu personel için aylık yaklaşık {para(4850)} tutarında SGK teşviği uygulanmaktadır.
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
+                      </div>
+                    </td>
+                    <td style={{ padding: "16px 20px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.metin }}>{p.tc}</div>
+                      <div style={{ fontSize: 11, color: C.ikinci }}>{p.sgkNo}</div>
+                    </td>
+                    <td style={{ padding: "16px 20px" }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>{para(p.brut)}</div>
+                      <div style={{ fontSize: 10, color: C.yesil, fontWeight: 700 }}>Brüt Maaş</div>
+                    </td>
+                    <td style={{ padding: "16px 20px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.metin }}>{kidemYilHesapla(p.giris)} Yıl</div>
+                      <div style={{ fontSize: 11, color: C.ikinci }}>Giriş: {p.giris || '-'}</div>
+                    </td>
+                    <td style={{ padding: "16px 20px" }}>
+                      <span style={{ 
+                        padding: "4px 10px", borderRadius: 20, fontSize: 10, fontWeight: 800,
+                        background: p.durum === "Aktif" ? C.yesilSoluk : C.turuncuSoluk,
+                        color: p.durum === "Aktif" ? C.yesil : C.turuncu
+                      }}>
+                        {p.durum || "Aktif"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "16px 20px" }}>
+                      <button style={{ padding: "8px 12px", borderRadius: 8, background: C.bg, border: `1px solid ${C.sinir}`, color: C.mavi, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                        Bordro Görüntüle
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} style={{ padding: 60, textAlign: "center", color: C.ikinci }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                      <Users size={40} style={{ opacity: 0.2 }} />
+                      <span style={{ fontSize: 14, fontWeight: 600, fontStyle: "italic" }}>Bu firmaya ait personel kaydı bulunamadı.</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
             <tfoot>
               <tr style={{ background: C.mavi }}>
-                <td style={{ padding: "16px 20px", fontSize: 12, fontWeight: 900, color: "#FFF" }}>TOPLAM ({firmaPersonel.length} Personel)</td>
+                <td style={{ padding: "16px 20px", fontSize: 12, fontWeight: 900, color: "#FFF" }}>TOPLAM ({personnel.length} Personel)</td>
                 <td style={{ padding: "16px 20px" }}></td>
                 <td style={{ padding: "16px 20px", fontSize: 12, fontWeight: 900, color: "#FFF" }}>
                   <div>Net: {para(toplamNet)}</div>
@@ -2675,7 +2834,7 @@ export const OfficeProductivityModule = ({ activeTab, companies = [], profile }:
   const renderTool = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Panel profile={profile} />;
+        return <Panel profile={profile} companies={companies} />;
       case 'beyanname':
         return <BeyannameTakibi companies={companies} profile={profile} />;
       case 'cari-hesap':

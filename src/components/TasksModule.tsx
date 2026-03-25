@@ -29,25 +29,33 @@ export const TasksModule: React.FC = () => {
   const [newTaskDate, setNewTaskDate] = useState('');
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        setTasks([]);
+        setLoading(false);
+        return;
+      }
 
-    const userId = auth.currentUser.uid;
-    const tasksRef = collection(db, 'users', userId, 'tasks');
-    const q = query(tasksRef, orderBy('createdAt', 'desc'));
+      const userId = user.uid;
+      const tasksRef = collection(db, 'users', userId, 'tasks');
+      const q = query(tasksRef, orderBy('createdAt', 'desc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tasksData: Task[] = [];
-      snapshot.forEach((doc) => {
-        tasksData.push({ id: doc.id, ...doc.data() } as Task);
+      const unsubscribeTasks = onSnapshot(q, (snapshot) => {
+        const tasksData: Task[] = [];
+        snapshot.forEach((doc) => {
+          tasksData.push({ id: doc.id, ...doc.data() } as Task);
+        });
+        setTasks(tasksData);
+        setLoading(false);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, `users/${userId}/tasks`);
+        setLoading(false);
       });
-      setTasks(tasksData);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `users/${userId}/tasks`);
-      setLoading(false);
+
+      return () => unsubscribeTasks();
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   const addTask = async (e: React.FormEvent) => {

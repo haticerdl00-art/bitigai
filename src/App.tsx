@@ -236,6 +236,9 @@ export default function App() {
       snapshot.forEach((doc) => {
         companiesData.push({ id: doc.id, ...doc.data() } as CompanyProfile);
       });
+      // Sort alphabetically by title
+      companiesData.sort((a, b) => a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' }));
+      
       console.log('Fetched companies from Firestore:', companiesData.length, companiesData.map(c => c.title));
       setCompanies(companiesData);
     }, (error) => {
@@ -509,7 +512,7 @@ export default function App() {
       case ModuleId.DASHBOARD:
         return (
           <div className="space-y-10">
-            <Dashboard user={user} onNavigate={handleSetActiveModule} />
+            <Dashboard user={user} onNavigate={handleSetActiveModule} companies={companies} />
           </div>
         );
       case ModuleId.CHAT:

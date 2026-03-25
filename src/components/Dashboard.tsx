@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Calendar, 
   Gavel, 
@@ -10,24 +10,80 @@ import {
   RefreshCw,
   Users,
   Building2,
-  Sparkles
+  Sparkles,
+  ListTodo,
+  FileCheck,
+  Activity,
+  BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { fetchLatestLegislation } from '../services/geminiService';
-import { UserProfile, ModuleId } from '../types';
+import { UserProfile, ModuleId, CompanyProfile } from '../types';
 import { TasksModule } from './TasksModule';
 import { MarketPulse } from './MarketPulse';
 import { getCalendarItems } from '../utils/calendarUtils';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 interface DashboardProps {
   user: UserProfile | null;
   onNavigate?: (moduleId: any) => void;
+  companies: CompanyProfile[];
 }
 
-export const Dashboard = ({ user, onNavigate }: DashboardProps) => {
-  const [legislation, setLegislation] = React.useState<{title: string, date: string, source: string, link?: string, impact?: string}[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState<'bugun' | 'yaklasan'>('bugun');
+export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
+  const [legislation, setLegislation] = useState<{title: string, date: string, source: string, link?: string, impact?: string}[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'bugun' | 'yaklasan'>('bugun');
+  const [approachingCount, setApproachingCount] = useState(0);
+  const [pendingDocsCount, setPendingDocsCount] = useState(0);
+  const [taskCount, setTaskCount] = useState(0);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const userId = auth.currentUser.uid;
+    // Fetch pending declarations count for the current user
+    const q = query(
+      collection(db, 'beyanname_tracking'), 
+      where('ownerId', '==', userId),
+      where('status', '!=', 'Tamamlandı')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPendingDocsCount(snapshot.size);
+    }, (error) => {
+      console.error("Error fetching pending docs:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const userId = auth.currentUser.uid;
+    const tasksRef = collection(db, 'users', userId, 'tasks');
+    const q = query(tasksRef, where('completed', '==', false));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setTaskCount(snapshot.size);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `users/${userId}/tasks`);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const loadLegislation = async () => {
+      try {
+        const data = await fetchLatestLegislation();
+        setLegislation(data);
+      } catch (error) {
+        console.error("Failed to load legislation:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadLegislation();
+  }, []);
 
   const today = useMemo(() => new Date(), []);
   
@@ -76,39 +132,25 @@ export const Dashboard = ({ user, onNavigate }: DashboardProps) => {
     r.date.getFullYear() !== today.getFullYear()
   ));
 
-  const mockData = {
-    stats: [
-      { id: 'mevzuat', label: "Yeni Mevzuat", deger: "3", alt: "Bu hafta", renk: "text-rose-500", bg: "bg-rose-50", border: "border-rose-200" },
-      { id: 'evrak', label: "Bekleyen Evrak", deger: "12", alt: "Teslim edilmedi", renk: "text-amber-500", bg: "bg-amber-50", border: "border-amber-200" },
-      { id: 'musteri', label: "Aktif Müşteri", deger: "45", alt: "Toplam firma", renk: "text-kilim-blue", bg: "bg-blue-50", border: "border-blue-200" },
-      { id: 'verimlilik', label: "Ofis Verimliliği", deger: "%88", alt: "Hedef: %85", renk: "text-emerald-500", bg: "bg-emerald-50", border: "border-emerald-200" },
-    ]
-  };
+  const approachingCountReal = dynamicDeadlines.filter(d => d.diffDays >= 0 && d.diffDays <= 5).length;
 
-  React.useEffect(() => {
-    const loadLegislation = async () => {
-      try {
-        const data = await fetchLatestLegislation();
-        setLegislation(data);
-      } catch (error) {
-        console.error("Failed to load legislation:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadLegislation();
-  }, []);
+  const allDeadlines = activeTab === 'bugun' ? bugunReminders : yaklasanReminders;
 
   const turRengi = (tur: string) => {
-    if (tur === "TAX" || tur === "VERGİ") return "bg-blue-100 text-blue-700";
-    if (tur === "SGK") return "bg-emerald-100 text-emerald-700";
-    if (tur === "BERAT" || tur === "E-DEFTER") return "bg-purple-100 text-purple-700";
-    return "bg-slate-100 text-slate-700";
+    switch (tur) {
+      case 'BEYANNAME': return 'bg-rose-100 text-rose-700';
+      case 'SGK': return 'bg-blue-100 text-blue-700';
+      case 'VERGİ': return 'bg-amber-100 text-amber-700';
+      default: return 'bg-slate-100 text-slate-700';
+    }
   };
 
-  const allDeadlines = activeTab === "bugun" ? bugunReminders : yaklasanReminders;
-
-  const approachingCount = dynamicDeadlines.filter(d => d.diffDays >= 0 && d.diffDays <= 5).length;
+  const realStats = [
+    { id: 'mevzuat', label: "Yeni Mevzuat", deger: legislation.length.toString(), alt: "Bu hafta", renk: "text-rose-500", bg: "bg-rose-50", border: "border-rose-200", icon: Gavel },
+    { id: 'gorev', label: "Bekleyen Görev", deger: taskCount.toString(), alt: "Aktif görevler", renk: "text-amber-500", bg: "bg-amber-50", border: "border-amber-200", icon: ListTodo },
+    { id: 'musteri', label: "Aktif Müşteri", deger: companies.length.toString(), alt: "Toplam firma", renk: "text-kilim-blue", bg: "bg-blue-50", border: "border-blue-200", icon: Building2 },
+    { id: 'beyanname', label: "Bekleyen Evrak", deger: pendingDocsCount.toString(), alt: "Eksik beyannameler", renk: "text-emerald-500", bg: "bg-emerald-50", border: "border-emerald-200", icon: FileCheck },
+  ];
 
   return (
     <div className="space-y-12 max-w-7xl mx-auto px-4 md:px-0">
@@ -126,7 +168,7 @@ export const Dashboard = ({ user, onNavigate }: DashboardProps) => {
           <div className="flex flex-wrap items-center gap-3 pt-3">
             <div className="px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-xl flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-              <span className="text-xs font-bold text-rose-700">Takvimde {approachingCount} adet beyanname süresi yaklaşıyor</span>
+              <span className="text-xs font-bold text-rose-700">Takvimde {approachingCountReal} adet beyanname süresi yaklaşıyor</span>
             </div>
             <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -141,8 +183,11 @@ export const Dashboard = ({ user, onNavigate }: DashboardProps) => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {mockData.stats.map((stat) => (
-          <div key={stat.id} className={`p-6 bg-white border border-kilim-blue/5 rounded-3xl shadow-sm hover:shadow-md hover:border-kilim-blue/20 transition-all group`}>
+        {realStats.map((stat) => (
+          <div key={stat.id} className={`p-6 bg-white border border-kilim-blue/5 rounded-3xl shadow-sm hover:shadow-md hover:border-kilim-blue/20 transition-all group relative overflow-hidden`}>
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <stat.icon className="w-12 h-12" />
+            </div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
             <div className="flex items-baseline gap-2">
               <p className={`text-3xl font-black ${stat.renk}`}>{stat.deger}</p>
@@ -151,7 +196,7 @@ export const Dashboard = ({ user, onNavigate }: DashboardProps) => {
             <div className="mt-4 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
               <motion.div 
                 initial={{ width: 0 }}
-                animate={{ width: '60%' }}
+                animate={{ width: '100%' }}
                 className={`h-full ${stat.renk.replace('text-', 'bg-')}`}
               />
             </div>
