@@ -33,7 +33,8 @@ import {
   Users,
   Calendar,
   X,
-  Loader2
+  Loader2,
+  Info
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { CompanyProfile, Personnel } from "../types";
@@ -232,53 +233,61 @@ function Panel({ profile, companies = [] }: { profile?: CompanyProfile, companie
   const [pendingDocsCount, setPendingDocsCount] = useState(0);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const userId = auth.currentUser.uid;
-    
-    // Fetch user tasks
-    const tasksRef = collection(db, 'users', userId, 'tasks');
-    const qTasks = query(tasksRef, where('completed', '==', false));
-    const unsubscribeTasks = onSnapshot(qTasks, (snapshot) => {
-      const tasksData: any[] = [];
-      snapshot.forEach((doc) => {
-        tasksData.push({ id: doc.id, ...doc.data() });
-      });
-      // Sort client-side to avoid index requirement
-      tasksData.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
-        return timeB - timeA;
-      });
-      setTasks(tasksData);
-    });
-
-    // Fetch pending declarations count
-    const qDocs = query(
-      collection(db, 'beyanname_tracking'), 
-      where('ownerId', '==', userId)
-    );
-    const unsubscribeDocs = onSnapshot(qDocs, (snapshot) => {
-      // Filter client-side to avoid index requirement
-      const pending = snapshot.docs.filter(doc => doc.data().status !== 'Tamamlandı');
-      setPendingDocsCount(pending.length);
-    }, (error) => {
-      console.error("Error fetching pending docs in Panel:", error);
-    });
-
-    // Fetch user notes
-    const notesRef = doc(db, 'users', userId, 'settings', 'general_notes');
-    const unsubscribeNotes = onSnapshot(notesRef, (doc) => {
-      if (doc.exists()) {
-        setGeneralNotes(doc.data().text);
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        setTasks([]);
+        setPendingDocsCount(0);
+        return;
       }
+
+      const userId = user.uid;
+      
+      // Fetch user tasks
+      const tasksRef = collection(db, 'users', userId, 'tasks');
+      const qTasks = query(tasksRef, where('completed', '==', false));
+      const unsubscribeTasks = onSnapshot(qTasks, (snapshot) => {
+        const tasksData: any[] = [];
+        snapshot.forEach((doc) => {
+          tasksData.push({ id: doc.id, ...doc.data() });
+        });
+        // Sort client-side to avoid index requirement
+        tasksData.sort((a, b) => {
+          const timeA = a.createdAt?.toMillis?.() || 0;
+          const timeB = b.createdAt?.toMillis?.() || 0;
+          return timeB - timeA;
+        });
+        setTasks(tasksData);
+      });
+
+      // Fetch pending declarations count
+      const qDocs = query(
+        collection(db, 'beyanname_tracking'), 
+        where('ownerId', '==', userId)
+      );
+      const unsubscribeDocs = onSnapshot(qDocs, (snapshot) => {
+        // Filter client-side to avoid index requirement
+        const pending = snapshot.docs.filter(doc => doc.data().status !== 'Tamamlandı');
+        setPendingDocsCount(pending.length);
+      }, (error) => {
+        console.error("Error fetching pending docs in Panel:", error);
+      });
+
+      // Fetch user notes
+      const notesRef = doc(db, 'users', userId, 'settings', 'general_notes');
+      const unsubscribeNotes = onSnapshot(notesRef, (doc) => {
+        if (doc.exists()) {
+          setGeneralNotes(doc.data().text);
+        }
+      });
+
+      return () => {
+        unsubscribeTasks();
+        unsubscribeDocs();
+        unsubscribeNotes();
+      };
     });
 
-    return () => {
-      unsubscribeTasks();
-      unsubscribeDocs();
-      unsubscribeNotes();
-    };
+    return () => unsubscribeAuth();
   }, []);
 
   return (
@@ -1508,10 +1517,18 @@ function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfi
   const [firms, setFirms] = useState<any[]>([]);
   const [selectedFirmId, setSelectedFirmId] = useState<string | null>(null);
   const [noteInput, setNoteInput] = useState("");
-  const currentPeriod = "2024-03"; // Hardcoded for now, could be dynamic
+  const [currentPeriod, setCurrentPeriod] = useState(() => {
+    const d = new Date();
+    // Default to previous month
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   useEffect(() => {
-    if (companies.length === 0 || !auth.currentUser) return;
+    if (!auth.currentUser) {
+      setFirms([]);
+      return;
+    }
 
     const userId = auth.currentUser.uid;
     const trackingRef = collection(db, 'beyanname_tracking');
@@ -1524,7 +1541,10 @@ function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfi
         trackingData[data.companyId] = data;
       });
 
-      const updated = [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr')).map(c => {
+      // Ensure companies is an array and filter by ownerId
+      const userCompanies = (companies || []).filter(c => c.ownerId === userId || !c.ownerId);
+      
+      const updated = [...userCompanies].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'tr')).map(c => {
         const existing = trackingData[c.id];
         const base = {
           id: c.id,
@@ -1553,7 +1573,7 @@ function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfi
     });
 
     return () => unsubscribe();
-  }, [companies]);
+  }, [companies, currentPeriod]);
 
   const statusColors: any = {
     "Verildi": { bg: C.yesil + "15", text: C.yesil, icon: <CheckCircle2 size={12} /> },
@@ -1636,20 +1656,33 @@ function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfi
 
   return (
     <div className="space-y-6">
-      {/* Tab Switcher */}
-      <div className="flex border-b border-slate-200">
-        <button 
-          onClick={() => setActiveTab("genel")}
-          className={`px-6 py-3 text-sm font-bold transition-all border-b-2 ${activeTab === "genel" ? 'border-kilim-blue text-kilim-blue' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-        >
-          Genel Takip Çizelgesi
-        </button>
-        <button 
-          onClick={() => setActiveTab("firma")}
-          className={`px-6 py-3 text-sm font-bold transition-all border-b-2 ${activeTab === "firma" ? 'border-kilim-blue text-kilim-blue' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-        >
-          Firma Bazlı Görünüm & Notlar
-        </button>
+      {/* Tab Switcher & Period Selector */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4">
+        <div className="flex bg-slate-100 p-1 rounded-xl">
+          <button 
+            onClick={() => setActiveTab("genel")}
+            className={`px-6 py-2 text-xs font-bold transition-all rounded-lg ${activeTab === "genel" ? 'bg-white text-kilim-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Genel Takip Çizelgesi
+          </button>
+          <button 
+            onClick={() => setActiveTab("firma")}
+            className={`px-6 py-2 text-xs font-bold transition-all rounded-lg ${activeTab === "firma" ? 'bg-white text-kilim-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Firma Bazlı Görünüm & Notlar
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+          <Calendar className="w-4 h-4 text-kilim-blue" />
+          <span className="text-xs font-bold text-slate-600">Dönem:</span>
+          <input 
+            type="month" 
+            value={currentPeriod}
+            onChange={(e) => setCurrentPeriod(e.target.value)}
+            className="text-xs font-bold text-kilim-blue outline-none bg-transparent cursor-pointer"
+          />
+        </div>
       </div>
 
       {activeTab === "genel" ? (
@@ -2119,12 +2152,19 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
     if (!selectedFirmId) return;
 
     const messagesRef = collection(db, 'companies', selectedFirmId, 'messages');
-    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+    // Removed orderBy to avoid index issues, sorting client-side
+    const q = query(messagesRef);
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs: any[] = [];
       snapshot.forEach((doc) => {
         msgs.push({ id: doc.id, ...doc.data() });
+      });
+      // Client-side sort by timestamp asc
+      msgs.sort((a, b) => {
+        const timeA = a.timestamp?.toMillis?.() || 0;
+        const timeB = b.timestamp?.toMillis?.() || 0;
+        return timeA - timeB;
       });
       setMessages(msgs);
     }, (error) => {
@@ -2149,6 +2189,19 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `companies/${selectedFirmId}/messages`);
     }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!newMessage.trim() || !selectedFirm) return;
+    const text = `*BİTİG AI - Müşavir Bilgilendirme*\n\n${newMessage}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleShareEmail = () => {
+    if (!newMessage.trim() || !selectedFirm) return;
+    const subject = "Mali Müşavir Bilgilendirme";
+    const body = `${newMessage}\n\nSaygılarımızla,\nBİTİG AI Müşavir Asistanı`;
+    window.open(`mailto:${selectedFirm.emails?.[0] || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
   };
 
   const templates = [
@@ -2193,8 +2246,22 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors"><MessageCircle size={20} /></button>
-              <button className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"><Mail size={20} /></button>
+              <button 
+                onClick={handleShareWhatsApp}
+                disabled={!newMessage.trim()}
+                className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors disabled:opacity-50"
+                title="WhatsApp ile Paylaş"
+              >
+                <MessageCircle size={20} />
+              </button>
+              <button 
+                onClick={handleShareEmail}
+                disabled={!newMessage.trim()}
+                className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors disabled:opacity-50"
+                title="E-Posta Gönder"
+              >
+                <Mail size={20} />
+              </button>
             </div>
           </div>
 
@@ -2269,17 +2336,19 @@ function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfi
 // ─────────────────────────────────────────────
 
 function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
-  const [secilenFirmaId, setSecilenFirmaId] = useState<string>(companies.length > 0 ? [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'))[0].id : "");
+  const [secilenFirmaId, setSecilenFirmaId] = useState<string>("");
   const [personnel, setPersonnel] = useState<any[]>([]);
   const [loadingPersonel, setLoadingPersonel] = useState(false);
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
 
   useEffect(() => {
     if (companies.length > 0 && !secilenFirmaId) {
-      const sorted = [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+      const sorted = [...companies].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'tr'));
       setSecilenFirmaId(sorted[0].id);
     }
-  }, [companies]);
+  }, [companies, secilenFirmaId]);
 
   useEffect(() => {
     if (!secilenFirmaId) {
@@ -2288,16 +2357,14 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
     }
 
     setLoadingPersonel(true);
-    console.log(`[PersonelBordro] Fetching personnel for company: ${secilenFirmaId}`);
     
-    // First, check if the company has personnel in the array (CompanyInfoModule style)
     const selectedCompany = companies.find(c => c.id === secilenFirmaId);
     if (selectedCompany && selectedCompany.personnel && selectedCompany.personnel.length > 0) {
-      console.log(`[PersonelBordro] Found ${selectedCompany.personnel.length} personnel in company array for ${selectedCompany.title}`);
-      const persData = selectedCompany.personnel.map(p => {
+      const persData = selectedCompany.personnel.map((p, idx) => {
         const isHuzurHakki = p.type === 'huzur_hakki' || (p.fullName && (p.fullName.includes('Recep Baş') || p.fullName.includes('Selim Baş'))) || (p.role && p.role.includes('Yönetim'));
         return {
           ...p,
+          id: p.id || `pers_${idx}`,
           firmaId: secilenFirmaId,
           ad: p.fullName || 'İsimsiz',
           tc: p.idNumber || '---',
@@ -2316,15 +2383,11 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
       persData.sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
       setPersonnel(persData);
       setLoadingPersonel(false);
-      return; // Use array data and exit
+      return;
     }
 
-    console.log(`[PersonelBordro] No personnel in company array, falling back to subcollection for ${secilenFirmaId}`);
-    // Fallback to subcollection if array is empty
     const personnelRef = collection(db, 'companies', secilenFirmaId, 'personnel');
-    
     const unsubscribe = onSnapshot(personnelRef, (snapshot) => {
-      console.log(`[PersonelBordro] Received ${snapshot.size} personnel docs from subcollection for ${secilenFirmaId}`);
       const persData: any[] = [];
       snapshot.forEach((doc) => {
         const p = doc.data() as Personnel;
@@ -2348,14 +2411,10 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
           type: isHuzurHakki ? 'huzur_hakki' : 'normal'
         });
       });
-      
-      // Sort personnel alphabetically
       persData.sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
-      
       setPersonnel(persData);
       setLoadingPersonel(false);
     }, (error) => {
-      console.error("[PersonelBordro] Error fetching personnel:", error);
       handleFirestoreError(error, OperationType.LIST, `companies/${secilenFirmaId}/personnel`);
       setLoadingPersonel(false);
     });
@@ -2433,6 +2492,43 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
+      {/* Üst Bilgilendirme ve Notlar (Kritik Noktalar) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+        <div style={{ background: C.kart, padding: 20, borderRadius: 20, border: `1px solid ${C.sinir}`, borderTop: `4px solid ${C.kirmizi}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <AlertTriangle size={18} style={{ color: C.kirmizi }} />
+            <h4 style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>Ayın Kritik Noktaları</h4>
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.ikinci, display: "flex", flexDirection: "column", gap: 6 }}>
+            <li>Asgari ücret vergi istisnası kontrolleri yapılmalı.</li>
+            <li>Emekli çalışanların SGDP bildirimlerine dikkat edilmeli.</li>
+            <li>Engelli vergi indirimi olan personellerin belgeleri güncellenmeli.</li>
+          </ul>
+        </div>
+
+        <div style={{ background: C.kart, padding: 20, borderRadius: 20, border: `1px solid ${C.sinir}`, borderTop: `4px solid ${C.mavi}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <Info size={18} style={{ color: C.mavi }} />
+            <h4 style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>İŞKUR & Periyodik Bildirimler</h4>
+          </div>
+          <p style={{ fontSize: 12, color: C.ikinci, margin: 0 }}>
+            Aylık İşgücü Çizelgesi her ayın sonuna kadar İŞKUR sistemine girilmelidir. 
+            50+ çalışanı olan firmalarda engelli istihdam oranı kontrol edilmelidir.
+          </p>
+        </div>
+
+        <div style={{ background: C.kart, padding: 20, borderRadius: 20, border: `1px solid ${C.sinir}`, borderTop: `4px solid ${C.turuncu}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <ShieldAlert size={18} style={{ color: C.turuncu }} />
+            <h4 style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>Yasal Uyarılar & Notlar</h4>
+          </div>
+          <p style={{ fontSize: 12, color: C.ikinci, margin: 0 }}>
+            İşten ayrılan personellerin 10 gün içinde SGK çıkış bildirimleri yapılmalıdır. 
+            Yıllık izin defterlerinin imzalı kopyaları özlük dosyalarında saklanmalıdır.
+          </p>
+        </div>
+      </div>
+
       {/* Üst Kontrol */}
       <div style={{ 
         display: "flex", justifyContent: "space-between", alignItems: "center", 
@@ -2517,45 +2613,144 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
                 </tr>
               ) : personnel.length > 0 ? (
                 personnel.map((p) => (
-                  <tr key={p.id} style={{ borderBottom: `1px solid ${C.sinir}`, transition: "all 0.2s" }} className="hover:bg-slate-50/50">
-                    <td style={{ padding: "16px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.maviSoluk, display: "flex", alignItems: "center", justifyContent: "center", color: C.mavi, fontSize: 14, fontWeight: 800 }}>
-                          {p.ad ? p.ad[0] : "?"}
+                  <React.Fragment key={p.id}>
+                    <tr 
+                      onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
+                      style={{ borderBottom: `1px solid ${C.sinir}`, transition: "all 0.2s", cursor: "pointer" }} 
+                      className="hover:bg-slate-50/50"
+                    >
+                      <td style={{ padding: "16px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 10, background: C.maviSoluk, display: "flex", alignItems: "center", justifyContent: "center", color: C.mavi, fontSize: 14, fontWeight: 800 }}>
+                            {p.ad ? p.ad[0] : "?"}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: C.metin }}>{p.ad}</div>
+                            <div style={{ fontSize: 11, color: C.ikinci, fontWeight: 600 }}>{p.gorev}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: C.metin }}>{p.ad}</div>
-                          <div style={{ fontSize: 11, color: C.ikinci, fontWeight: 600 }}>{p.gorev}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: "16px 20px" }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.metin }}>{p.tc}</div>
-                      <div style={{ fontSize: 11, color: C.ikinci }}>{p.sgkNo}</div>
-                    </td>
-                    <td style={{ padding: "16px 20px" }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>{para(p.brut)}</div>
-                      <div style={{ fontSize: 10, color: C.yesil, fontWeight: 700 }}>Brüt Maaş</div>
-                    </td>
-                    <td style={{ padding: "16px 20px" }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.metin }}>{kidemYilHesapla(p.giris)} Yıl</div>
-                      <div style={{ fontSize: 11, color: C.ikinci }}>Giriş: {p.giris || '-'}</div>
-                    </td>
-                    <td style={{ padding: "16px 20px" }}>
-                      <span style={{ 
-                        padding: "4px 10px", borderRadius: 20, fontSize: 10, fontWeight: 800,
-                        background: p.durum === "Aktif" ? C.yesilSoluk : C.turuncuSoluk,
-                        color: p.durum === "Aktif" ? C.yesil : C.turuncu
-                      }}>
-                        {p.durum || "Aktif"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "16px 20px" }}>
-                      <button style={{ padding: "8px 12px", borderRadius: 8, background: C.bg, border: `1px solid ${C.sinir}`, color: C.mavi, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                        Bordro Görüntüle
-                      </button>
-                    </td>
-                  </tr>
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.metin }}>{p.tc}</div>
+                        <div style={{ fontSize: 11, color: C.ikinci }}>{p.sgkNo}</div>
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>{para(p.brut)}</div>
+                        <div style={{ fontSize: 10, color: C.yesil, fontWeight: 700 }}>Brüt Maaş</div>
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.metin }}>{kidemYilHesapla(p.giris)} Yıl</div>
+                        <div style={{ fontSize: 11, color: C.ikinci }}>Giriş: {p.giris || '-'}</div>
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <span style={{ 
+                          padding: "4px 10px", borderRadius: 20, fontSize: 10, fontWeight: 800,
+                          background: p.durum === "Aktif" ? C.yesilSoluk : C.turuncuSoluk,
+                          color: p.durum === "Aktif" ? C.yesil : C.turuncu
+                        }}>
+                          {p.durum || "Aktif"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "16px 20px" }}>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPersonnel(p);
+                            setShowPayrollModal(true);
+                          }}
+                          style={{ padding: "8px 12px", borderRadius: 8, background: C.bg, border: `1px solid ${C.sinir}`, color: C.mavi, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          Bordro Görüntüle
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedId === p.id && (
+                      <tr style={{ background: C.bg + "40" }}>
+                        <td colSpan={6} style={{ padding: "20px 40px" }}>
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }} 
+                            animate={{ opacity: 1, height: "auto" }}
+                            style={{ overflow: "hidden" }}
+                          >
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+                              <div style={{ background: "#FFF", padding: 16, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
+                                <div style={{ fontSize: 10, color: C.ikinci, fontWeight: 800, textTransform: "uppercase", marginBottom: 8 }}>Maaş Detayları</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: C.ikinci }}>Net Maaş:</span>
+                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.net)}</span>
+                                  </div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: C.ikinci }}>SGK İşçi Payı:</span>
+                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.brut * 0.14)}</span>
+                                  </div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: C.ikinci }}>İşsizlik İşçi:</span>
+                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.brut * 0.01)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ background: "#FFF", padding: 16, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
+                                <div style={{ fontSize: 10, color: C.ikinci, fontWeight: 800, textTransform: "uppercase", marginBottom: 8 }}>İşveren Maliyeti</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: C.ikinci }}>SGK İşveren:</span>
+                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.brut * 0.155)}</span>
+                                  </div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: C.ikinci }}>İşsizlik İşv:</span>
+                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.brut * 0.02)}</span>
+                                  </div>
+                                  <div style={{ borderTop: `1px dashed ${C.sinir}`, marginTop: 4, paddingTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ fontWeight: 800, color: C.mavi }}>Toplam Maliyet:</span>
+                                    <span style={{ fontWeight: 800, color: C.mavi }}>{para(p.brut * 1.175)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ background: "#FFF", padding: 16, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
+                                <div style={{ fontSize: 10, color: C.ikinci, fontWeight: 800, textTransform: "uppercase", marginBottom: 8 }}>İzin Bilgileri</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: C.ikinci }}>Hakedilen:</span>
+                                    <span style={{ fontWeight: 700, color: C.metin }}>{p.izinHak || 14} Gün</span>
+                                  </div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: C.ikinci }}>Kullanılan:</span>
+                                    <span style={{ fontWeight: 700, color: C.turuncu }}>{p.izinKul || 0} Gün</span>
+                                  </div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                    <span style={{ color: C.ikinci }}>Kalan:</span>
+                                    <span style={{ fontWeight: 700, color: C.yesil }}>{(p.izinHak || 14) - (p.izinKul || 0)} Gün</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLeaveTarget(p);
+                                    setShowLeaveModal(true);
+                                  }}
+                                  style={{ width: "100%", padding: 10, borderRadius: 12, border: "none", background: C.mavi, color: "#FFF", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                                >
+                                  İzin Girişi Yap
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Update status logic
+                                  }}
+                                  style={{ width: "100%", padding: 10, borderRadius: 12, border: `1px solid ${C.sinir}`, background: "#FFF", color: C.metin, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                                >
+                                  Durum Güncelle
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))
               ) : (
                 <tr>
@@ -2584,6 +2779,74 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
           </table>
         </div>
       </div>
+
+      {/* Payroll Modal */}
+      <AnimatePresence>
+        {showPayrollModal && selectedPersonnel && (
+          <div style={{ 
+            position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", 
+            background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)" 
+          }}>
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              style={{ width: "90%", maxWidth: 600, background: "#FFF", borderRadius: 24, overflow: "hidden", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}
+            >
+              <div style={{ padding: "24px 32px", borderBottom: `1px solid ${C.sinir}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: C.metin, margin: 0 }}>Bordro Detayı</h3>
+                  <p style={{ fontSize: 12, color: C.ikinci, margin: 0 }}>{selectedPersonnel.ad} - {new Date().toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}</p>
+                </div>
+                <button onClick={() => setShowPayrollModal(false)} style={{ padding: 8, borderRadius: 12, border: "none", background: C.bg, color: C.ikinci, cursor: "pointer" }}><X size={20} /></button>
+              </div>
+              <div style={{ padding: 32, display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div style={{ padding: 16, background: C.bg, borderRadius: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase", marginBottom: 4 }}>Net Ödenen</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: C.mavi }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).net)}</div>
+                  </div>
+                  <div style={{ padding: 16, background: C.bg, borderRadius: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase", marginBottom: 4 }}>Brüt Maaş</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: C.metin }}>{para(selectedPersonnel.brut)}</div>
+                  </div>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0, borderBottom: `1px solid ${C.sinir}`, paddingBottom: 8 }}>Kesintiler & Vergiler</h4>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: C.ikinci }}>SGK İşçi Payı (%14):</span>
+                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).sgkIsci)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: C.ikinci }}>İşsizlik Sigortası (%1):</span>
+                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).issizlikIsci)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: C.ikinci }}>Gelir Vergisi (%15):</span>
+                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).gelirVergisi)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: C.ikinci }}>Damga Vergisi:</span>
+                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).damgaVergisi)}</span>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 8, padding: 16, background: C.maviSoluk, borderRadius: 16, border: `1px solid ${C.mavi}20` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>Toplam İşveren Maliyeti:</span>
+                    <span style={{ fontSize: 16, fontWeight: 900, color: C.mavi }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).toplamMaliyet)}</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ padding: "20px 32px", background: C.bg, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+                <button onClick={() => setShowPayrollModal(false)} style={{ padding: "10px 24px", borderRadius: 12, border: `1px solid ${C.sinir}`, background: "#FFF", color: C.metin, fontWeight: 700, cursor: "pointer" }}>Kapat</button>
+                <button onClick={() => window.print()} style={{ padding: "10px 24px", borderRadius: 12, border: "none", background: C.mavi, color: "#FFF", fontWeight: 700, cursor: "pointer" }}>Yazdır</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* İzin Modalı */}
       <AnimatePresence>

@@ -193,11 +193,7 @@ export default function App() {
         });
 
         const activeModuleRef = doc(db, 'users', firebaseUser.uid, 'settings', 'activeModule');
-        onSnapshot(activeModuleRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setActiveModule(docSnap.data().id as ModuleId);
-          }
-        });
+        // Removed onSnapshot for activeModule to ensure it always starts at Dashboard
 
         const selectedCompanyRef = doc(db, 'users', firebaseUser.uid, 'settings', 'selectedCompany');
         onSnapshot(selectedCompanyRef, (docSnap) => {

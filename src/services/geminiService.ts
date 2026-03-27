@@ -435,3 +435,70 @@ export async function analyzeVoucher(fileData: string, mimeType: string) {
     return [];
   }
 }
+
+export async function analyzeFinancialStatements(files: { data: string, mimeType: string, name: string }[], profile: any) {
+  const parts: any[] = files.map(f => ({
+    inlineData: {
+      data: f.data,
+      mimeType: f.mimeType
+    }
+  }));
+
+  parts.push({
+    text: `Sen uzman bir mali analiz ve denetim asistanısın. 
+          Sana sunulan mali tabloları (Mizan, Gelir Tablosu, Bilanço vb.) analiz et.
+          Firma Profili: ${JSON.stringify(profile)}
+          
+          Lütfen aşağıdaki başlıklar altında kapsamlı bir rapor hazırla:
+          
+          1. Mizan Teknik Denetim (Hata Masası):
+             - Hesaplar arasındaki tutarsızlıklar.
+             - Ters bakiye veren hesaplar (100, 120, 320 vb.).
+             - Adatlandırma gerektiren durumlar.
+             - Dönem sonu işlemleri öncesi yapılması gereken düzeltmeler.
+          
+          2. Mali Tablo & Rasyo Analizi:
+             - Cari Oran, Asit Test Oranı gibi likidite rasyoları.
+             - Karlılık oranları ve sektör karşılaştırması.
+             - Borçlanma yapısı ve finansal kaldıraç.
+          
+          3. Stratejik Yol Haritası:
+             - Finansal yapıyı güçlendirmek için öneriler.
+             - Vergi planlaması fırsatları.
+             - Nakit akışı yönetimi tavsiyeleri.
+          
+          Yanıtını Markdown formatında, profesyonel ve yönetici özeti niteliğinde hazırla.`
+  });
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: {
+      parts: parts
+    }
+  });
+
+  return response.text;
+}
+
+export async function analyzeKdvRefundPotential(mizanData: any, manualData: any, profile: any) {
+  const prompt = `Aşağıdaki verilere dayanarak firma için KDV İade ve Mahsup Analizi yap.
+  
+  Firma Profili: ${JSON.stringify(profile)}
+  Mizan Verileri: ${JSON.stringify(mizanData)}
+  Manuel Girişler: ${JSON.stringify(manualData)}
+  
+  Lütfen şu analizleri yap:
+  1. Net Mahsup Durumu: Alınacak iade ile mevcut borçların (Vergi, SGK, Manuel Borçlar) karşılaştırılması.
+  2. Ödeme Yeterliliği: İadenin borçları kapatmaya yetip yetmediği.
+  3. Tevkifat Kapasitesi: Firmanın ne kadar daha tevkifatlı fatura kesebileceği veya alabileceği.
+  4. Gelecek Dönem Öngörüsü: İade trendine göre gelecek ay tahmini.
+  
+  Yanıtını profesyonel bir dille, yönetici özeti şeklinde hazırla.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt
+  });
+
+  return response.text;
+}

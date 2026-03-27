@@ -40,35 +40,44 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
   const [taskCount, setTaskCount] = useState(0);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const userId = auth.currentUser.uid;
-    // Fetch pending declarations count for the current user
-    const q = query(
-      collection(db, 'beyanname_tracking'), 
-      where('ownerId', '==', userId),
-      where('status', '!=', 'Tamamlandı')
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPendingDocsCount(snapshot.size);
-    }, (error) => {
-      console.error("Error fetching pending docs:", error);
-    });
-    return () => unsubscribe();
-  }, []);
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        setPendingDocsCount(0);
+        setTaskCount(0);
+        return;
+      }
 
-  useEffect(() => {
-    if (!auth.currentUser) return;
-    const userId = auth.currentUser.uid;
-    const tasksRef = collection(db, 'users', userId, 'tasks');
-    const q = query(tasksRef, where('completed', '==', false));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTaskCount(snapshot.size);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `users/${userId}/tasks`);
+      const userId = user.uid;
+      
+      // Fetch pending declarations count for the current user
+      const qDocs = query(
+        collection(db, 'beyanname_tracking'), 
+        where('ownerId', '==', userId)
+      );
+      const unsubscribeDocs = onSnapshot(qDocs, (snapshot) => {
+        // Filter client-side to avoid index requirement
+        const pending = snapshot.docs.filter(doc => doc.data().status !== 'Tamamlandı');
+        setPendingDocsCount(pending.length);
+      }, (error) => {
+        console.error("Error fetching pending docs:", error);
+      });
+
+      // Fetch tasks count
+      const tasksRef = collection(db, 'users', userId, 'tasks');
+      const qTasks = query(tasksRef, where('completed', '==', false));
+      const unsubscribeTasks = onSnapshot(qTasks, (snapshot) => {
+        setTaskCount(snapshot.size);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, `users/${userId}/tasks`);
+      });
+
+      return () => {
+        unsubscribeDocs();
+        unsubscribeTasks();
+      };
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   useEffect(() => {

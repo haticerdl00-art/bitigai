@@ -31,7 +31,6 @@ interface CompanyInfoModuleProps {
 export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, companies, onUpdate, onAdd, onSelect, onDelete }) => {
   const [formData, setFormData] = useState<CompanyProfile>(profile);
   const [isSaved, setIsSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'genel' | 'personel'>('genel');
 
   // Update form data when profile changes (e.g. when selecting a different company)
   React.useEffect(() => {
@@ -285,41 +284,10 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
 
         {/* Form Area */}
         <div className="lg:col-span-3 space-y-6">
-          {/* Tabs */}
-          <div className="flex border-b border-slate-200">
-            <button
-              onClick={() => setActiveTab('genel')}
-              className={`px-6 py-3 text-sm font-bold transition-all border-b-2 ${
-                activeTab === 'genel' 
-                  ? 'border-kilim-blue text-kilim-blue' 
-                  : 'border-transparent text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              Genel Bilgiler
-            </button>
-            <button
-              onClick={() => setActiveTab('personel')}
-              className={`px-6 py-3 text-sm font-bold transition-all border-b-2 ${
-                activeTab === 'personel' 
-                  ? 'border-kilim-blue text-kilim-blue' 
-                  : 'border-transparent text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              Personel Bilgileri ({formData.personnel?.length || 0})
-            </button>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {activeTab === 'genel' ? (
-              <motion.div
-                key="genel"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-              >
-                <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Kimlik ve Hukuki Statü */}
-                  <div className="lg:col-span-2 space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Kimlik ve Hukuki Statü */}
+              <div className="lg:col-span-2 space-y-6">
                     <div className="glass-card p-6 border-kilim-blue-light/30">
                       <h3 className="font-bold text-kilim-blue-light flex items-center gap-2 mb-6">
                         <Fingerprint className="w-5 h-5 text-kilim-blue" />
@@ -652,180 +620,173 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
                       </div>
                     </div>
                   </div>
-                </form>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="personel"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-kilim-blue-light flex items-center gap-2">
-                    <Users className="w-5 h-5 text-kilim-blue" />
-                    Personel Bilgileri Yönetimi
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleAddPersonnel}
-                    className="flex items-center gap-2 px-4 py-2 bg-kilim-blue text-white rounded-xl text-sm font-bold hover:bg-kilim-blue/90 transition-all shadow-sm"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Yeni Personel Ekle
-                  </button>
                 </div>
 
-                <div className="glass-card overflow-hidden border-slate-200">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ad Soyad</th>
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup</th>
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tür</th>
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Görev</th>
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">TC / SGK No</th>
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Maaş</th>
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Giriş Tarihi</th>
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Durum</th>
-                          <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {(formData.personnel || []).map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="p-3">
-                              <input 
-                                type="text"
-                                value={p.fullName}
-                                onChange={(e) => handleUpdatePersonnel(p.id, 'fullName', e.target.value)}
-                                placeholder="İsim Soyisim"
-                                className="w-full bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700"
-                              />
-                            </td>
-                            <td className="p-3">
-                              <select
-                                value={p.group}
-                                onChange={(e) => handleUpdatePersonnel(p.id, 'group', e.target.value)}
-                                className="w-full bg-transparent border-none focus:ring-0 text-[11px] font-bold text-slate-600"
-                              >
-                                <option value="İşçi">İşçi</option>
-                                <option value="Yönetim">Yönetim</option>
-                                <option value="Emekli">Emekli</option>
-                                <option value="Engelli">Engelli</option>
-                                <option value="Yabancı">Yabancı</option>
-                                <option value="Çırak">Çırak</option>
-                              </select>
-                            </td>
-                            <td className="p-3">
-                              <select
-                                value={p.type || 'normal'}
-                                onChange={(e) => handleUpdatePersonnel(p.id, 'type', e.target.value)}
-                                className="w-full bg-transparent border-none focus:ring-0 text-[11px] font-bold text-slate-600"
-                              >
-                                <option value="normal">Normal</option>
-                                <option value="huzur_hakki">Huzur Hakkı</option>
-                              </select>
-                            </td>
-                            <td className="p-3">
-                              <input 
-                                type="text"
-                                value={p.role}
-                                onChange={(e) => handleUpdatePersonnel(p.id, 'role', e.target.value)}
-                                placeholder="Görev"
-                                className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-600"
-                              />
-                            </td>
-                            <td className="p-3">
-                              <input 
-                                type="text"
-                                value={p.idNumber}
-                                onChange={(e) => handleUpdatePersonnel(p.id, 'idNumber', e.target.value)}
-                                placeholder="11 Haneli No"
-                                className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-600 font-mono"
-                              />
-                            </td>
-                            <td className="p-3">
-                              <div className="flex items-center gap-1">
-                                <span className="text-slate-400 text-sm">₺</span>
-                                <input 
-                                  type="number"
-                                  value={p.netSalary}
-                                  onChange={(e) => handleUpdatePersonnel(p.id, 'netSalary', parseFloat(e.target.value) || 0)}
-                                  className="w-24 bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700"
-                                />
-                              </div>
-                            </td>
-                            <td className="p-3">
-                              <input 
-                                type="date"
-                                value={p.startDate}
-                                onChange={(e) => handleUpdatePersonnel(p.id, 'startDate', e.target.value)}
-                                className="w-full bg-transparent border-none focus:ring-0 text-xs text-slate-600"
-                              />
-                            </td>
-                            <td className="p-3">
-                              <select
-                                value={p.leaveStatus}
-                                onChange={(e) => handleUpdatePersonnel(p.id, 'leaveStatus', e.target.value)}
-                                className={`text-[10px] font-bold px-2 py-1 rounded-full border-none focus:ring-0 cursor-pointer ${
-                                  p.leaveStatus === 'Aktif' ? 'bg-emerald-50 text-emerald-600' :
-                                  p.leaveStatus === 'İzinli' ? 'bg-amber-50 text-amber-600' :
-                                  'bg-rose-50 text-rose-600'
-                                }`}
-                              >
-                                <option value="Aktif">Aktif</option>
-                                <option value="İzinli">İzinli</option>
-                                <option value="Ayrıldı">Ayrıldı</option>
-                              </select>
-                            </td>
-                            <td className="p-3">
-                              <button
-                                type="button"
-                                onClick={() => handleDeletePersonnel(p.id)}
-                                className="p-2 text-slate-300 hover:text-[#D32F2F] hover:bg-red-50 rounded-lg transition-all"
-                              >
-                                <UserMinus size={16} />
-                              </button>
-                            </td>
+                {/* Personel Bilgileri Ek Bölüm */}
+                <div className="pt-8 border-t border-slate-200 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-kilim-blue-light flex items-center gap-2">
+                      <Users className="w-5 h-5 text-kilim-blue" />
+                      Personel Bilgileri (Ek Bölüm)
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={handleAddPersonnel}
+                      className="flex items-center gap-2 px-4 py-2 bg-kilim-blue text-white rounded-xl text-sm font-bold hover:bg-kilim-blue/90 transition-all shadow-sm"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Yeni Personel Ekle
+                    </button>
+                  </div>
+
+                  <div className="glass-card overflow-hidden border-slate-200">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ad Soyad</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tür</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Görev</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">TC / SGK No</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Maaş</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Giriş Tarihi</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Durum</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-10"></th>
                           </tr>
-                        ))}
-                        {(formData.personnel || []).length === 0 && (
-                          <tr>
-                            <td colSpan={7} className="p-10 text-center">
-                              <div className="flex flex-col items-center gap-2 text-slate-400">
-                                <Users className="w-10 h-10 opacity-20" />
-                                <p className="text-sm italic">Henüz personel kaydı yapılmamış.</p>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(formData.personnel || []).map((p) => (
+                            <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="p-3">
+                                <input 
+                                  type="text"
+                                  value={p.fullName}
+                                  onChange={(e) => handleUpdatePersonnel(p.id, 'fullName', e.target.value)}
+                                  placeholder="İsim Soyisim"
+                                  className="w-full bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700"
+                                />
+                              </td>
+                              <td className="p-3">
+                                <select
+                                  value={p.group}
+                                  onChange={(e) => handleUpdatePersonnel(p.id, 'group', e.target.value)}
+                                  className="w-full bg-transparent border-none focus:ring-0 text-[11px] font-bold text-slate-600"
+                                >
+                                  <option value="İşçi">İşçi</option>
+                                  <option value="Yönetim">Yönetim</option>
+                                  <option value="Emekli">Emekli</option>
+                                  <option value="Engelli">Engelli</option>
+                                  <option value="Yabancı">Yabancı</option>
+                                  <option value="Çırak">Çırak</option>
+                                </select>
+                              </td>
+                              <td className="p-3">
+                                <select
+                                  value={p.type || 'normal'}
+                                  onChange={(e) => handleUpdatePersonnel(p.id, 'type', e.target.value)}
+                                  className="w-full bg-transparent border-none focus:ring-0 text-[11px] font-bold text-slate-600"
+                                >
+                                  <option value="normal">Normal</option>
+                                  <option value="huzur_hakki">Huzur Hakkı</option>
+                                </select>
+                              </td>
+                              <td className="p-3">
+                                <input 
+                                  type="text"
+                                  value={p.role}
+                                  onChange={(e) => handleUpdatePersonnel(p.id, 'role', e.target.value)}
+                                  placeholder="Görev"
+                                  className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-600"
+                                />
+                              </td>
+                              <td className="p-3">
+                                <input 
+                                  type="text"
+                                  value={p.idNumber}
+                                  onChange={(e) => handleUpdatePersonnel(p.id, 'idNumber', e.target.value)}
+                                  placeholder="11 Haneli No"
+                                  className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-600 font-mono"
+                                />
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-slate-400 text-sm">₺</span>
+                                  <input 
+                                    type="number"
+                                    value={p.netSalary}
+                                    onChange={(e) => handleUpdatePersonnel(p.id, 'netSalary', parseFloat(e.target.value) || 0)}
+                                    className="w-24 bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700"
+                                  />
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <input 
+                                  type="date"
+                                  value={p.startDate}
+                                  onChange={(e) => handleUpdatePersonnel(p.id, 'startDate', e.target.value)}
+                                  className="w-full bg-transparent border-none focus:ring-0 text-xs text-slate-600"
+                                />
+                              </td>
+                              <td className="p-3">
+                                <select
+                                  value={p.leaveStatus}
+                                  onChange={(e) => handleUpdatePersonnel(p.id, 'leaveStatus', e.target.value)}
+                                  className={`text-[10px] font-bold px-2 py-1 rounded-full border-none focus:ring-0 cursor-pointer ${
+                                    p.leaveStatus === 'Aktif' ? 'bg-emerald-50 text-emerald-600' :
+                                    p.leaveStatus === 'İzinli' ? 'bg-amber-50 text-amber-600' :
+                                    'bg-rose-50 text-rose-600'
+                                  }`}
+                                >
+                                  <option value="Aktif">Aktif</option>
+                                  <option value="İzinli">İzinli</option>
+                                  <option value="Ayrıldı">Ayrıldı</option>
+                                </select>
+                              </td>
+                              <td className="p-3">
                                 <button
                                   type="button"
-                                  onClick={handleAddPersonnel}
-                                  className="text-xs font-bold text-kilim-blue hover:underline mt-2"
+                                  onClick={() => handleDeletePersonnel(p.id)}
+                                  className="p-2 text-slate-300 hover:text-[#D32F2F] hover:bg-red-50 rounded-lg transition-all"
                                 >
-                                  İlk Personeli Ekle
+                                  <UserMinus size={16} />
                                 </button>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                              </td>
+                            </tr>
+                          ))}
+                          {(formData.personnel || []).length === 0 && (
+                            <tr>
+                              <td colSpan={9} className="p-10 text-center">
+                                <div className="flex flex-col items-center gap-2 text-slate-400">
+                                  <Users className="w-10 h-10 opacity-20" />
+                                  <p className="text-sm italic">Henüz personel kaydı yapılmamış.</p>
+                                  <button
+                                    type="button"
+                                    onClick={handleAddPersonnel}
+                                    className="text-xs font-bold text-kilim-blue hover:underline mt-2"
+                                  >
+                                    İlk Personeli Ekle
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex justify-end pt-6 border-t border-slate-100">
                   <button 
-                    onClick={handleSubmit}
+                    type="submit"
                     className="flex items-center gap-2 px-10 py-3 bg-kilim-blue text-white rounded-xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg shadow-kilim-blue/20"
                   >
                     <Save className="w-5 h-5" />
                     Bilgileri Güncelle
                   </button>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </form>
         </div>
       </div>
     </div>

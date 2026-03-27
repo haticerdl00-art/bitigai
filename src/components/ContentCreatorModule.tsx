@@ -139,21 +139,38 @@ export const ContentCreatorModule = ({ user }: { user: UserProfile | null }) => 
     if (!analysisResult) return;
 
     const signature = `\n\n*SMMM Hatice ERDAL*\n_BİTİG AI Analizidir_`;
+    const text = activeType === 'hap-not' 
+      ? "📌 HAP NOTLAR:\n" + analysisResult.hapNot.join('\n') 
+      : activeType === 'ozet' 
+        ? "📄 YÖNETİCİ ÖZETİ:\n" + analysisResult.ozet 
+        : `🎨 ${analysisResult.infografik.baslik}`;
     
+    const fullMessage = `${text}${signature}`;
+
     // Always download first as per user request
     await handleDownloadPoster(showPosterModal ? 'poster-modal-content' : 'poster-preview', downloadFormat);
     
-    alert(`Afişiniz (${downloadFormat.toUpperCase()}) cihazınıza başarıyla indirildi. Şimdi WhatsApp'ı açıp galeriden bu görseli seçerek paylaşabilirsiniz.`);
-
     if (platform === 'whatsapp') {
-      const text = activeType === 'hap-not' 
-        ? "📌 HAP NOTLAR:\n" + analysisResult.hapNot.join('\n') 
-        : activeType === 'ozet' 
-          ? "📄 YÖNETİCİ ÖZETİ:\n" + analysisResult.ozet 
-          : `🎨 ${analysisResult.infografik.baslik}`;
-      
-      const waMessage = `${text}${signature}\n\n(Lütfen az önce indirilen görseli galerinizden seçerek paylaşın)`;
+      const waMessage = `${fullMessage}\n\n(Lütfen az önce indirilen görseli galerinizden seçerek paylaşın)`;
       window.open(`https://wa.me/?text=${encodeURIComponent(waMessage)}`, '_blank');
+    } else if (platform === 'instagram') {
+      alert("Afişiniz indirildi. Instagram'ı açıp 'Hikaye' veya 'Gönderi' oluştururken galeriden bu görseli seçebilirsiniz.");
+      window.open('https://www.instagram.com/', '_blank');
+    } else if (platform === 'linkedin') {
+      const shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`;
+      window.open(shareUrl, '_blank');
+    } else if (platform === 'twitter') {
+      const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(fullMessage)}`;
+      window.open(tweetUrl, '_blank');
+    } else if (platform === 'facebook') {
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`;
+      window.open(fbUrl, '_blank');
+    } else if (platform === 'website') {
+      copyToClipboard(fullMessage);
+      alert("İçerik panoya kopyalandı. Web sitenizin panelinden yapıştırabilirsiniz.");
+    } else if (platform === 'status') {
+      alert("Afişiniz indirildi. WhatsApp Durum kısmından galeriyi açarak paylaşabilirsiniz.");
+      window.open(`https://wa.me/`, '_blank');
     }
     
     setShowShareMenu(false);
@@ -892,45 +909,65 @@ export const ContentCreatorModule = ({ user }: { user: UserProfile | null }) => 
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <button 
                     onClick={() => handleShare('whatsapp')}
-                    className="flex flex-col items-center gap-3 p-6 bg-emerald-50 rounded-3xl hover:bg-emerald-100 transition-all group"
+                    className="flex flex-col items-center gap-3 p-4 bg-emerald-50 rounded-3xl hover:bg-emerald-100 transition-all group"
                   >
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                      <MessageCircle className="w-6 h-6 text-emerald-500" />
+                    <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                      <MessageCircle className="w-5 h-5 text-emerald-500" />
                     </div>
-                    <span className="text-xs font-bold text-emerald-700">WhatsApp</span>
+                    <span className="text-[10px] font-bold text-emerald-700">WhatsApp</span>
+                  </button>
+
+                  <button 
+                    onClick={() => handleShare('status')}
+                    className="flex flex-col items-center gap-3 p-4 bg-emerald-50 rounded-3xl hover:bg-emerald-100 transition-all group"
+                  >
+                    <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                      <Zap className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700">Durum</span>
                   </button>
 
                   <button 
                     onClick={() => handleShare('instagram')}
-                    className="flex flex-col items-center gap-3 p-6 bg-rose-50 rounded-3xl hover:bg-rose-100 transition-all group"
+                    className="flex flex-col items-center gap-3 p-4 bg-rose-50 rounded-3xl hover:bg-rose-100 transition-all group"
                   >
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                      <Instagram className="w-6 h-6 text-rose-500" />
+                    <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                      <Instagram className="w-5 h-5 text-rose-500" />
                     </div>
-                    <span className="text-xs font-bold text-rose-700">Instagram</span>
+                    <span className="text-[10px] font-bold text-rose-700">Instagram</span>
                   </button>
 
                   <button 
                     onClick={() => handleShare('linkedin')}
-                    className="flex flex-col items-center gap-3 p-6 bg-blue-50 rounded-3xl hover:bg-blue-100 transition-all group"
+                    className="flex flex-col items-center gap-3 p-4 bg-blue-50 rounded-3xl hover:bg-blue-100 transition-all group"
                   >
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                      <Linkedin className="w-6 h-6 text-blue-600" />
+                    <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                      <Linkedin className="w-5 h-5 text-blue-600" />
                     </div>
-                    <span className="text-xs font-bold text-blue-700">LinkedIn</span>
+                    <span className="text-[10px] font-bold text-blue-700">LinkedIn</span>
+                  </button>
+
+                  <button 
+                    onClick={() => handleShare('twitter')}
+                    className="flex flex-col items-center gap-3 p-4 bg-slate-900 rounded-3xl hover:bg-black transition-all group"
+                  >
+                    <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                      <Twitter className="w-5 h-5 text-black" />
+                    </div>
+                    <span className="text-[10px] font-bold text-white">X (Twitter)</span>
                   </button>
 
                   <button 
                     onClick={() => handleShare('website')}
-                    className="flex flex-col items-center gap-3 p-6 bg-slate-50 rounded-3xl hover:bg-slate-100 transition-all group"
+                    className="flex flex-col items-center gap-3 p-4 bg-slate-50 rounded-3xl hover:bg-slate-100 transition-all group"
                   >
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                      <Globe className="w-6 h-6 text-slate-600" />
+                    <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                      <Globe className="w-5 h-5 text-slate-600" />
                     </div>
-                    <span className="text-xs font-bold text-slate-600">Web Siteme Ekle</span>
+                    <span className="text-[10px] font-bold text-slate-600">Web Site</span>
                   </button>
                 </div>
 

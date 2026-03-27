@@ -46,6 +46,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, MizanData } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { analyzeFinancialStatements, analyzeKdvRefundPotential } from '../services/geminiService';
+import ReactMarkdown from 'react-markdown';
 
 interface CashFlowModuleProps {
   profile: CompanyProfile;
@@ -67,6 +69,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
   });
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const [mizanData, setMizanData] = useState<MizanData | null>(null);
+  const [kdvAnalysisReport, setKdvAnalysisReport] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile.id || !auth.currentUser) return;
@@ -123,21 +126,60 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
     });
   }, [currentLiquidity, dynamicProjectionData]);
 
-  const handleKdvMizanScan = () => {
+  const handleKdvMizanScan = async () => {
     setIsKdvMizanAnalyzing(true);
-    setTimeout(() => {
-      setIsKdvMizanAnalyzing(false);
+    try {
+      const report = await analyzeKdvRefundPotential(mizanData || MIZAN_DATA, manualKdvData, profile);
+      setKdvAnalysisReport(report);
       setKdvMizanScanned(true);
-    }, 2000);
+    } catch (error) {
+      console.error("KDV Analysis error:", error);
+    } finally {
+      setIsKdvMizanAnalyzing(false);
+    }
+  };
+
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleMaliTabloAnalyze = async () => {
+    if (uploadedFiles.length === 0) return;
+    
+    setIsMaliTabloAnalyzing(true);
+    try {
+      const filesWithData = await Promise.all(uploadedFiles.map(async (file) => ({
+        data: await readFileAsBase64(file),
+        mimeType: file.type,
+        name: file.name
+      })));
+
+      const report = await analyzeFinancialStatements(filesWithData, profile);
+      setMaliTabloReport(report);
+    } catch (error) {
+      console.error("Mali Tablo Analysis error:", error);
+      setMaliTabloReport("Analiz sırasında bir hata oluştu. Lütfen tekrar deneyiniz.");
+    } finally {
+      setIsMaliTabloAnalyzing(false);
+    }
   };
 
   const handleMizanUpload = (e?: React.ChangeEvent<HTMLInputElement>) => {
     setIsMizanAnalyzing(true);
+    // In a real app, we would upload to Firebase Storage and update Firestore
+    // For now, we simulate the upload success to show the UI transition
     setTimeout(() => {
       setIsMizanAnalyzing(false);
       setMizanUploaded(true);
-      // When documents are uploaded here, they also feed into KDV analysis
-      setKdvMizanScanned(true);
+      setKdvMizanScanned(false); // Reset KDV scan to allow new analysis with new data
     }, 2500);
   };
 
@@ -626,11 +668,13 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                 </div>
-                <h4 className="font-bold">Genel KDV ve Finansal Sağlık Özeti</h4>
+                <h4 className="font-bold">Yapay Zeka KDV İade Analiz Raporu</h4>
               </div>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                "Şirketinizin KDV iade süreci oldukça sağlıklı ilerlemektedir. Alacağınız iade tutarı cari borçlarınızı tam olarak karşılamakta, hatta 40.000 TL'lik bir rezerv bırakmaktadır. KDV devriniz gelecek dönem için yeterli olup, tevkifatlı fatura kesme ve alma kapasiteniz geniş bir marja sahiptir. Ödemelerinizde herhangi bir aksama beklenmemektedir."
-              </p>
+              <div className="text-sm text-slate-300 leading-relaxed mb-6 whitespace-pre-wrap max-h-[400px] overflow-y-auto custom-scrollbar">
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown>{kdvAnalysisReport || "Analiz raporu hazırlanıyor..."}</ReactMarkdown>
+                </div>
+              </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
                   <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Ödeme Riski</p>
@@ -709,29 +753,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
               )}
 
               <button 
-                onClick={() => {
-                  setIsMaliTabloAnalyzing(true);
-                  setTimeout(() => {
-                    setIsMaliTabloAnalyzing(false);
-                    setMaliTabloReport(`### 📊 Mizan & Mali Tablo Analiz Raporu (${profile.title})
-
-**1. Mizan Teknik Denetim (Hata Masası)**
-- 🚩 **100 Kasa Hesabı:** Bakiye yüksek, adatlandırma riski mevcut.
-- 🚩 **120 Alıcılar:** Bazı alt hesaplarda ters bakiye tespit edildi, düzeltilmeli.
-- ⚠️ **320 Satıcılar:** Vadesi geçmiş borçlar nakit akışını zorlayabilir.
-- 💡 **Öneri:** Mizan nizamı için 131/331 hesaplarındaki bakiyeler dönem sonu öncesi netleştirilmeli.
-
-**2. Mali Tablo & Rasyo Analizi**
-- **Cari Oran:** 1.45 (Likidite durumu yeterli)
-- **Asit Test Oranı:** 1.10
-- **Brüt Satış Kârı:** %32 (Sektör ortalaması %28)
-- **Net Kâr Marjı:** %8.5
-
-**3. Stratejik Yol Haritası**
-- Finansman giderlerini azaltmak için kısa vadeli krediler yapılandırılmalı.
-- Stok devir hızı artırılmalı ve tahsilat süreci optimize edilmeli.`);
-                  }, 3000);
-                }}
+                onClick={handleMaliTabloAnalyze}
                 disabled={isMaliTabloAnalyzing || uploadedFiles.length === 0}
                 className="w-full py-4 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
               >
@@ -783,7 +805,9 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
                 <button onClick={() => setMaliTabloReport(null)} className="text-xs text-kilim-red font-bold">Yeni Analiz</button>
               </div>
               <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                {maliTabloReport}
+                <div className="prose prose-slate prose-sm max-w-none">
+                  <ReactMarkdown>{maliTabloReport}</ReactMarkdown>
+                </div>
               </div>
             </div>
           </motion.div>

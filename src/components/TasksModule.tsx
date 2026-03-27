@@ -38,12 +38,19 @@ export const TasksModule: React.FC = () => {
 
       const userId = user.uid;
       const tasksRef = collection(db, 'users', userId, 'tasks');
-      const q = query(tasksRef, orderBy('createdAt', 'desc'));
+      // Removed orderBy to avoid index issues, sorting client-side
+      const q = query(tasksRef);
 
       const unsubscribeTasks = onSnapshot(q, (snapshot) => {
         const tasksData: Task[] = [];
         snapshot.forEach((doc) => {
           tasksData.push({ id: doc.id, ...doc.data() } as Task);
+        });
+        // Client-side sort by createdAt desc
+        tasksData.sort((a, b) => {
+          const timeA = a.createdAt?.toMillis?.() || 0;
+          const timeB = b.createdAt?.toMillis?.() || 0;
+          return timeB - timeA;
         });
         setTasks(tasksData);
         setLoading(false);

@@ -39,7 +39,8 @@ interface OCRResult {
 
 export const OCRModule = ({ onTransfer, profile }: { onTransfer: (data: any) => void, profile: CompanyProfile }) => {
   const [file, setFile] = useState<File | null>(null);
-  const [docType, setDocType] = useState<'fatura' | 'mizan'>('fatura');
+  const [docType, setDocType] = useState<'fatura' | 'mizan' | 'metin'>('fatura');
+  const [isDeepScan, setIsDeepScan] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<OCRResult | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -71,9 +72,18 @@ export const OCRModule = ({ onTransfer, profile }: { onTransfer: (data: any) => 
       const base64Data = await base64Promise;
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
-      const prompt = docType === 'mizan' 
-        ? "Bu mizan belgesindeki hesap kodlarını ve bakiyelerini çıkar. Özellikle 100, 102, 120, 320, 131, 331 kodlu hesapları bul."
-        : "Bu faturadaki Fatura No, Fatura Tarihi, VKN / TC No, Firma Ünvanı, Toplam Tutar, KDV Tutarı, KDV Dahil Toplam ve Fatura Tipi (Alış/Satış) bilgilerini çıkar.";
+      let prompt = "";
+      if (docType === 'mizan') {
+        prompt = "Bu mizan belgesindeki hesap kodlarını ve bakiyelerini çıkar. Özellikle 100, 102, 120, 320, 131, 331 kodlu hesapları bul.";
+      } else if (docType === 'metin') {
+        prompt = "Bu belgedeki tüm metni en yüksek doğrulukla çıkar. Yazı net değilse bile bağlamdan yola çıkarak eksik kısımları tamamlamaya çalış. Metni yapılandırılmış bir şekilde sun.";
+      } else {
+        prompt = "Bu faturadaki Fatura No, Fatura Tarihi, VKN / TC No, Firma Ünvanı, Toplam Tutar, KDV Tutarı, KDV Dahil Toplam ve Fatura Tipi (Alış/Satış) bilgilerini çıkar.";
+      }
+
+      if (isDeepScan) {
+        prompt += " Bu bir DERİN TARAMA (Deep Scan) isteğidir. Belge kalitesi düşük olabilir, lütfen her karakteri titizlikle incele ve en küçük ayrıntıları bile yakalamaya çalış.";
+      }
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -236,8 +246,24 @@ export const OCRModule = ({ onTransfer, profile }: { onTransfer: (data: any) => 
             onClick={() => setDocType('mizan')}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${docType === 'mizan' ? 'bg-white text-kilim-blue shadow-sm' : 'text-slate-500'}`}
           >
-            Mizan (Excel/PDF)
+            Mizan
           </button>
+          <button 
+            onClick={() => setDocType('metin')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${docType === 'metin' ? 'bg-white text-kilim-blue shadow-sm' : 'text-slate-500'}`}
+          >
+            Metin Çıkar
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+        <div className={`w-12 h-6 rounded-full relative cursor-pointer transition-all ${isDeepScan ? 'bg-emerald-600' : 'bg-slate-300'}`} onClick={() => setIsDeepScan(!isDeepScan)}>
+          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isDeepScan ? 'left-7' : 'left-1'}`} />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-emerald-900">Yapay Zeka Derin Tarama (Deep Scan)</p>
+          <p className="text-[10px] text-emerald-700">Düşük kaliteli veya el yazısı içeren belgeler için daha gelişmiş analiz modunu açar.</p>
         </div>
       </div>
 

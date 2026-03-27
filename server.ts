@@ -71,7 +71,7 @@ async function startServer() {
       const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout
       
       console.log('Fetching external market data...');
-      const response = await fetch('https://finans.truncgil.com/today.json', {
+      const response = await fetch('https://api.genelpara.com/embed/para-birimleri.json', {
         signal: controller.signal,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -96,18 +96,16 @@ async function startServer() {
         data = JSON.parse(text);
       } catch (parseError) {
         console.error('Market data JSON parse error:', parseError);
-        console.log('Raw response start:', text.substring(0, 100));
         return res.json(fallbackData);
       }
 
-      // Helper to parse Truncgil values
+      // genelpara.com format: data['USD']['satis'], data['USD']['degisim']
       const parseVal = (obj: any, fallback: string) => {
-        const val = obj?.Selling?.replace(',', '.') || '0.00';
+        const val = obj?.satis?.replace(',', '.') || '0.00';
         return (val === '0.00' || !val) ? fallback : val;
       };
-      const parseChange = (obj: any) => parseFloat(obj?.Change?.replace(',', '.') || '0');
+      const parseChange = (obj: any) => parseFloat(obj?.degisim?.replace(',', '.') || '0');
 
-      // Check if data has expected keys, otherwise use fallback
       if (!data || !data['USD']) {
         console.warn('External API data format unexpected. Using fallback.');
         return res.json(fallbackData);
@@ -132,20 +130,20 @@ async function startServer() {
         gold: [
           { 
             label: 'Gram Altın', 
-            value: parseVal(data['Gram Altın'], fallbackData.gold[0].value), 
-            change: parseChange(data['Gram Altın']), 
+            value: parseVal(data['GA'], fallbackData.gold[0].value), 
+            change: parseChange(data['GA']), 
             unit: 'TL' 
           },
           { 
             label: 'Çeyrek Altın', 
-            value: parseVal(data['Çeyrek Altın'], fallbackData.gold[1].value), 
-            change: parseChange(data['Çeyrek Altın']), 
+            value: parseVal(data['C'], fallbackData.gold[1].value), 
+            change: parseChange(data['C']), 
             unit: 'TL' 
           }
         ],
         bist: {
-          value: parseVal(data['BIST 100'], fallbackData.bist.value),
-          change: parseChange(data['BIST 100'])
+          value: parseVal(data['BIST100'], fallbackData.bist.value),
+          change: parseChange(data['BIST100'])
         },
         stocks: fallbackData.stocks
       });
