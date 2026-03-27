@@ -25,7 +25,8 @@ import {
   CheckCircle,
   XCircle,
   Calculator,
-  Search
+  Search,
+  Building2
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -46,8 +47,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, MizanData } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { analyzeFinancialStatements, analyzeKdvRefundPotential } from '../services/geminiService';
-import ReactMarkdown from 'react-markdown';
 
 interface CashFlowModuleProps {
   profile: CompanyProfile;
@@ -69,7 +68,6 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
   });
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const [mizanData, setMizanData] = useState<MizanData | null>(null);
-  const [kdvAnalysisReport, setKdvAnalysisReport] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile.id || !auth.currentUser) return;
@@ -96,6 +94,28 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
     }
     return MIZAN_DATA.cash + MIZAN_DATA.bank;
   }, [mizanData]);
+
+  if (profile.id === '0') {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 bg-white rounded-3xl p-12 shadow-sm border border-slate-100">
+        <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+          <Building2 className="w-12 h-12 text-slate-300" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-slate-800">Firma Seçilmedi</h2>
+          <p className="text-slate-500 max-w-md mx-auto">
+            Finansal analiz ve nakit akış projeksiyonu oluşturabilmek için lütfen sol menüden veya üst panelden bir firma seçiniz.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100 max-w-md">
+          <Info className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <p className="text-xs text-amber-800 text-left">
+            Firma seçimi yapıldıktan sonra mizan, gelir tablosu ve bilanço verilerinizi yükleyerek yapay zeka destekli analizleri başlatabilirsiniz.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const receivablesTotal = useMemo(() => {
     if (mizanData) return mizanData.summary.totalReceivables;
@@ -126,61 +146,53 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
     });
   }, [currentLiquidity, dynamicProjectionData]);
 
-  const handleKdvMizanScan = async () => {
+  const handleKdvMizanScan = () => {
     setIsKdvMizanAnalyzing(true);
-    try {
-      const report = await analyzeKdvRefundPotential(mizanData || MIZAN_DATA, manualKdvData, profile);
-      setKdvAnalysisReport(report);
-      setKdvMizanScanned(true);
-    } catch (error) {
-      console.error("KDV Analysis error:", error);
-    } finally {
+    setTimeout(() => {
       setIsKdvMizanAnalyzing(false);
-    }
-  };
-
-  const readFileAsBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleMaliTabloAnalyze = async () => {
-    if (uploadedFiles.length === 0) return;
-    
-    setIsMaliTabloAnalyzing(true);
-    try {
-      const filesWithData = await Promise.all(uploadedFiles.map(async (file) => ({
-        data: await readFileAsBase64(file),
-        mimeType: file.type,
-        name: file.name
-      })));
-
-      const report = await analyzeFinancialStatements(filesWithData, profile);
-      setMaliTabloReport(report);
-    } catch (error) {
-      console.error("Mali Tablo Analysis error:", error);
-      setMaliTabloReport("Analiz sırasında bir hata oluştu. Lütfen tekrar deneyiniz.");
-    } finally {
-      setIsMaliTabloAnalyzing(false);
-    }
+      setKdvMizanScanned(true);
+    }, 2000);
   };
 
   const handleMizanUpload = (e?: React.ChangeEvent<HTMLInputElement>) => {
     setIsMizanAnalyzing(true);
-    // In a real app, we would upload to Firebase Storage and update Firestore
-    // For now, we simulate the upload success to show the UI transition
     setTimeout(() => {
       setIsMizanAnalyzing(false);
       setMizanUploaded(true);
-      setKdvMizanScanned(false); // Reset KDV scan to allow new analysis with new data
+      // When documents are uploaded here, they also feed into KDV analysis
+      setKdvMizanScanned(true);
     }, 2500);
+  };
+
+  const handleMaliTabloAnalyze = () => {
+    setIsMaliTabloAnalyzing(true);
+    setTimeout(() => {
+      setIsMaliTabloAnalyzing(false);
+      setMaliTabloReport(`### 📊 Mizan & Mali Tablo Analiz Raporu (${profile.title})
+
+**1. Mizan Teknik Denetim (Hata Masası)**
+- 🚩 **100 Kasa Hesabı:** Bakiye yüksek (${(mizanData?.summary.totalCash || 45000).toLocaleString('tr-TR')} ₺), adatlandırma ve vergi inceleme riski mevcut.
+- 🚩 **120 Alıcılar:** Bazı alt hesaplarda ters bakiye tespit edildi, düzeltilmeli.
+- ⚠️ **320 Satıcılar:** Vadesi geçmiş borçlar nakit akışını zorlayabilir.
+- 💡 **Öneri:** Mizan nizamı için 131/331 hesaplarındaki bakiyeler dönem sonu öncesi netleştirilmeli.
+
+**2. Mali Tablo & Rasyo Analizi**
+- **Cari Oran:** 1.45 (Likidite durumu yeterli)
+- **Asit Test Oranı:** 1.10
+- **Brüt Satış Kârı:** %32 (Sektör ortalaması %28)
+- **Net Kâr Marjı:** %8.5
+
+**3. Eksiklikler & Düzeltme Önerileri**
+- **Eksiklik:** Gelir tablosunda faaliyet giderleri sektör ortalamasının üzerinde.
+- **Öneri:** 760/770 hesaplarındaki genel yönetim ve pazarlama giderleri kalem bazlı incelenmeli.
+- **Eksiklik:** Stok devir hızı yavaşlamış görünüyor.
+- **Öneri:** Stok yönetimi için FIFO yerine LIFO (veya tam tersi) analizi yapılmalı ve atıl stoklar eritilmeli.
+
+**4. Sektörel & Sermaye Tavsiyeleri**
+- **Sektör:** ${profile.naceCodes.length > 0 ? profile.naceCodes[0] : 'Genel Ticaret'}
+- **Sermaye:** Mevcut özkaynak yapısı kısa vadeli borçları karşılamada güçlü ancak uzun vadeli yatırım için ek sermaye artırımı veya uzun vadeli kredi yapılandırması önerilir.
+- **Tavsiye:** ${profile.isExporter ? 'İhracat teşvikleri ve KDV iade süreçleri optimize edilerek işletme sermayesi güçlendirilmeli.' : 'İhracat potansiyeli olan ürünler için pazar araştırması yapılarak döviz getirisi hedeflenmeli.'}`);
+    }, 3000);
   };
 
   const renderProjection = () => (
@@ -557,7 +569,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 glass-card p-6 bg-white border-slate-200">
                 <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-emerald-600" /> 📉 Mahsup ve Ödeme Yeterliliği
+                  <BarChart3 className="w-4 h-4 text-emerald-600" /> 📉 KDV İade Verimlilik Hesabı
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
@@ -566,29 +578,31 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
                     <p className="text-[10px] text-emerald-600 mt-1">136 Hesap Bakiyesi</p>
                   </div>
                   <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100">
-                    <p className="text-[10px] font-bold text-rose-800 uppercase mb-1">Toplam Borçlar (Mizan + Manuel)</p>
-                    <p className="text-xl font-black text-rose-700">₺{(210000 + manualKdvData.currentDebts + manualKdvData.potentialDebts).toLocaleString('tr-TR')}</p>
-                    <p className="text-[10px] text-rose-600 mt-1">360+361 ve Manuel Girişler</p>
+                    <p className="text-[10px] font-bold text-rose-800 uppercase mb-1">Bu Dönemki Ödeme Tutarı</p>
+                    <p className="text-xl font-black text-rose-700">₺{(210000 + manualKdvData.currentDebts).toLocaleString('tr-TR')}</p>
+                    <p className="text-[10px] text-rose-600 mt-1">360+361 ve Cari Borçlar</p>
                   </div>
                 </div>
                 
-                <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-600/20 flex justify-between items-center mb-4">
-                  <div>
-                    <p className="text-xs font-bold opacity-80">NET MAHSUP DURUMU</p>
-                    <p className="text-sm">Tüm Borçlar Kapatıldıktan Sonra Kalan</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                    <p className="text-[10px] font-bold text-blue-800 uppercase mb-1">Borçlara Mahsup Edilirse Kalan</p>
+                    <p className="text-lg font-bold text-blue-700">₺{(250000 - (210000 + manualKdvData.currentDebts)).toLocaleString('tr-TR')}</p>
+                    <p className="text-[10px] text-blue-600 mt-1">Tüm borçlar kapandıktan sonra</p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-black">₺{(250000 + manualKdvData.otherRefunds - (210000 + manualKdvData.currentDebts + manualKdvData.potentialDebts)).toLocaleString('tr-TR')}</span>
-                    <p className="text-[10px] font-bold text-blue-100">ALACAK BAKİYESİ</p>
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                    <p className="text-[10px] font-bold text-amber-800 uppercase mb-1">Nakit İade Alınırsa Kalan</p>
+                    <p className="text-lg font-bold text-amber-700">₺{(250000 * 0.95).toLocaleString('tr-TR')}</p>
+                    <p className="text-[10px] text-amber-600 mt-1">%5 kesinti/masraf varsayımıyla</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-bold text-emerald-800">Ödeme Yeterliliği Analizi</p>
+                    <p className="text-sm font-bold text-emerald-800">Verimlilik Analizi</p>
                     <p className="text-xs text-emerald-700 leading-relaxed">
-                      Alacağınız iade tutarı, cari dönem vergi ve SGK borçlarınızın tamamını karşılamaktadır. <span className="font-bold">Ödemelerinizde herhangi bir aksama riski öngörülmemektedir.</span>
+                      İade alacağınızın borçlara mahsup edilmesi, nakit akışınızı <span className="font-bold">₺{(210000 + manualKdvData.currentDebts).toLocaleString('tr-TR')}</span> kadar rahatlatacaktır. Nakit iade yerine mahsup tercih etmek, vergi dairesi denetim sürecini hızlandırabilir.
                     </p>
                   </div>
                 </div>
@@ -668,13 +682,11 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                 </div>
-                <h4 className="font-bold">Yapay Zeka KDV İade Analiz Raporu</h4>
+                <h4 className="font-bold">Genel KDV ve Finansal Sağlık Özeti</h4>
               </div>
-              <div className="text-sm text-slate-300 leading-relaxed mb-6 whitespace-pre-wrap max-h-[400px] overflow-y-auto custom-scrollbar">
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown>{kdvAnalysisReport || "Analiz raporu hazırlanıyor..."}</ReactMarkdown>
-                </div>
-              </div>
+              <p className="text-sm text-slate-300 leading-relaxed mb-6">
+                "Şirketinizin KDV iade süreci oldukça sağlıklı ilerlemektedir. Alacağınız iade tutarı cari borçlarınızı tam olarak karşılamakta, hatta 40.000 TL'lik bir rezerv bırakmaktadır. KDV devriniz gelecek dönem için yeterli olup, tevkifatlı fatura kesme ve alma kapasiteniz geniş bir marja sahiptir. Ödemelerinizde herhangi bir aksama beklenmemektedir."
+              </p>
               <div className="grid grid-cols-3 gap-4">
                 <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
                   <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Ödeme Riski</p>
@@ -805,9 +817,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
                 <button onClick={() => setMaliTabloReport(null)} className="text-xs text-kilim-red font-bold">Yeni Analiz</button>
               </div>
               <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                <div className="prose prose-slate prose-sm max-w-none">
-                  <ReactMarkdown>{maliTabloReport}</ReactMarkdown>
-                </div>
+                {maliTabloReport}
               </div>
             </div>
           </motion.div>

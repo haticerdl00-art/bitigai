@@ -72,9 +72,15 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "haticerdl00@gmail.com" && request.auth.token.email_verified == true)); // Default admin
+    }
     
     function isCompanyOwner(companyId) {
-      return isAuthenticated() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      return isAdmin() || (isAuthenticated() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid);
     }
 
     function hasRequiredFields(fields) {
@@ -104,7 +110,8 @@ service cloud.firestore {
     function isValidUser(data) {
       return hasRequiredFields(['fullName', 'email']) &&
              data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 100 &&
-             isValidEmail(data.email);
+             isValidEmail(data.email) &&
+             (!('role' in data) || data.role in ['admin', 'user']);
     }
 
     function isValidSettings(data) {
@@ -134,28 +141,61 @@ service cloud.firestore {
              data.type in ['sent', 'received'];
     }
 
+    function isValidTask(data) {
+      return hasRequiredFields(['text', 'completed']) &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 1000 &&
+             data.completed is bool &&
+             (!('date' in data) || data.date == null || isValidDateString(data.date));
+    }
+
+    function isValidBeyannameTracking(data) {
+      return hasRequiredFields(['companyId', 'period', 'ownerId']) &&
+             data.companyId is string &&
+             data.period is string &&
+             data.ownerId == request.auth.uid &&
+             (!('notes' in data) || data.notes is string && data.notes.size() <= 5000);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      (!('role' in request.resource.data) || request.resource.data.role == 'user');
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && 
+                        request.resource.data.role == resource.data.role) || isAdmin();
 
       match /settings/{settingId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) || isAdmin();
         allow create, update: if isOwner(userId) && isValidSettings(request.resource.data);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidTask(request.resource.data);
+        allow update: if isOwner(userId) && isValidTask(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
+    match /beyanname_tracking/{trackingId} {
+      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidBeyannameTracking(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin()) && 
+                      isValidBeyannameTracking(request.resource.data) &&
+                      request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
     match /companies/{companyId} {
-      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && isValidCompany(request.resource.data);
-      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid && 
+      allow update: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin()) && 
                       isValidCompany(request.resource.data) &&
                       request.resource.data.ownerId == resource.data.ownerId;
-      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
 
       match /personnel/{personnelId} {
         allow read: if isCompanyOwner(companyId);

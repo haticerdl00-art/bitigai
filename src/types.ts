@@ -18,7 +18,6 @@ export enum ModuleId {
   HESAPLAMALAR = 'hesaplamalar',
   BELGELER = 'belgeler',
   CARI_HESAP = 'cari-hesap',
-  MUSTERI_ILETISIM = 'musteri-iletisim',
   PERSONEL_BORDRO = 'personel-bordro',
   CONTENT_CREATOR = 'content-creator'
 }

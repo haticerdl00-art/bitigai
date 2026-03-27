@@ -385,7 +385,6 @@ export default function App() {
     { id: ModuleId.PERSONEL_BORDRO, title: 'Personel & Bordro', icon: Users, desc: 'Maaş hesaplama, SGK maliyeti ve izin takibi.' },
     { id: ModuleId.NAKIT_AKIS, title: 'Finansal Durum', icon: Wallet, desc: 'Mizan analizi, mali tablo analizleri ve KDV İade & GEKSİS analizleri.' },
     { id: ModuleId.CARI_HESAP, title: 'Cari & Tahsilat', icon: TrendingUp, desc: 'Müşteri bakiyeleri, gecikmiş alacaklar ve ödeme girişi.' },
-    { id: ModuleId.MUSTERI_ILETISIM, title: 'Müşteri İletişim', icon: MessageCircle, desc: 'WhatsApp ve E-posta şablonları ile hızlı bildirim.' },
     { id: ModuleId.OCR, title: 'Veri Girişi & OCR', icon: ScanLine, desc: 'Evraklardan otomatik veri çıkarma ve fiş aktarım sistemi.' },
     { id: ModuleId.CONTENT_CREATOR, title: 'İçerik Üretici', icon: Share2, desc: 'Analizlerden sosyal medya ve yönetici özeti oluşturma.' },
     { id: ModuleId.BELGELER, title: 'Belge & Evrak', icon: FileText, desc: 'Firmalara ait resmi belgelerin takibi ve paylaşımı.' },
@@ -530,7 +529,6 @@ export default function App() {
         return <CostAnalysisModule profile={companyProfile} />;
       case ModuleId.BEYANNAME:
       case ModuleId.CARI_HESAP:
-      case ModuleId.MUSTERI_ILETISIM:
       case ModuleId.PERSONEL_BORDRO:
       case ModuleId.HESAPLAMALAR:
         return <OfficeProductivityModule activeTab={activeModule} companies={companies} profile={companyProfile} />;

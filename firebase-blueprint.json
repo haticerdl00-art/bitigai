@@ -71,6 +71,34 @@
         "order": { "type": "array", "items": { "type": "string" } },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Kullanıcı görevleri.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "date": { "type": "string", "format": "date" }
+      },
+      "required": ["text", "completed"]
+    },
+    "BeyannameTracking": {
+      "title": "BeyannameTracking",
+      "description": "Beyanname takip bilgileri.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyId": { "type": "string" },
+        "period": { "type": "string" },
+        "statuses": { "type": "object" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["companyId", "period", "ownerId"]
     }
   },
   "firestore": {
@@ -81,6 +109,14 @@
     "/users/{userId}/settings/{settingId}": {
       "schema": "Settings",
       "description": "Kullanıcı ayarları"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Kullanıcı görevleri"
+    },
+    "/beyanname_tracking/{trackingId}": {
+      "schema": "BeyannameTracking",
+      "description": "Beyanname takip kayıtları"
     },
     "/companies/{companyId}": {
       "schema": "Company",

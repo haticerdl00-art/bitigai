@@ -1532,13 +1532,17 @@ function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfi
 
     const userId = auth.currentUser.uid;
     const trackingRef = collection(db, 'beyanname_tracking');
-    const q = query(trackingRef, where('period', '==', currentPeriod), where('ownerId', '==', userId));
+    // Query only by ownerId to avoid composite index requirement
+    const q = query(trackingRef, where('ownerId', '==', userId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const trackingData: any = {};
       snapshot.forEach((doc) => {
         const data = doc.data();
-        trackingData[data.companyId] = data;
+        // Filter by period client-side
+        if (data.period === currentPeriod) {
+          trackingData[data.companyId] = data;
+        }
       });
 
       // Ensure companies is an array and filter by ownerId
@@ -1850,8 +1854,19 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
     customerId: "",
     amount: "",
     type: "Tahsilat",
+    paymentCategory: "Muhasebe Ücreti",
     desc: ""
   });
+
+  const paymentCategories = [
+    "Muhasebe Ücreti",
+    "Ticaret Odası İşlemleri",
+    "Noter Giderleri",
+    "Tapu Harçları",
+    "Resmi Mühür Giderleri",
+    "Vergi Borcu Ödemesi (Müşteri Adına)",
+    "Diğer"
+  ];
 
   const [customers, setCustomers] = useState<any[]>([]);
 
@@ -1863,6 +1878,7 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
         name: c.title,
         balance: 0,
         overdue: 0,
+        carryOver: 0, // Geçen yıldan devreden
         status: "Normal",
         history: []
       })));
@@ -1879,8 +1895,9 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
     const newHistoryItem = {
       date: new Date().toLocaleDateString('tr-TR'),
       type: paymentForm.type,
+      category: paymentForm.paymentCategory,
       amount: amountNum,
-      desc: paymentForm.desc || (paymentForm.type === 'Tahsilat' ? 'Tahsilat İşlemi' : 'Fatura Girişi')
+      desc: paymentForm.desc || `${paymentForm.paymentCategory} - ${paymentForm.type}`
     };
 
     setCustomers(prev => prev.map(c => {
@@ -1900,7 +1917,7 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
     }));
 
     setIsPaymentModalOpen(false);
-    setPaymentForm({ customerId: "", amount: "", type: "Tahsilat", desc: "" });
+    setPaymentForm({ customerId: "", amount: "", type: "Tahsilat", paymentCategory: "Muhasebe Ücreti", desc: "" });
   };
 
   return (
@@ -1954,6 +1971,20 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
                   </select>
                 </div>
                 <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kategori</label>
+                  <select 
+                    value={paymentForm.paymentCategory}
+                    onChange={e => setPaymentForm({...paymentForm, paymentCategory: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-kilim-blue/20 outline-none"
+                  >
+                    {paymentCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tutar (₺)</label>
                   <input 
                     type="number" 
@@ -1983,7 +2014,11 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="glass-card p-6 border-l-4 border-slate-400">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Geçen Yıldan Devreden</p>
+          <p className="text-2xl font-black text-slate-700">{para(customers.reduce((acc, c) => acc + c.carryOver, 0))}</p>
+        </div>
         <div className="glass-card p-6 border-l-4 border-kilim-blue">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Toplam Alacak</p>
           <p className="text-2xl font-black text-kilim-blue">{para(customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0))}</p>
@@ -2013,326 +2048,111 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
           </thead>
           <tbody className="divide-y divide-slate-50">
             {customers.map(c => (
-              <tr key={c.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer group">
-                <td className="p-4" onClick={() => setSelectedCustomer(c)}>
-                  <span className="font-bold text-slate-800 text-sm group-hover:text-kilim-blue transition-colors">{c.name}</span>
-                </td>
-                <td className="p-4" onClick={() => setSelectedCustomer(c)}>
-                  <span className={`font-bold text-sm ${c.balance < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                    {para(Math.abs(c.balance))} {c.balance < 0 ? '(A)' : '(B)'}
-                  </span>
-                </td>
-                <td className="p-4" onClick={() => setSelectedCustomer(c)}>
-                  <span className={`font-bold text-sm ${c.overdue > 0 ? 'text-rose-500' : 'text-slate-400'}`}>
-                    {para(c.overdue)}
-                  </span>
-                </td>
-                <td className="p-4" onClick={() => setSelectedCustomer(c)}>
-                  <Badge label={c.status} renk={c.status === 'Kritik' ? C.kirmizi : c.status === 'Alacaklı' ? C.yesil : C.mavi} />
-                </td>
-                <td className="p-4">
-                  <button 
-                    onClick={() => setSelectedCustomer(c)}
-                    className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-kilim-blue transition-colors"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </td>
-              </tr>
+              <React.Fragment key={c.id}>
+                <tr 
+                  className={`hover:bg-slate-50/50 transition-colors cursor-pointer group ${selectedCustomer?.id === c.id ? 'bg-slate-50' : ''}`}
+                  onClick={() => setSelectedCustomer(selectedCustomer?.id === c.id ? null : c)}
+                >
+                  <td className="p-4">
+                    <span className="font-bold text-slate-800 text-sm group-hover:text-kilim-blue transition-colors">{c.name}</span>
+                  </td>
+                  <td className="p-4">
+                    <span className={`font-bold text-sm ${c.balance < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                      {para(Math.abs(c.balance))} {c.balance < 0 ? '(A)' : '(B)'}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span className={`font-bold text-sm ${c.overdue > 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                      {para(c.overdue)}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <Badge label={c.status} renk={c.status === 'Kritik' ? C.kirmizi : c.status === 'Alacaklı' ? C.yesil : C.mavi} />
+                  </td>
+                  <td className="p-4 text-right">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCustomer(selectedCustomer?.id === c.id ? null : c);
+                      }}
+                      className={`p-2 rounded-full transition-all transform ${selectedCustomer?.id === c.id ? 'bg-kilim-blue/10 text-kilim-blue rotate-0' : 'text-slate-400 hover:bg-slate-100'}`}
+                      title="Detayları Gör"
+                    >
+                      {selectedCustomer?.id === c.id ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                    </button>
+                  </td>
+                </tr>
+                <AnimatePresence>
+                  {selectedCustomer?.id === c.id && (
+                    <tr key={`detail-${c.id}`}>
+                      <td colSpan={5} className="p-0 border-b border-slate-100">
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                          className="bg-slate-50/50 p-6 overflow-hidden"
+                        >
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="text-sm font-bold text-slate-700">Ödeme ve Tahsilat Geçmişi</h4>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ayrıntılar</div>
+                          </div>
+                          {c.history.length > 0 ? (
+                            <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
+                              <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-50">
+                                  <tr>
+                                    <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Tarih</th>
+                                    <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">İşlem</th>
+                                    <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Açıklama</th>
+                                    <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Tutar</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                  {c.history.map((h: any, i: number) => (
+                                    <tr key={i}>
+                                      <td className="p-3 text-slate-600 text-xs">{h.date}</td>
+                                      <td className="p-3">
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${h.type === 'Tahsilat' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                          {h.type}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-slate-500 text-xs">{h.desc}</td>
+                                      <td className={`p-3 font-bold text-xs ${h.type === 'Tahsilat' ? 'text-emerald-600' : 'text-slate-700'}`}>
+                                        {h.type === 'Tahsilat' ? '-' : '+'}{para(h.amount)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="text-center py-6 bg-white rounded-2xl border border-dashed border-slate-200">
+                              <p className="text-xs text-slate-400">Bu firma için henüz bir işlem geçmişi bulunmuyor.</p>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    </td>
+                  </tr>
+                )}
+                </AnimatePresence>
+              </React.Fragment>
             ))}
           </tbody>
         </table>
       </div>
 
-      <AnimatePresence>
-        {selectedCustomer && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="glass-card p-6 border-t-4 border-kilim-blue"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">{selectedCustomer.name}</h3>
-                <p className="text-xs text-slate-500">Ödeme ve Tahsilat Geçmişi</p>
-              </div>
-              <button 
-                onClick={() => setSelectedCustomer(null)}
-                className="p-2 hover:bg-slate-100 rounded-full text-slate-400"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {selectedCustomer.history.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border border-slate-100">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Tarih</th>
-                        <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">İşlem</th>
-                        <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Açıklama</th>
-                        <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Tutar</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {selectedCustomer.history.map((h: any, i: number) => (
-                        <tr key={i}>
-                          <td className="p-3 text-slate-600">{h.date}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${h.type === 'Tahsilat' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                              {h.type}
-                            </span>
-                          </td>
-                          <td className="p-3 text-slate-500">{h.desc}</td>
-                          <td className={`p-3 font-bold ${h.type === 'Tahsilat' ? 'text-emerald-600' : 'text-slate-700'}`}>
-                            {h.type === 'Tahsilat' ? '-' : '+'}{para(h.amount)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <p className="text-sm text-slate-400">Bu firma için henüz bir işlem geçmişi bulunmuyor.</p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────
-// 10. MÜŞTERİ İLETİŞİM & BİLDİRİM
+// 10. PERSONEL & BORDRO YÖNETİMİ
 // ─────────────────────────────────────────────
-function MusteriIletisim({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
-  const [selectedFirmId, setSelectedFirmId] = useState(companies.length > 0 ? [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'))[0].id : "");
-  const [messages, setMessages] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [isListening, setIsListening] = useState(false);
-
-  useEffect(() => {
-    if (companies.length > 0 && !selectedFirmId) {
-      const sorted = [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'));
-      setSelectedFirmId(sorted[0].id);
-    }
-  }, [companies]);
-
-  const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Tarayıcınız sesli dikte özelliğini desteklemiyor.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'tr-TR';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
-    
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setNewMessage(prev => prev ? prev + " " + transcript : transcript);
-    };
-
-    recognition.start();
-  };
-
-  useEffect(() => {
-    if (!selectedFirmId) return;
-
-    const messagesRef = collection(db, 'companies', selectedFirmId, 'messages');
-    // Removed orderBy to avoid index issues, sorting client-side
-    const q = query(messagesRef);
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs: any[] = [];
-      snapshot.forEach((doc) => {
-        msgs.push({ id: doc.id, ...doc.data() });
-      });
-      // Client-side sort by timestamp asc
-      msgs.sort((a, b) => {
-        const timeA = a.timestamp?.toMillis?.() || 0;
-        const timeB = b.timestamp?.toMillis?.() || 0;
-        return timeA - timeB;
-      });
-      setMessages(msgs);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `companies/${selectedFirmId}/messages`);
-    });
-
-    return () => unsubscribe();
-  }, [selectedFirmId]);
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedFirmId) return;
-    try {
-      const messagesRef = collection(db, 'companies', selectedFirmId, 'messages');
-      await addDoc(messagesRef, {
-        sender: 'Siz',
-        text: newMessage,
-        time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-        timestamp: serverTimestamp(),
-        type: 'sent'
-      });
-      setNewMessage('');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `companies/${selectedFirmId}/messages`);
-    }
-  };
-
-  const handleShareWhatsApp = () => {
-    if (!newMessage.trim() || !selectedFirm) return;
-    const text = `*BİTİG AI - Müşavir Bilgilendirme*\n\n${newMessage}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
-  const handleShareEmail = () => {
-    if (!newMessage.trim() || !selectedFirm) return;
-    const subject = "Mali Müşavir Bilgilendirme";
-    const body = `${newMessage}\n\nSaygılarımızla,\nBİTİG AI Müşavir Asistanı`;
-    window.open(`mailto:${selectedFirm.emails?.[0] || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-  };
-
-  const templates = [
-    { id: 1, title: "Evrak Talebi", content: "Sayın {firma}, {ay} dönemine ait mizan ve faturalarınızı beklemekteyiz." },
-    { id: 2, title: "Ödeme Hatırlatma", content: "Sayın {firma}, {tutar} tutarındaki gecikmiş bakiyenizin ödenmesini rica ederiz." },
-  ];
-
-  const selectedFirm = companies.find(c => c.id === selectedFirmId);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <div className="lg:col-span-4 space-y-4">
-        <div className="glass-card p-4">
-          <h3 className="font-bold text-slate-800 text-sm mb-4">Firmalar</h3>
-          <div className="space-y-2">
-            {[...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr')).map(c => (
-              <button 
-                key={c.id}
-                onClick={() => setSelectedFirmId(c.id)}
-                className={`w-full text-left p-3 rounded-xl text-xs font-bold transition-all ${selectedFirmId === c.id ? 'bg-kilim-red text-white shadow-lg shadow-kilim-red/20' : 'hover:bg-slate-50 text-slate-600'}`}
-              >
-                {c.title}
-              </button>
-            ))}
-            {companies.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-4 italic">Kayıtlı firma bulunamadı.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="lg:col-span-8 space-y-6">
-        <div className="glass-card flex flex-col h-[600px]">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-kilim-blue/10 flex items-center justify-center text-kilim-blue font-bold">
-                {selectedFirm ? selectedFirm.title[0] : "?"}
-              </div>
-              <div>
-                <h4 className="font-bold text-kilim-blue-dark text-sm">{selectedFirm?.title || "Firma Seçilmedi"}</h4>
-                {selectedFirm && <span className="text-[10px] text-emerald-500 font-bold">● Çevrimiçi</span>}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={handleShareWhatsApp}
-                disabled={!newMessage.trim()}
-                className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors disabled:opacity-50"
-                title="WhatsApp ile Paylaş"
-              >
-                <MessageCircle size={20} />
-              </button>
-              <button 
-                onClick={handleShareEmail}
-                disabled={!newMessage.trim()}
-                className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors disabled:opacity-50"
-                title="E-Posta Gönder"
-              >
-                <Mail size={20} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50/30">
-            {!selectedFirm ? (
-              <div className="h-full flex items-center justify-center text-slate-400 italic text-sm">
-                Mesajlaşmak için bir firma seçin.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {messages.map(msg => (
-                  <div key={msg.id} className={`flex ${msg.type === 'sent' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${
-                      msg.type === 'sent' ? 'bg-kilim-red text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none'
-                    }`}>
-                      <p>{msg.text}</p>
-                      <span className={`text-[10px] mt-1 block ${msg.type === 'sent' ? 'text-white/70' : 'text-slate-400'}`}>
-                        {msg.time}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="p-4 border-t border-slate-100 bg-white">
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-              {templates.map(t => (
-                <button 
-                  key={t.id} 
-                  onClick={() => setNewMessage(t.content.replace('{firma}', selectedFirm?.title || 'Değerli Müşterimiz').replace('{ay}', 'Mart'))}
-                  className="whitespace-nowrap px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold hover:bg-kilim-red hover:text-white transition-all"
-                >
-                  {t.title}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={startListening}
-                className={`p-2 rounded-xl transition-all ${isListening ? 'bg-kilim-red text-white animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                title={isListening ? "Dinleniyor..." : "Sesle Yaz"}
-              >
-                <Mic size={20} />
-              </button>
-              <input 
-                type="text" 
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Mesajınızı yazın..." 
-                className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-kilim-red/20 outline-none"
-              />
-              <button 
-                onClick={handleSendMessage}
-                disabled={!newMessage.trim()}
-                className="bg-kilim-red text-white p-2 rounded-xl hover:bg-kilim-red-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ArrowRight size={20} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────
-// 11. PERSONEL & BORDRO (REDESIGN)
+// 10. PERSONEL & BORDRO (REDESIGN)
 // ─────────────────────────────────────────────
 
 function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
@@ -2492,40 +2312,103 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
-      {/* Üst Bilgilendirme ve Notlar (Kritik Noktalar) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
-        <div style={{ background: C.kart, padding: 20, borderRadius: 20, border: `1px solid ${C.sinir}`, borderTop: `4px solid ${C.kirmizi}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <AlertTriangle size={18} style={{ color: C.kirmizi }} />
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>Ayın Kritik Noktaları</h4>
+      {/* 📢 AYIN KRİTİK NOTLARI & BİLDİRİMLER */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
+        <div style={{ 
+          background: C.kart, padding: 24, borderRadius: 24, border: `1px solid ${C.sinir}`, 
+          borderLeft: `6px solid ${C.sari}`, boxShadow: "0 4px 12px rgba(0,0,0,0.03)" 
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.maviSoluk, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Zap size={20} color={C.mavi} />
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 900, color: C.mavi, margin: 0, textTransform: "uppercase" }}>📢 AYIN KRİTİK NOTU (Mart 2026)</h3>
           </div>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.ikinci, display: "flex", flexDirection: "column", gap: 6 }}>
-            <li>Asgari ücret vergi istisnası kontrolleri yapılmalı.</li>
-            <li>Emekli çalışanların SGDP bildirimlerine dikkat edilmeli.</li>
-            <li>Engelli vergi indirimi olan personellerin belgeleri güncellenmeli.</li>
-          </ul>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+            <div style={{ background: C.bg, padding: 20, borderRadius: 20, border: `1px solid ${C.sinir}` }}>
+              <p style={{ fontWeight: 800, color: C.metin, fontSize: 13, display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <Activity size={16} color={C.yesil} /> Gün Hesaplama Kuralları
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: C.ikinci, display: "flex", flexDirection: "column", gap: 8 }}>
+                <li><strong>Şubat Ayı (28 Gün):</strong> Eksik günü olmayan personel <strong>30 gün</strong> üzerinden bildirilir.</li>
+                <li><strong>Eksik Gün Varsa:</strong> Formül <code>28 - Eksik Gün</code> şeklinde uygulanır.</li>
+                <li><strong>31 Çeken Aylar:</strong> Eksik gün yoksa 30, varsa 31 gün üzerinden hesaplama yapılır.</li>
+              </ul>
+            </div>
+
+            <div style={{ background: C.kirmizi + "08", padding: 20, borderRadius: 20, border: `1px solid ${C.kirmizi}20` }}>
+              <p style={{ fontWeight: 800, color: C.kirmizi, fontSize: 13, display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <ShieldAlert size={16} color={C.kirmizi} /> Yasal Süre & İPC Uyarıları
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: C.kirmizi, display: "flex", flexDirection: "column", gap: 8 }}>
+                <li><strong>İşe Giriş:</strong> En geç çalışmaya başlamadan 1 gün önce.</li>
+                <li><strong>İşten Çıkış:</strong> Ayrılış tarihinden itibaren en geç 10 gün içinde.</li>
+                <li><strong>Süre Aşımı:</strong> Her bir bildirim için asgari ücret tutarında İPC riski!</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
-        <div style={{ background: C.kart, padding: 20, borderRadius: 20, border: `1px solid ${C.sinir}`, borderTop: `4px solid ${C.mavi}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <Info size={18} style={{ color: C.mavi }} />
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>İŞKUR & Periyodik Bildirimler</h4>
+        <div style={{ 
+          background: C.kart, padding: 24, borderRadius: 24, border: `1px solid ${C.sinir}`, 
+          boxShadow: "0 4px 12px rgba(0,0,0,0.03)" 
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.maviSoluk, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <FileText size={20} color={C.mavi} />
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 900, color: C.mavi, margin: 0, textTransform: "uppercase" }}>📋 İŞKUR VE PERİYODİK BİLDİRİMLER</h3>
           </div>
-          <p style={{ fontSize: 12, color: C.ikinci, margin: 0 }}>
-            Aylık İşgücü Çizelgesi her ayın sonuna kadar İŞKUR sistemine girilmelidir. 
-            50+ çalışanı olan firmalarda engelli istihdam oranı kontrol edilmelidir.
-          </p>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.yesil + "20", color: C.yesil, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><CheckCircle2 size={14} /></div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>İŞKUR Aylık İşgücü Çizelgesi</p>
+                  <p style={{ fontSize: 11, color: C.ikinci, marginTop: 4, lineHeight: 1.5 }}>10 ve üzeri işçi çalıştıran işletmeler için son gün <strong>31 Mart</strong>. Sisteme girilmeyen çizelgeler ileride teşvik yasaklılığına yol açabilir.</p>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.yesil + "20", color: C.yesil, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><CheckCircle2 size={14} /></div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>Engelli/Eski Hükümlü Kontenjanı</p>
+                  <p style={{ fontSize: 11, color: C.ikinci, marginTop: 4, lineHeight: 1.5 }}>50 ve üzeri çalışanı olan işyerlerinde %3 engelli istihdam zorunluluğunu Mart ayı bordrosu öncesi kontrol edin.</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: C.mavi, padding: 20, borderRadius: 20, color: "#FFF" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <ShieldAlert size={16} color={C.sari} />
+                <span style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", color: C.sari }}>Stratejist Notu</span>
+              </div>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", lineHeight: 1.6, fontStyle: "italic", margin: 0 }}>
+                "Mart ayı, yılın ilk çeyreğinin kapandığı aydır. Bu dönemde yapılacak hatalı bir SGK meslek kodu bildirimi veya eksik gün nedeni, ileride yapılacak bir denetimde 5 yıllık geriye dönük İPC riski oluşturabilir."
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div style={{ background: C.kart, padding: 20, borderRadius: 20, border: `1px solid ${C.sinir}`, borderTop: `4px solid ${C.turuncu}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <ShieldAlert size={18} style={{ color: C.turuncu }} />
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>Yasal Uyarılar & Notlar</h4>
+        <div style={{ background: C.kirmizi + "08", padding: 20, borderRadius: 24, border: `1px solid ${C.kirmizi}15` }}>
+          <h4 style={{ fontSize: 13, fontWeight: 900, color: C.kirmizi, margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
+            <AlertTriangle size={18} color={C.kirmizi} /> 🔔 Yasal Uyarı & Notlar
+          </h4>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 20 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.kirmizi, marginTop: 6, flexShrink: 0 }} />
+              <p style={{ fontSize: 11, color: C.metin, margin: 0, lineHeight: 1.4 }}><strong>Resmi Tatil Mesaisi:</strong> Bayramlarda çalışılan her gün için personele <strong>+1 tam yevmiye</strong> ödenmelidir.</p>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.kirmizi, marginTop: 6, flexShrink: 0 }} />
+              <p style={{ fontSize: 11, color: C.metin, margin: 0, lineHeight: 1.4 }}><strong>Hafta Tatili:</strong> 6 gün çalışan işçinin 7. gün 24 saat kesintisiz dinlenme hakkı vardır.</p>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.kirmizi, marginTop: 6, flexShrink: 0 }} />
+              <p style={{ fontSize: 11, color: C.metin, margin: 0, lineHeight: 1.4 }}><strong>Normal Çalışma:</strong> Haftalık süre 45 saattir. Aşan her saat <strong>%50 zamlı</strong> ödenir.</p>
+            </div>
           </div>
-          <p style={{ fontSize: 12, color: C.ikinci, margin: 0 }}>
-            İşten ayrılan personellerin 10 gün içinde SGK çıkış bildirimleri yapılmalıdır. 
-            Yıllık izin defterlerinin imzalı kopyaları özlük dosyalarında saklanmalıdır.
-          </p>
         </div>
       </div>
 
@@ -2910,108 +2793,7 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
         )}
       </AnimatePresence>
 
-      {/* 📢 AYIN KRİTİK NOTU */}
-      <div style={{ marginTop: 32, display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
-        <div style={{ 
-          background: C.kart, padding: 24, borderRadius: 24, border: `1px solid ${C.sinir}`, 
-          borderLeft: `6px solid ${C.sari}`, boxShadow: "0 4px 12px rgba(0,0,0,0.03)" 
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.maviSoluk, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Zap size={20} color={C.mavi} />
-            </div>
-            <h3 style={{ fontSize: 16, fontWeight: 900, color: C.mavi, margin: 0, textTransform: "uppercase" }}>📢 AYIN KRİTİK NOTU (Mart 2026)</h3>
-          </div>
-          
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
-            <div style={{ background: C.bg, padding: 20, borderRadius: 20, border: `1px solid ${C.sinir}` }}>
-              <p style={{ fontWeight: 800, color: C.metin, fontSize: 13, display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <Activity size={16} color={C.yesil} /> Gün Hesaplama Kuralları
-              </p>
-              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: C.ikinci, display: "flex", flexDirection: "column", gap: 8 }}>
-                <li><strong>Şubat Ayı (28 Gün):</strong> Eksik günü olmayan personel <strong>30 gün</strong> üzerinden bildirilir.</li>
-                <li><strong>Eksik Gün Varsa:</strong> Formül <code>28 - Eksik Gün</code> şeklinde uygulanır.</li>
-                <li><strong>31 Çeken Aylar:</strong> Eksik gün yoksa 30, varsa 31 gün üzerinden hesaplama yapılır.</li>
-              </ul>
-            </div>
-
-            <div style={{ background: C.kirmizi + "08", padding: 20, borderRadius: 20, border: `1px solid ${C.kirmizi}20` }}>
-              <p style={{ fontWeight: 800, color: C.kirmizi, fontSize: 13, display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <ShieldAlert size={16} color={C.kirmizi} /> Yasal Süre & İPC Uyarıları
-              </p>
-              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: C.kirmizi, display: "flex", flexDirection: "column", gap: 8 }}>
-                <li><strong>İşe Giriş:</strong> En geç çalışmaya başlamadan 1 gün önce.</li>
-                <li><strong>İşten Çıkış:</strong> Ayrılış tarihinden itibaren en geç 10 gün içinde.</li>
-                <li><strong>Süre Aşımı:</strong> Her bir bildirim için asgari ücret tutarında İPC riski!</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* 📋 İŞKUR VE PERİYODİK BİLDİRİMLER */}
-        <div style={{ 
-          background: C.kart, padding: 24, borderRadius: 24, border: `1px solid ${C.sinir}`, 
-          boxShadow: "0 4px 12px rgba(0,0,0,0.03)" 
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.maviSoluk, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <FileText size={20} color={C.mavi} />
-            </div>
-            <h3 style={{ fontSize: 16, fontWeight: 900, color: C.mavi, margin: 0, textTransform: "uppercase" }}>📋 İŞKUR VE PERİYODİK BİLDİRİMLER</h3>
-          </div>
-          
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", gap: 12 }}>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.yesil + "20", color: C.yesil, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><CheckCircle2 size={14} /></div>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>İŞKUR Aylık İşgücü Çizelgesi</p>
-                  <p style={{ fontSize: 11, color: C.ikinci, marginTop: 4, lineHeight: 1.5 }}>10 ve üzeri işçi çalıştıran işletmeler için son gün <strong>31 Mart</strong>. Sisteme girilmeyen çizelgeler ileride teşvik yasaklılığına yol açabilir.</p>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.yesil + "20", color: C.yesil, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><CheckCircle2 size={14} /></div>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0 }}>Engelli/Eski Hükümlü Kontenjanı</p>
-                  <p style={{ fontSize: 11, color: C.ikinci, marginTop: 4, lineHeight: 1.5 }}>50 ve üzeri çalışanı olan işyerlerinde %3 engelli istihdam zorunluluğunu Mart ayı bordrosu öncesi kontrol edin.</p>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ background: C.mavi, padding: 20, borderRadius: 20, color: "#FFF" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <ShieldAlert size={16} color={C.sari} />
-                <span style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", color: C.sari }}>Stratejist Notu</span>
-              </div>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", lineHeight: 1.6, fontStyle: "italic", margin: 0 }}>
-                "Mart ayı, yılın ilk çeyreğinin kapandığı aydır. Bu dönemde yapılacak hatalı bir SGK meslek kodu bildirimi veya eksik gün nedeni, ileride yapılacak bir denetimde 5 yıllık geriye dönük İPC riski oluşturabilir."
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* 🔔 Yasal Uyarı & Notlar */}
-        <div style={{ background: C.kirmizi + "08", padding: 20, borderRadius: 24, border: `1px solid ${C.kirmizi}15` }}>
-          <h4 style={{ fontSize: 13, fontWeight: 900, color: C.kirmizi, margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
-            <AlertTriangle size={18} color={C.kirmizi} /> 🔔 Yasal Uyarı & Notlar
-          </h4>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 20 }}>
-            <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.kirmizi, marginTop: 6, flexShrink: 0 }} />
-              <p style={{ fontSize: 11, color: C.metin, margin: 0, lineHeight: 1.4 }}><strong>Resmi Tatil Mesaisi:</strong> Bayramlarda çalışılan her gün için personele <strong>+1 tam yevmiye</strong> ödenmelidir.</p>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.kirmizi, marginTop: 6, flexShrink: 0 }} />
-              <p style={{ fontSize: 11, color: C.metin, margin: 0, lineHeight: 1.4 }}><strong>Hafta Tatili:</strong> 6 gün çalışan işçinin 7. gün 24 saat kesintisiz dinlenme hakkı vardır.</p>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.kirmizi, marginTop: 6, flexShrink: 0 }} />
-              <p style={{ fontSize: 11, color: C.metin, margin: 0, lineHeight: 1.4 }}><strong>Normal Çalışma:</strong> Haftalık süre 45 saattir. Aşan her saat <strong>%50 zamlı</strong> ödenir.</p>
-            </div>
-          </div>
-        </div>
       </div>
-    </div>
   );
 }
 
@@ -3102,8 +2884,6 @@ export const OfficeProductivityModule = ({ activeTab, companies = [], profile }:
         return <BeyannameTakibi companies={companies} profile={profile} />;
       case 'cari-hesap':
         return <CariHesapTahsilat companies={companies} profile={profile} />;
-      case 'musteri-iletisim':
-        return <MusteriIletisim companies={companies} profile={profile} />;
       case 'personel-bordro':
         return <PersonelBordro companies={companies} profile={profile} />;
       case 'hesaplamalar':
