@@ -52,7 +52,9 @@ export const MarketPulse = () => {
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Sunucudan geçersiz yanıt alındı (${response.status})`);
+        const text = await response.text();
+        console.error('Invalid response content type:', contentType, 'Body snippet:', text.substring(0, 100));
+        throw new Error(`Sunucudan geçersiz yanıt alındı (${response.status}). Lütfen sistem yöneticisine başvurun.`);
       }
 
       const data = await response.json();

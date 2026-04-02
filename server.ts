@@ -66,56 +66,90 @@ async function startServer() {
     };
 
     try {
-      // 1. Fetch TCMB for Currencies
-      console.log('Fetching TCMB data...');
-      const tcmbResponse = await fetch('https://www.tcmb.gov.tr/kurlar/today.xml');
-      let currencies = fallbackData.currencies;
-      
-      if (tcmbResponse.ok) {
-        const xml = await tcmbResponse.text();
-        const result = await parseStringPromise(xml);
-        const currencyList = result.Tarih_Date.Currency;
-        
-        const usd = currencyList.find((c: any) => c.$.CurrencyCode === 'USD');
-        const eur = currencyList.find((c: any) => c.$.CurrencyCode === 'EUR');
-        
-        if (usd && eur) {
-          currencies = [
-            { label: 'Dolar', value: usd.BanknoteSelling[0], change: 0.05, unit: 'TL' },
-            { label: 'Euro', value: eur.BanknoteSelling[0], change: -0.02, unit: 'TL' }
-          ];
+      const fetchWithTimeout = async (url: string, options: any = {}, timeout = 5000) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        try {
+          const response = await fetch(url, { 
+            ...options, 
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              ...options.headers
+            }
+          });
+          return response;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      // Fetch in parallel
+      const [tcmbRes, gpRes] = await Promise.allSettled([
+        fetchWithTimeout('https://www.tcmb.gov.tr/kurlar/today.xml', { headers: { 'Accept': 'application/xml' } }),
+        fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json')
+      ]);
+
+      let currencies = [...fallbackData.currencies];
+      let gold = [...fallbackData.gold];
+      let bist = { ...fallbackData.bist };
+
+      // Process TCMB
+      if (tcmbRes.status === 'fulfilled' && tcmbRes.value.ok) {
+        try {
+          const xml = await tcmbRes.value.text();
+          const result = await parseStringPromise(xml);
+          const currencyList = result?.Tarih_Date?.Currency;
+          if (Array.isArray(currencyList)) {
+            const usd = currencyList.find((c: any) => c?.$?.CurrencyCode === 'USD');
+            const eur = currencyList.find((c: any) => c?.$?.CurrencyCode === 'EUR');
+            if (usd && eur) {
+              currencies = [
+                { 
+                  label: 'Dolar', 
+                  value: usd.BanknoteSelling?.[0] || usd.ForexSelling?.[0] || '0.00', 
+                  change: 0.05, 
+                  unit: 'TL' 
+                },
+                { 
+                  label: 'Euro', 
+                  value: eur.BanknoteSelling?.[0] || eur.ForexSelling?.[0] || '0.00', 
+                  change: -0.02, 
+                  unit: 'TL' 
+                }
+              ];
+            }
+          }
+        } catch (err) {
+          console.error('TCMB Parse Error:', err);
         }
       }
 
-      // 2. Fetch BIST and Gold from GenelPara (as fallback/secondary)
-      console.log('Fetching GenelPara data...');
-      const gpResponse = await fetch('https://api.genelpara.com/embed/para-birimleri.json');
-      let gold = fallbackData.gold;
-      let bist = fallbackData.bist;
-      
-      if (gpResponse.ok) {
-        const gpData = await gpResponse.json();
-        const parseVal = (obj: any, fallback: string) => obj?.satis?.replace(',', '.') || fallback;
-        const parseChange = (obj: any) => parseFloat(obj?.degisim?.replace(',', '.') || '0');
-
-        gold = [
-          { label: 'Gram Altın', value: parseVal(gpData['GA'], fallbackData.gold[0].value), change: parseChange(gpData['GA']), unit: 'TL' },
-          { label: 'Çeyrek Altın', value: parseVal(gpData['C'], fallbackData.gold[1].value), change: parseChange(gpData['C']), unit: 'TL' }
-        ];
-        bist = {
-          value: parseVal(gpData['BIST100'], fallbackData.bist.value),
-          change: parseChange(gpData['BIST100'])
-        };
+      // Process GenelPara
+      if (gpRes.status === 'fulfilled' && gpRes.value.ok) {
+        try {
+          const gpData = await gpRes.value.json();
+          if (gpData) {
+            const parseVal = (key: string, fallback: string) => gpData[key]?.satis?.replace(',', '.') || fallback;
+            const parseChange = (key: string) => parseFloat(gpData[key]?.degisim?.replace(',', '.') || '0');
+            
+            gold = [
+              { label: 'Gram Altın', value: parseVal('GA', fallbackData.gold[0].value), change: parseChange('GA'), unit: 'TL' },
+              { label: 'Çeyrek Altın', value: parseVal('C', fallbackData.gold[1].value), change: parseChange('C'), unit: 'TL' }
+            ];
+            bist = {
+              value: parseVal('BIST100', fallbackData.bist.value),
+              change: parseChange('BIST100')
+            };
+          }
+        } catch (err) {
+          console.error('GenelPara Parse Error:', err);
+        }
       }
 
-      res.json({
-        currencies,
-        gold,
-        bist,
-        stocks: fallbackData.stocks
-      });
+      res.json({ currencies, gold, bist, stocks: fallbackData.stocks });
     } catch (error) {
-      console.error('Market data fetch error:', error);
+      console.error('Market data general error:', error);
       res.json(fallbackData);
     }
   };
@@ -165,6 +199,17 @@ async function startServer() {
   app.post('/api/fis/create', (req, res) => {
     console.log('Fiş oluşturuluyor:', req.body);
     res.json({ success: true, fisId: 'FIS-' + Math.floor(Math.random() * 10000) });
+  });
+
+  // JSON 404 for /api
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: `API route ${req.url} not found` });
+  });
+
+  // Global API Error Handler
+  app.use('/api', (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('API Error:', err);
+    res.status(500).json({ error: 'Internal Server Error', details: err.message });
   });
 
   // Vite middleware for development
