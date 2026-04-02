@@ -47,6 +47,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, MizanData } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { VergiTakipModulu } from './VergiTakipModulu';
 
 interface CashFlowModuleProps {
   profile: CompanyProfile;
@@ -57,15 +58,8 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('6ay');
   const [mizanUploaded, setMizanUploaded] = useState(false);
   const [isMizanAnalyzing, setIsMizanAnalyzing] = useState(false);
-  const [isKdvMizanAnalyzing, setIsKdvMizanAnalyzing] = useState(false);
-  const [kdvMizanScanned, setKdvMizanScanned] = useState(false);
   const [maliTabloReport, setMaliTabloReport] = useState<string | null>(null);
   const [isMaliTabloAnalyzing, setIsMaliTabloAnalyzing] = useState(false);
-  const [manualKdvData, setManualKdvData] = useState({
-    currentDebts: 210000,
-    potentialDebts: 0,
-    otherRefunds: 0
-  });
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const [mizanData, setMizanData] = useState<MizanData | null>(null);
 
@@ -146,21 +140,11 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
     });
   }, [currentLiquidity, dynamicProjectionData]);
 
-  const handleKdvMizanScan = () => {
-    setIsKdvMizanAnalyzing(true);
-    setTimeout(() => {
-      setIsKdvMizanAnalyzing(false);
-      setKdvMizanScanned(true);
-    }, 2000);
-  };
-
   const handleMizanUpload = (e?: React.ChangeEvent<HTMLInputElement>) => {
     setIsMizanAnalyzing(true);
     setTimeout(() => {
       setIsMizanAnalyzing(false);
       setMizanUploaded(true);
-      // When documents are uploaded here, they also feed into KDV analysis
-      setKdvMizanScanned(true);
     }, 2500);
   };
 
@@ -470,242 +454,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
   );
 
   const renderKdvRefundAnalysis = () => (
-    <div className="space-y-8">
-      {/* KDV İade Durumu Analizi Section */}
-      <div className="glass-card p-6 border-t-4 border-t-kilim-blue">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-kilim-blue-light/10 flex items-center justify-center">
-              <FileText className={`w-6 h-6 text-kilim-blue ${isKdvMizanAnalyzing ? 'animate-spin' : ''}`} />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-kilim-blue-dark">KDV İade Durumu ve Tevkifat Analizi</h3>
-              <p className="text-xs text-slate-500">Firma: <span className="font-bold">{profile.title}</span> | Mizan ve Manuel Veriler</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`px-3 py-1 rounded-full text-[10px] font-bold border ${profile.isExporter ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
-              İHRACATÇI: {profile.isExporter ? 'EVET' : 'HAYIR'}
-            </div>
-            <div className={`px-3 py-1 rounded-full text-[10px] font-bold border ${profile.hasWithholdingSales ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
-              TEVKİFATLI SATIŞ: {profile.hasWithholdingSales ? 'EVET' : 'HAYIR'}
-            </div>
-          </div>
-        </div>
-
-        {!kdvMizanScanned ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="p-8 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-              <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-kilim-blue" />
-                Manuel Veri Girişi (Mizanda Görünmeyenler)
-              </h4>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mevcut/Olası Borçlar (Vergi/SGK Dışı)</label>
-                  <input 
-                    type="number" 
-                    value={manualKdvData.currentDebts}
-                    onChange={(e) => setManualKdvData(prev => ({ ...prev, currentDebts: Number(e.target.value) }))}
-                    className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-kilim-blue/20 outline-none transition-all"
-                    placeholder="Örn: 210000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Olası Gelecek Borçlar / Riskler</label>
-                  <input 
-                    type="number" 
-                    value={manualKdvData.potentialDebts}
-                    onChange={(e) => setManualKdvData(prev => ({ ...prev, potentialDebts: Number(e.target.value) }))}
-                    className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-kilim-blue/20 outline-none transition-all"
-                    placeholder="Örn: 50000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Diğer İade/Alacak Kalemleri</label>
-                  <input 
-                    type="number" 
-                    value={manualKdvData.otherRefunds}
-                    onChange={(e) => setManualKdvData(prev => ({ ...prev, otherRefunds: Number(e.target.value) }))}
-                    className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-kilim-blue/20 outline-none transition-all"
-                    placeholder="Örn: 15000"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="p-8 bg-kilim-blue-pale/30 rounded-3xl border border-kilim-blue-light/20 flex flex-col justify-center text-center">
-              <div className="max-w-md mx-auto space-y-4">
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  Sistem, mizanınızdaki <span className="font-bold">136, 190, 360, 361 ve 391</span> hesapları tarayacak ve girdiğiniz <span className="font-bold">manuel borç/alacak</span> verilerini de hesaba katarak en doğru iade potansiyelinizi hesaplayacaktır.
-                </p>
-                <button 
-                  onClick={handleKdvMizanScan}
-                  disabled={isKdvMizanAnalyzing}
-                  className="w-full py-4 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 mx-auto disabled:opacity-50"
-                >
-                  {isKdvMizanAnalyzing ? (
-                    <>
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      Veriler Analiz Ediliyor...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="w-5 h-5" />
-                      Analizi Başlat
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-8"
-          >
-            {/* Mahsup ve Ödeme Yeterliliği */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 glass-card p-6 bg-white border-slate-200">
-                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-emerald-600" /> 📉 KDV İade Verimlilik Hesabı
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                    <p className="text-[10px] font-bold text-emerald-800 uppercase mb-1">Alınacak İade Tutarı</p>
-                    <p className="text-xl font-black text-emerald-700">₺250.000,00</p>
-                    <p className="text-[10px] text-emerald-600 mt-1">136 Hesap Bakiyesi</p>
-                  </div>
-                  <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100">
-                    <p className="text-[10px] font-bold text-rose-800 uppercase mb-1">Bu Dönemki Ödeme Tutarı</p>
-                    <p className="text-xl font-black text-rose-700">₺{(210000 + manualKdvData.currentDebts).toLocaleString('tr-TR')}</p>
-                    <p className="text-[10px] text-rose-600 mt-1">360+361 ve Cari Borçlar</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                    <p className="text-[10px] font-bold text-blue-800 uppercase mb-1">Borçlara Mahsup Edilirse Kalan</p>
-                    <p className="text-lg font-bold text-blue-700">₺{(250000 - (210000 + manualKdvData.currentDebts)).toLocaleString('tr-TR')}</p>
-                    <p className="text-[10px] text-blue-600 mt-1">Tüm borçlar kapandıktan sonra</p>
-                  </div>
-                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                    <p className="text-[10px] font-bold text-amber-800 uppercase mb-1">Nakit İade Alınırsa Kalan</p>
-                    <p className="text-lg font-bold text-amber-700">₺{(250000 * 0.95).toLocaleString('tr-TR')}</p>
-                    <p className="text-[10px] text-amber-600 mt-1">%5 kesinti/masraf varsayımıyla</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-bold text-emerald-800">Verimlilik Analizi</p>
-                    <p className="text-xs text-emerald-700 leading-relaxed">
-                      İade alacağınızın borçlara mahsup edilmesi, nakit akışınızı <span className="font-bold">₺{(210000 + manualKdvData.currentDebts).toLocaleString('tr-TR')}</span> kadar rahatlatacaktır. Nakit iade yerine mahsup tercih etmek, vergi dairesi denetim sürecini hızlandırabilir.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="glass-card p-6 bg-kilim-blue-dark text-white border-none">
-                <h4 className="text-sm font-bold text-kilim-blue-light mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" /> Gelecek Dönem Öngörüsü
-                </h4>
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Tahmini Sonraki Dönem İadesi</p>
-                    <p className="text-2xl font-bold text-emerald-400">₺145.000,00</p>
-                    <p className="text-[10px] text-slate-400 mt-1">İhracat ve Tevkifat Trendine Göre</p>
-                  </div>
-                  <div className="pt-4 border-t border-white/10">
-                    <p className="text-xs font-bold text-slate-300 mb-2">KDV Devri Yeterliliği</p>
-                    <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                      <div className="bg-emerald-500 h-full w-[85%]"></div>
-                    </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-[10px] text-slate-400">Kritik Eşik</span>
-                      <span className="text-[10px] text-emerald-400 font-bold">%85 Yeterli</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-3 leading-relaxed italic">
-                      "KDV devriniz, gelecek dönemdeki muhtemel iade taleplerinizi ve girdi maliyetlerinizi karşılamak için yeterli seviyededir."
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Tevkifat Kapasite Analizi */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="glass-card p-6 border-l-4 border-amber-500">
-                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <ArrowUpRight className="w-4 h-4 text-amber-500" /> Satış Tevkifat Kapasitesi
-                </h4>
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-xs text-slate-500 mb-1">Kesilebilecek Tevkifatlı Fatura Limiti</p>
-                    <p className="text-xl font-bold text-slate-800">₺850.000,00</p>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Mevcut KDV devriniz ve iade alacağınız göz önüne alındığında, finansal dengenizi bozmadan <span className="font-bold text-amber-700">850.000 TL'lik daha tevkifatlı fatura kesebilirsiniz.</span> Bu tutarın üzerindeki tevkifatlı satışlar, nakit iade sürecini uzatabilir.
-                  </p>
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-2">
-                    <Info className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <p className="text-[10px] text-amber-800 font-medium">Öneri: Nakit akışını hızlandırmak için tevkifatlı satış oranını %40 seviyesinde tutmanız idealdir.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="glass-card p-6 border-l-4 border-blue-500">
-                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <ArrowDownRight className="w-4 h-4 text-blue-500" /> Alış Tevkifat Kapasitesi
-                </h4>
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-xs text-slate-500 mb-1">Karşılanabilir Tevkifatlı Alış Limiti</p>
-                    <p className="text-xl font-bold text-slate-800">₺1.200.000,00</p>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Cari likiditeniz ve iade mahsup gücünüz, <span className="font-bold text-blue-700">1.200.000 TL'lik tevkifatlı alış faturasının</span> KDV2 ödemesini ve ana borcunu karşılayabilecek güçtedir.
-                  </p>
-                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                    <p className="text-[10px] text-blue-800 font-medium">Analiz: Tevkifatlı alışlar vergi yükünüzü azalttığı için bu kapasiteyi kullanmanız avantajlıdır.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Özet Analiz Notu */}
-            <div className="p-6 bg-slate-900 rounded-3xl text-white">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                </div>
-                <h4 className="font-bold">Genel KDV ve Finansal Sağlık Özeti</h4>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                "Şirketinizin KDV iade süreci oldukça sağlıklı ilerlemektedir. Alacağınız iade tutarı cari borçlarınızı tam olarak karşılamakta, hatta 40.000 TL'lik bir rezerv bırakmaktadır. KDV devriniz gelecek dönem için yeterli olup, tevkifatlı fatura kesme ve alma kapasiteniz geniş bir marja sahiptir. Ödemelerinizde herhangi bir aksama beklenmemektedir."
-              </p>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
-                  <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Ödeme Riski</p>
-                  <p className="text-sm font-bold text-emerald-400">DÜŞÜK</p>
-                </div>
-                <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
-                  <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">İade Verimliliği</p>
-                  <p className="text-sm font-bold text-blue-400">YÜKSEK</p>
-                </div>
-                <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
-                  <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">KDV Devri</p>
-                  <p className="text-sm font-bold text-amber-400">YETERLİ</p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </div>
-    </div>
+    <VergiTakipModulu profile={profile} />
   );
 
   const renderMaliTabloAnalizi = () => (

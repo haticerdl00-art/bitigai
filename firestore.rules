@@ -201,6 +201,13 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
     }
 
+    match /vergi_takip/{recordId} {
+      allow read: if isAuthenticated() && (get(/databases/$(database)/documents/companies/$(resource.data.firma_id)).data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (get(/databases/$(database)/documents/companies/$(request.resource.data.firma_id)).data.ownerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (get(/databases/$(database)/documents/companies/$(resource.data.firma_id)).data.ownerId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (get(/databases/$(database)/documents/companies/$(resource.data.firma_id)).data.ownerId == request.auth.uid || isAdmin());
+    }
+
     match /beyanname_tracking/{trackingId} {
       allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && isValidBeyannameTracking(request.resource.data);

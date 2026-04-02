@@ -10,6 +10,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 // Import the Firebase configuration
 import firebaseConfig from '../firebase-applet-config.json';
@@ -18,6 +19,7 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Operation types for error handling
@@ -118,3 +120,15 @@ export const registerWithEmail = async (email: string, pass: string, fullName: s
 };
 
 export const logout = () => auth.signOut();
+
+// Storage Helpers
+export const uploadFile = async (path: string, file: File) => {
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+};
+
+export const deleteFile = async (path: string) => {
+  const storageRef = ref(storage, path);
+  await deleteObject(storageRef);
+};

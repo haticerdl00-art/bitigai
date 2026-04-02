@@ -153,3 +153,26 @@ export interface MizanData {
     highCashRisk: boolean;
   };
 }
+
+export interface VergiTakipData {
+  id?: string;
+  firma_id: string;
+  ay: number; // 1-12
+  yil: number;
+  kdv2Borc: number;
+  kdv1Borc: number;
+  stopajBorc: number;
+  sgkBorc: number;
+  kvGvBorc: number;
+  digerBorc: number;
+  kdvIadesi: number;
+  ithaldKdv: number;
+  hesaplananKdv: number;
+  indirilecekKdv: number;
+  satisFaturaMatrahi: number;
+  alisTeVkifatliMatrahi: number;
+  alisTevsizMatrahi: number;
+  devredenBorc: number;
+  devredenKdv: number;
+  created_at?: any;
+}

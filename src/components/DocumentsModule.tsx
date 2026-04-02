@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, CompanyDocument } from '../types';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType, uploadFile, deleteFile } from '../firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -99,32 +99,53 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
     if (!file || !selectedCompany || !auth.currentUser) return;
 
     try {
-      // In a real app, we would upload to Firebase Storage first
-      // For now, we store metadata and a local URL (which won't persist across sessions/users)
+      setLoading(true);
+      const storagePath = `documents/${auth.currentUser.uid}/${selectedCompany.id}/${Date.now()}_${file.name}`;
+      const downloadUrl = await uploadFile(storagePath, file);
+
       const newDocMetadata = {
         companyId: selectedCompany.id,
         ownerId: auth.currentUser.uid,
         title: file.name,
         type: 'Diğer',
         uploadDate: serverTimestamp(),
-        fileUrl: URL.createObjectURL(file), // Local URL for demo
+        fileUrl: downloadUrl,
+        storagePath: storagePath,
         fileType: (file.name.split('.').pop()?.toLowerCase() as any) || 'pdf',
         status: 'Geçerli',
         createdAt: serverTimestamp()
       };
 
       await addDoc(collection(db, 'documents'), newDocMetadata);
+      setLoading(false);
     } catch (error) {
+      console.error('Upload error:', error);
       handleFirestoreError(error, OperationType.WRITE, 'documents');
+      setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
+    const docToDelete = documents.find(d => d.id === id);
+    if (!docToDelete) return;
+
     if (window.confirm('Bu belgeyi silmek istediğinize emin misiniz?')) {
       try {
+        setLoading(true);
+        // Delete from Storage if storagePath exists
+        if (docToDelete.storagePath) {
+          try {
+            await deleteFile(docToDelete.storagePath);
+          } catch (storageError) {
+            console.warn('Storage deletion failed (might be already deleted):', storageError);
+          }
+        }
+        
         await deleteDoc(doc(db, 'documents', id));
+        setLoading(false);
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `documents/${id}`);
+        setLoading(false);
       }
     }
   };

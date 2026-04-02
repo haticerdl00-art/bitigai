@@ -117,6 +117,34 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["ownerId", "companyId", "amount", "type", "date"]
+    },
+    "VergiTakip": {
+      "title": "VergiTakip",
+      "description": "5/10 Tevkifatlı firmalar için KDV ve vergi takip verileri.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "firma_id": { "type": "string" },
+        "ay": { "type": "integer" },
+        "yil": { "type": "integer" },
+        "kdv2Borc": { "type": "number" },
+        "kdv1Borc": { "type": "number" },
+        "stopajBorc": { "type": "number" },
+        "sgkBorc": { "type": "number" },
+        "kvGvBorc": { "type": "number" },
+        "digerBorc": { "type": "number" },
+        "kdvIadesi": { "type": "number" },
+        "ithaldKdv": { "type": "number" },
+        "hesaplananKdv": { "type": "number" },
+        "indirilecekKdv": { "type": "number" },
+        "satisFaturaMatrahi": { "type": "number" },
+        "alisTeVkifatliMatrahi": { "type": "number" },
+        "alisTevsizMatrahi": { "type": "number" },
+        "devredenBorc": { "type": "number" },
+        "devredenKdv": { "type": "number" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["firma_id", "ay", "yil"]
     }
   },
   "firestore": {
@@ -135,6 +163,10 @@
     "/cari_transactions/{transactionId}": {
       "schema": "CariTransaction",
       "description": "Cari hesap ve tahsilat kayıtları"
+    },
+    "/vergi_takip/{recordId}": {
+      "schema": "VergiTakip",
+      "description": "KDV ve vergi takip kayıtları"
     },
     "/beyanname_tracking/{trackingId}": {
       "schema": "BeyannameTracking",
