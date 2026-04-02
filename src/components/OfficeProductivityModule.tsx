@@ -2189,7 +2189,7 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
           ad: p.fullName || 'İsimsiz',
           tc: p.idNumber || '---',
           gorev: p.role || '---',
-          brut: (p.netSalary || 0) * 1.4,
+          brut: isHuzurHakki ? (p.netSalary || 0) / 0.84241 : (p.netSalary || 0) * 1.4,
           giris: p.startDate || '---',
           durum: p.leaveStatus || 'Aktif',
           izinHak: 14,
@@ -2220,7 +2220,7 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
           ad: p.fullName || 'İsimsiz',
           tc: p.idNumber || '---',
           gorev: p.role || '---',
-          brut: (p.netSalary || 0) * 1.4,
+          brut: isHuzurHakki ? (p.netSalary || 0) / 0.84241 : (p.netSalary || 0) * 1.4,
           giris: p.startDate || '---',
           durum: p.leaveStatus || 'Aktif',
           izinHak: 14,
@@ -2558,37 +2558,37 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
                               <div style={{ background: "#FFF", padding: 16, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
                                 <div style={{ fontSize: 10, color: C.ikinci, fontWeight: 800, textTransform: "uppercase", marginBottom: 8 }}>Maaş Detayları</div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                                    <span style={{ color: C.ikinci }}>Net Maaş:</span>
-                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.net)}</span>
-                                  </div>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                                    <span style={{ color: C.ikinci }}>SGK İşçi Payı:</span>
-                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.brut * 0.14)}</span>
-                                  </div>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                                    <span style={{ color: C.ikinci }}>İşsizlik İşçi:</span>
-                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.brut * 0.01)}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div style={{ background: "#FFF", padding: 16, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
-                                <div style={{ fontSize: 10, color: C.ikinci, fontWeight: 800, textTransform: "uppercase", marginBottom: 8 }}>İşveren Maliyeti</div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                                    <span style={{ color: C.ikinci }}>SGK İşveren:</span>
-                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.brut * 0.155)}</span>
-                                  </div>
-                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                                    <span style={{ color: C.ikinci }}>İşsizlik İşv:</span>
-                                    <span style={{ fontWeight: 700, color: C.metin }}>{para(p.brut * 0.02)}</span>
-                                  </div>
-                                  <div style={{ borderTop: `1px dashed ${C.sinir}`, marginTop: 4, paddingTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                                    <span style={{ fontWeight: 800, color: C.mavi }}>Toplam Maliyet:</span>
-                                    <span style={{ fontWeight: 800, color: C.mavi }}>{para(p.brut * 1.175)}</span>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                      <span style={{ color: C.ikinci }}>Net Maaş:</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).net)}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                      <span style={{ color: C.ikinci }}>SGK İşçi Payı:</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).sgkIsci)}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                      <span style={{ color: C.ikinci }}>İşsizlik İşçi:</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).issizlikIsci)}</span>
+                                    </div>
                                   </div>
                                 </div>
+                                <div style={{ background: "#FFF", padding: 16, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
+                                  <div style={{ fontSize: 10, color: C.ikinci, fontWeight: 800, textTransform: "uppercase", marginBottom: 8 }}>İşveren Maliyeti</div>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                      <span style={{ color: C.ikinci }}>SGK İşveren:</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).sgkIsveren)}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                      <span style={{ color: C.ikinci }}>İşsizlik İşv:</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).issizlikIsveren)}</span>
+                                    </div>
+                                    <div style={{ borderTop: `1px dashed ${C.sinir}`, marginTop: 4, paddingTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                      <span style={{ fontWeight: 800, color: C.mavi }}>Toplam Maliyet:</span>
+                                      <span style={{ fontWeight: 800, color: C.mavi }}>{para(hesaplaBordro(p.brut, p.type).toplamMaliyet)}</span>
+                                    </div>
+                                  </div>
                               </div>
                               <div style={{ background: "#FFF", padding: 16, borderRadius: 16, border: `1px solid ${C.sinir}` }}>
                                 <div style={{ fontSize: 10, color: C.ikinci, fontWeight: 800, textTransform: "uppercase", marginBottom: 8 }}>İzin Bilgileri</div>
