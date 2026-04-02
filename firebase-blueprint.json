@@ -99,6 +99,24 @@
         "ownerId": { "type": "string" }
       },
       "required": ["companyId", "period", "ownerId"]
+    },
+    "CariTransaction": {
+      "title": "CariTransaction",
+      "description": "Cari hesap ve tahsilat işlemleri.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["Tahsilat", "Fatura"] },
+        "category": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "desc": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "companyId", "amount", "type", "date"]
     }
   },
   "firestore": {
@@ -113,6 +131,10 @@
     "/users/{userId}/tasks/{taskId}": {
       "schema": "Task",
       "description": "Kullanıcı görevleri"
+    },
+    "/cari_transactions/{transactionId}": {
+      "schema": "CariTransaction",
+      "description": "Cari hesap ve tahsilat kayıtları"
     },
     "/beyanname_tracking/{trackingId}": {
       "schema": "BeyannameTracking",

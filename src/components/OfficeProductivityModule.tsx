@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { GoogleGenAI, Type } from "@google/genai";
 import { 
   LayoutDashboard, 
@@ -34,10 +34,13 @@ import {
   Calendar,
   X,
   Loader2,
-  Info
+  Info,
+  Trash2,
+  Edit2,
+  Save
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { CompanyProfile, Personnel } from "../types";
+import { CompanyProfile, Personnel, CariTransaction } from "../types";
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { 
   collection, 
@@ -1850,74 +1853,159 @@ function BeyannameTakibi({ companies = [], profile }: { companies?: CompanyProfi
 function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyProfile[], profile?: CompanyProfile }) {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
+    id: "",
     customerId: "",
     amount: "",
-    type: "Tahsilat",
+    type: "Tahsilat" as "Tahsilat" | "Fatura",
     paymentCategory: "Muhasebe Ücreti",
+    date: new Date().toISOString().split('T')[0],
     desc: ""
   });
 
+  const [transactions, setTransactions] = useState<CariTransaction[]>([]);
+
   const paymentCategories = [
     "Muhasebe Ücreti",
+    "Devreden Borç",
+    "Devreden Ödeme",
+    "Defter Tasdiki",
+    "Muhasebe KDV'si",
     "Ticaret Odası İşlemleri",
-    "Noter Giderleri",
-    "Tapu Harçları",
-    "Resmi Mühür Giderleri",
-    "Vergi Borcu Ödemesi (Müşteri Adına)",
+    "Noter İşlemleri",
+    "SMMM Raporu",
+    "Hizmet Bedeli",
+    "Mükellefiyet Başlatma",
+    "Mükellef Adına Yapılan Vergi Ödemeleri",
+    "Mükellef Adına Yapılan Diğer Ödemeler",
     "Diğer"
   ];
 
-  const [customers, setCustomers] = useState<any[]>([]);
-
   useEffect(() => {
-    if (companies.length > 0) {
-      const sorted = [...companies].sort((a, b) => a.title.localeCompare(b.title, 'tr'));
-      setCustomers(sorted.map(c => ({
-        id: c.id,
-        name: c.title,
-        balance: 0,
-        overdue: 0,
-        carryOver: 0, // Geçen yıldan devreden
-        status: "Normal",
-        history: []
-      })));
-    }
-  }, [companies]);
+    if (!auth.currentUser) return;
 
-  const handlePaymentSubmit = (e: React.FormEvent) => {
+    const q = query(
+      collection(db, "cari_transactions"),
+      where("ownerId", "==", auth.currentUser.uid),
+      orderBy("date", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const txs: CariTransaction[] = [];
+      snapshot.forEach((doc) => {
+        txs.push({ id: doc.id, ...doc.data() } as CariTransaction);
+      });
+      setTransactions(txs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "cari_transactions");
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const customersWithBalance = useMemo(() => {
+    return companies.map(company => {
+      const companyTransactions = transactions.filter(t => t.companyId === company.id);
+      
+      const totalFatura = companyTransactions
+        .filter(t => t.type === 'Fatura')
+        .reduce((acc, t) => acc + t.amount, 0);
+        
+      const totalTahsilat = companyTransactions
+        .filter(t => t.type === 'Tahsilat')
+        .reduce((acc, t) => acc + t.amount, 0);
+        
+      const balance = totalFatura - totalTahsilat;
+      
+      return {
+        id: company.id,
+        name: company.title,
+        balance: balance,
+        totalFatura,
+        totalTahsilat,
+        overdue: balance > 0 ? balance : 0,
+        status: balance > 100000 ? "Kritik" : balance < 0 ? "Alacaklı" : "Normal",
+        history: companyTransactions
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  }, [companies, transactions]);
+
+  const summary = useMemo(() => {
+    const totalAlacak = transactions.filter(t => t.type === 'Fatura').reduce((acc, t) => acc + t.amount, 0);
+    const totalTahsilat = transactions.filter(t => t.type === 'Tahsilat').reduce((acc, t) => acc + t.amount, 0);
+    return {
+      totalAlacak,
+      totalTahsilat,
+      bekleyen: totalAlacak - totalTahsilat
+    };
+  }, [transactions]);
+
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!paymentForm.customerId || !paymentForm.amount) return;
+    if (!auth.currentUser || !paymentForm.customerId || !paymentForm.amount) return;
 
     const amountNum = parseFloat(paymentForm.amount);
     if (isNaN(amountNum) || amountNum <= 0) return;
 
-    const newHistoryItem = {
-      date: new Date().toLocaleDateString('tr-TR'),
+    const transactionData = {
+      ownerId: auth.currentUser.uid,
+      companyId: paymentForm.customerId,
+      amount: amountNum,
       type: paymentForm.type,
       category: paymentForm.paymentCategory,
-      amount: amountNum,
-      desc: paymentForm.desc || `${paymentForm.paymentCategory} - ${paymentForm.type}`
+      date: paymentForm.date,
+      desc: paymentForm.desc || `${paymentForm.paymentCategory} - ${paymentForm.type}`,
+      updatedAt: serverTimestamp()
     };
 
-    setCustomers(prev => prev.map(c => {
-      if (c.id === paymentForm.customerId) {
-        const newBalance = paymentForm.type === 'Tahsilat' 
-          ? c.balance - amountNum
-          : c.balance + amountNum;
-        
-        return {
-          ...c,
-          balance: newBalance,
-          history: [newHistoryItem, ...c.history],
-          status: newBalance > 100000 ? "Kritik" : newBalance < 0 ? "Alacaklı" : "Normal"
-        };
+    try {
+      if (isEditing && paymentForm.id) {
+        await updateDoc(doc(db, "cari_transactions", paymentForm.id), transactionData);
+      } else {
+        await addDoc(collection(db, "cari_transactions"), {
+          ...transactionData,
+          createdAt: serverTimestamp()
+        });
       }
-      return c;
-    }));
+      
+      setIsPaymentModalOpen(false);
+      setIsEditing(false);
+      setPaymentForm({ 
+        id: "", 
+        customerId: "", 
+        amount: "", 
+        type: "Tahsilat", 
+        paymentCategory: "Muhasebe Ücreti", 
+        date: new Date().toISOString().split('T')[0],
+        desc: "" 
+      });
+    } catch (error) {
+      handleFirestoreError(error, isEditing ? OperationType.UPDATE : OperationType.CREATE, "cari_transactions");
+    }
+  };
 
-    setIsPaymentModalOpen(false);
-    setPaymentForm({ customerId: "", amount: "", type: "Tahsilat", paymentCategory: "Muhasebe Ücreti", desc: "" });
+  const handleDeleteTransaction = async (id: string) => {
+    if (!confirm("Bu işlemi silmek istediğinize emin misiniz?")) return;
+    try {
+      await deleteDoc(doc(db, "cari_transactions", id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, "cari_transactions");
+    }
+  };
+
+  const openEditModal = (t: CariTransaction) => {
+    setPaymentForm({
+      id: t.id,
+      customerId: t.companyId,
+      amount: t.amount.toString(),
+      type: t.type,
+      paymentCategory: t.category,
+      date: t.date,
+      desc: t.desc
+    });
+    setIsEditing(true);
+    setIsPaymentModalOpen(true);
   };
 
   return (
@@ -1940,8 +2028,8 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
             className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl border border-slate-100"
           >
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-kilim-blue-dark">Yeni Ödeme Girişi</h3>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
+              <h3 className="text-xl font-bold text-kilim-blue-dark">{isEditing ? 'İşlemi Düzenle' : 'Yeni Ödeme Girişi'}</h3>
+              <button onClick={() => { setIsPaymentModalOpen(false); setIsEditing(false); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
                 <X size={20} />
               </button>
             </div>
@@ -1955,7 +2043,7 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
                   required
                 >
                   <option value="">Seçiniz...</option>
-                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {customersWithBalance.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1963,7 +2051,7 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">İşlem Tipi</label>
                   <select 
                     value={paymentForm.type}
-                    onChange={e => setPaymentForm({...paymentForm, type: e.target.value})}
+                    onChange={e => setPaymentForm({...paymentForm, type: e.target.value as "Tahsilat" | "Fatura"})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-kilim-blue/20 outline-none"
                   >
                     <option value="Tahsilat">Tahsilat (Alacak Azalır)</option>
@@ -1984,6 +2072,16 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tarih</label>
+                  <input 
+                    type="date" 
+                    value={paymentForm.date}
+                    onChange={e => setPaymentForm({...paymentForm, date: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-kilim-blue/20 outline-none"
+                    required
+                  />
+                </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tutar (₺)</label>
                   <input 
@@ -2015,22 +2113,22 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="glass-card p-6 border-l-4 border-slate-400">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Geçen Yıldan Devreden</p>
-          <p className="text-2xl font-black text-slate-700">{para(customers.reduce((acc, c) => acc + c.carryOver, 0))}</p>
-        </div>
         <div className="glass-card p-6 border-l-4 border-kilim-blue">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Toplam Alacak</p>
-          <p className="text-2xl font-black text-kilim-blue">{para(customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0))}</p>
-        </div>
-        <div className="glass-card p-6 border-l-4 border-rose-500">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Gecikmiş Alacak</p>
-          <p className="text-2xl font-black text-rose-500">{para(customers.reduce((acc, c) => acc + c.overdue, 0))}</p>
+          <p className="text-2xl font-black text-kilim-blue">{para(summary.totalAlacak)}</p>
         </div>
         <div className="glass-card p-6 border-l-4 border-emerald-500">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Toplam Tahsilat</p>
+          <p className="text-2xl font-black text-emerald-500">{para(summary.totalTahsilat)}</p>
+        </div>
+        <div className="glass-card p-6 border-l-4 border-amber-500">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Bekleyen Tahsilat</p>
+          <p className="text-2xl font-black text-amber-500">{para(summary.bekleyen)}</p>
+        </div>
+        <div className="glass-card p-6 border-l-4 border-rose-500">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tahsilat Oranı</p>
-          <p className="text-2xl font-black text-emerald-500">
-            {customers.length > 0 ? "%100" : "%0"}
+          <p className="text-2xl font-black text-rose-500">
+            {summary.totalAlacak > 0 ? `%${((summary.totalTahsilat / summary.totalAlacak) * 100).toFixed(1)}` : "%0"}
           </p>
         </div>
       </div>
@@ -2047,7 +2145,7 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {customers.map(c => (
+            {customersWithBalance.map(c => (
               <React.Fragment key={c.id}>
                 <tr 
                   className={`hover:bg-slate-50/50 transition-colors cursor-pointer group ${selectedCustomer?.id === c.id ? 'bg-slate-50' : ''}`}
@@ -2070,16 +2168,18 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
                     <Badge label={c.status} renk={c.status === 'Kritik' ? C.kirmizi : c.status === 'Alacaklı' ? C.yesil : C.mavi} />
                   </td>
                   <td className="p-4 text-right">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCustomer(selectedCustomer?.id === c.id ? null : c);
-                      }}
-                      className={`p-2 rounded-full transition-all transform ${selectedCustomer?.id === c.id ? 'bg-kilim-blue/10 text-kilim-blue rotate-0' : 'text-slate-400 hover:bg-slate-100'}`}
-                      title="Detayları Gör"
-                    >
-                      {selectedCustomer?.id === c.id ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCustomer(selectedCustomer?.id === c.id ? null : c);
+                        }}
+                        className={`p-2 rounded-full transition-all transform ${selectedCustomer?.id === c.id ? 'bg-kilim-blue/10 text-kilim-blue rotate-0' : 'text-slate-400 hover:bg-slate-100'}`}
+                        title="Detayları Gör"
+                      >
+                        {selectedCustomer?.id === c.id ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 <AnimatePresence>
@@ -2105,22 +2205,43 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
                                   <tr>
                                     <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Tarih</th>
                                     <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">İşlem</th>
+                                    <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Kategori</th>
                                     <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Açıklama</th>
                                     <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Tutar</th>
+                                    <th className="p-3 font-bold text-slate-500 uppercase text-[10px] text-right">İşlemler</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                  {c.history.map((h: any, i: number) => (
-                                    <tr key={i}>
+                                  {c.history.map((h: CariTransaction) => (
+                                    <tr key={h.id}>
                                       <td className="p-3 text-slate-600 text-xs">{h.date}</td>
                                       <td className="p-3">
                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${h.type === 'Tahsilat' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                                           {h.type}
                                         </span>
                                       </td>
+                                      <td className="p-3 text-slate-600 text-xs font-semibold">{h.category}</td>
                                       <td className="p-3 text-slate-500 text-xs">{h.desc}</td>
                                       <td className={`p-3 font-bold text-xs ${h.type === 'Tahsilat' ? 'text-emerald-600' : 'text-slate-700'}`}>
                                         {h.type === 'Tahsilat' ? '-' : '+'}{para(h.amount)}
+                                      </td>
+                                      <td className="p-3 text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <button 
+                                            onClick={() => openEditModal(h)}
+                                            className="p-1.5 text-slate-400 hover:text-kilim-blue hover:bg-kilim-blue/10 rounded-lg transition-all"
+                                            title="Düzenle"
+                                          >
+                                            <Edit2 size={14} />
+                                          </button>
+                                          <button 
+                                            onClick={() => handleDeleteTransaction(h.id)}
+                                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                            title="Sil"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   ))}

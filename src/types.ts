@@ -34,6 +34,17 @@ export interface Personnel {
   type?: 'normal' | 'huzur_hakki';
 }
 
+export interface CariTransaction {
+  id: string;
+  companyId: string;
+  date: string;
+  type: 'Tahsilat' | 'Fatura';
+  category: string;
+  amount: number;
+  desc: string;
+  createdAt?: any;
+}
+
 export interface CompanyProfile {
   id: string;
   ownerId?: string;

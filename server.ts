@@ -3,7 +3,8 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { parseStringPromise } from 'xml2js';
+import xml2js from 'xml2js';
+const { parseStringPromise } = xml2js;
 
 dotenv.config();
 
@@ -147,10 +148,14 @@ async function startServer() {
         }
       }
 
+      res.setHeader('Content-Type', 'application/json');
       res.json({ currencies, gold, bist, stocks: fallbackData.stocks });
     } catch (error) {
       console.error('Market data general error:', error);
-      res.json(fallbackData);
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).json(fallbackData);
+      }
     }
   };
 
