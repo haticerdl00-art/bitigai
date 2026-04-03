@@ -76,8 +76,9 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-          (request.auth.token.email == "haticerdl00@gmail.com" && request.auth.token.email_verified == true)); // Default admin
+          (request.auth.token.email == "haticerdl00@gmail.com")); // Default admin (relaxed verification for now)
     }
 
     function isValidCariTransaction(data) {
@@ -100,7 +101,9 @@ service cloud.firestore {
     }
 
     function isCompanyOwner(companyId) {
-      return isAdmin() || (isAuthenticated() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid);
+      return isAdmin() || (isAuthenticated() && 
+        exists(/databases/$(database)/documents/companies/$(companyId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid);
     }
 
     function hasRequiredFields(fields) {
@@ -181,22 +184,22 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
                       (!('role' in request.resource.data) || request.resource.data.role == 'user');
-      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && 
-                        request.resource.data.role == resource.data.role) || isAdmin();
+      allow update: if isAuthenticated() && ((request.auth.uid == userId && isValidUser(request.resource.data) && 
+                        (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)) || isAdmin());
 
       match /settings/{settingId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId) && isValidSettings(request.resource.data);
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow create, update: if isAuthenticated() && request.auth.uid == userId && isValidSettings(request.resource.data);
       }
 
       match /tasks/{taskId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && isValidTask(request.resource.data);
-        allow update: if isOwner(userId) && isValidTask(request.resource.data);
-        allow delete: if isOwner(userId) || isAdmin();
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow create: if isAuthenticated() && request.auth.uid == userId && isValidTask(request.resource.data);
+        allow update: if isAuthenticated() && request.auth.uid == userId && isValidTask(request.resource.data);
+        allow delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       }
     }
 
