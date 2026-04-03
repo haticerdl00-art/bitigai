@@ -46,7 +46,7 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
   const [isSaving, setIsSaving] = useState(false);
 
   // Form State
-  const [formData, setFormData] = useState<Omit<VergiTakipData, 'id' | 'firma_id' | 'ay' | 'yil' | 'created_at'>>({
+  const [formData, setFormData] = useState<Omit<VergiTakipData, 'id' | 'firma_id' | 'ay' | 'yil' | 'created_at' | 'ownerId'>>({
     kdv2Borc: 0,
     kdv1Borc: 0,
     stopajBorc: 0,
@@ -71,6 +71,7 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
     const q = query(
       collection(db, 'vergi_takip'),
       where('firma_id', '==', profile.id),
+      where('ownerId', '==', auth.currentUser?.uid),
       orderBy('yil', 'desc'),
       orderBy('ay', 'desc')
     );
@@ -150,7 +151,7 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
   }, [selectedMonth, selectedYear, records]);
 
   // Calculation Logic (Step 3 in Doc)
-  const calculateOutputs = (data: Omit<VergiTakipData, 'id' | 'firma_id' | 'ay' | 'yil' | 'created_at'>) => {
+  const calculateOutputs = (data: Omit<VergiTakipData, 'id' | 'firma_id' | 'ay' | 'yil' | 'created_at' | 'ownerId'>) => {
     // 3.1 Toplam Dönem Borcu
     const toplamDonemBorcu = data.devredenBorc + data.kdv2Borc + data.kdv1Borc + data.stopajBorc + data.sgkBorc + data.kvGvBorc + data.digerBorc;
 
@@ -236,6 +237,7 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
       const existingRecord = records.find(r => r.ay === selectedMonth + 1 && r.yil === selectedYear);
       const dataToSave = {
         firma_id: profile.id,
+        ownerId: auth.currentUser.uid,
         ay: selectedMonth + 1,
         yil: selectedYear,
         ...formData,

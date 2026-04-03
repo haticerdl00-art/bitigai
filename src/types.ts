@@ -122,10 +122,12 @@ export interface Customer {
 export interface CompanyDocument {
   id: string;
   companyId: string;
+  ownerId: string;
   title: string;
   type: string;
   uploadDate: string;
   fileUrl: string;
+  storagePath?: string;
   fileType: 'pdf' | 'jpg' | 'png' | 'docx';
   status: 'Geçerli' | 'Süresi Dolmuş' | 'Güncellenmeli';
   expiryDate?: string;
@@ -157,6 +159,7 @@ export interface MizanData {
 export interface VergiTakipData {
   id?: string;
   firma_id: string;
+  ownerId: string;
   ay: number; // 1-12
   yil: number;
   kdv2Borc: number;
