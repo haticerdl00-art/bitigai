@@ -32,7 +32,7 @@ interface NoteItem {
 const HAP_NOTLAR_DATA: NoteItem[] = [
   {
     id: 'binek-oto',
-    title: 'Binek Otomobil Gider Kısıtlaması',
+    title: 'Binek Otomobil Gider Kısıtlaması (2026)',
     category: 'Vergi',
     icon: Car,
     tags: ['otomobil', 'gider', 'kkeg', 'amortisman'],
@@ -45,23 +45,23 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Kiralama Sınırı (2024)</h4>
-            <p className="text-lg font-bold text-kilim-blue">26.000 TL / Ay</p>
+            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Kiralama Sınırı (2026)</h4>
+            <p className="text-lg font-bold text-kilim-blue">40.000 TL / Ay</p>
             <p className="text-[10px] text-slate-400">KDV Hariç aylık kira bedeli üst sınırı.</p>
           </div>
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">ÖTV/KDV İndirim Sınırı</h4>
-            <p className="text-lg font-bold text-kilim-blue">690.000 TL</p>
+            <p className="text-lg font-bold text-kilim-blue">1.100.000 TL</p>
             <p className="text-[10px] text-slate-400">Gider yazılabilecek toplam vergi sınırı.</p>
           </div>
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Amortisman Sınırı (ÖTV/KDV Hariç)</h4>
-            <p className="text-lg font-bold text-kilim-blue">790.000 TL</p>
+            <p className="text-lg font-bold text-kilim-blue">1.300.000 TL</p>
             <p className="text-[10px] text-slate-400">Amortismana esas bedel üst sınırı.</p>
           </div>
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Amortisman Sınırı (Vergiler Dahil)</h4>
-            <p className="text-lg font-bold text-kilim-blue">1.500.000 TL</p>
+            <p className="text-lg font-bold text-kilim-blue">2.500.000 TL</p>
             <p className="text-[10px] text-slate-400">Vergilerin maliyete eklendiği durumdaki sınır.</p>
           </div>
         </div>
@@ -105,60 +105,83 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
     )
   },
   {
-    id: 'e-fatura-2025',
-    title: 'E-Fatura Geçiş Şartları (2025)',
-    category: 'E-Dönüşüm',
-    icon: FileCheck,
-    tags: ['e-fatura', 'e-arşiv', 'ciro', 'sınır'],
+    id: 'vuk-sinirlar-2026',
+    title: 'VUK Önemli Sınırlar (2026)',
+    category: 'Vergi',
+    icon: Zap,
+    tags: ['fatura', 'fiş', 'demirbaş', 'nakit', 'tevkifat'],
     content: (
       <div className="space-y-4">
-        <div className="overflow-hidden rounded-xl border border-slate-200">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
-              <tr>
-                <th className="px-4 py-3">Kriter</th>
-                <th className="px-4 py-3">Ciro Sınırı (2024)</th>
-                <th className="px-4 py-3">Geçiş Tarihi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              <tr>
-                <td className="px-4 py-3 font-medium">Genel Zorunluluk</td>
-                <td className="px-4 py-3">3 Milyon TL ve üzeri</td>
-                <td className="px-4 py-3 text-kilim-blue font-bold">01.07.2025</td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3 font-medium">E-Ticaret Firmaları</td>
-                <td className="px-4 py-3">500 Bin TL ve üzeri</td>
-                <td className="px-4 py-3 text-kilim-blue font-bold">01.07.2025</td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3 font-medium">Gayrimenkul / Motorlu Taşıt</td>
-                <td className="px-4 py-3">500 Bin TL ve üzeri</td>
-                <td className="px-4 py-3 text-kilim-blue font-bold">01.07.2025</td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3 font-medium">Kültür ve Turizm Belgeli Oteller</td>
-                <td className="px-4 py-3">Ciroya bakılmaksızın</td>
-                <td className="px-4 py-3 text-kilim-blue font-bold">01.07.2025</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Fiş Kesme Sınırı</h4>
+            <p className="text-lg font-bold text-kilim-blue">15.000 TL</p>
+            <p className="text-[10px] text-slate-400">Bu tutarı aşan satışlarda fatura zorunludur.</p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Demirbaş Sınırı</h4>
+            <p className="text-lg font-bold text-kilim-blue">15.000 TL</p>
+            <p className="text-[10px] text-slate-400">Doğrudan gider yazılabilecek amortisman sınırı.</p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Nakit Tahsilat Sınırı</h4>
+            <p className="text-lg font-bold text-kilim-blue">15.000 TL</p>
+            <p className="text-[10px] text-slate-400">Banka/Aracı kurum zorunluluğu sınırı.</p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Tevkifat Sınırı</h4>
+            <p className="text-lg font-bold text-kilim-blue">5.000 TL</p>
+            <p className="text-[10px] text-slate-400">KDV Tevkifatı uygulanacak fatura alt sınırı.</p>
+          </div>
         </div>
-        <div className="p-3 bg-blue-50 rounded-lg">
-          <h4 className="text-xs font-bold text-blue-800 mb-1">E-Arşiv Fatura (İnteraktif) Sınırları:</h4>
-          <ul className="text-[11px] text-blue-700 space-y-1">
-            <li>• Vergi Mükellefi Olmayanlara: 3.000 TL ve üzeri</li>
-            <li>• Vergi Mükellefi Olanlara: 9.900 TL ve üzeri (2025 başı itibariyle)</li>
-            <li>• <b>01.01.2026 itibariyle:</b> Tüm faturalar tutar sınırı olmaksızın E-Arşiv olacaktır.</li>
+        <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-4 h-4 text-blue-600" />
+            <h4 className="text-xs font-bold text-blue-800 uppercase">Fatura Düzenleme Süresi</h4>
+          </div>
+          <p className="text-sm text-blue-900">
+            Malın teslimi veya hizmetin yapıldığı tarihten itibaren <b>7 GÜN</b> içinde düzenlenmelidir.
+          </p>
+        </div>
+      </div>
+    )
+  },
+  {
+    id: 'e-fatura-2026',
+    title: 'E-Dönüşüm Zorunlulukları (2026)',
+    category: 'E-Dönüşüm',
+    icon: FileCheck,
+    tags: ['e-fatura', 'e-arşiv', 'e-defter', '2026'],
+    content: (
+      <div className="space-y-4">
+        <div className="bg-kilim-blue-pale border-l-4 border-kilim-blue p-4 rounded-r-lg">
+          <p className="text-sm text-kilim-blue-dark font-bold">
+            01.01.2026 itibariyle tüm faturalar TUTAR SINIRI OLMAKSIZIN E-Arşiv/E-Fatura olarak düzenlenmek zorundadır.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-500 uppercase">E-Defter Geçiş Şartları (2026):</h4>
+          <ul className="text-xs text-slate-700 space-y-2">
+            <li className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-kilim-blue rounded-full" />
+              <span>2025 yılı brüt satış hasılatı <b>3 Milyon TL</b> ve üzeri olanlar.</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-kilim-blue rounded-full" />
+              <span>E-Ticaret faaliyeti yürütenlerden 2025 cirosu <b>500 Bin TL</b> ve üzeri olanlar.</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-kilim-blue rounded-full" />
+              <span>Bağımsız denetime tabi olan şirketler (Ciroya bakılmaksızın).</span>
+            </li>
           </ul>
         </div>
       </div>
     )
   },
   {
-    id: 'asgari-ucret-2025',
-    title: 'Asgari Ücret Parametreleri (2025)',
+    id: 'asgari-ucret-2026',
+    title: 'Asgari Ücret Parametreleri (2026)',
     category: 'SGK',
     icon: CreditCard,
     tags: ['asgari ücret', 'maaş', 'maliyet', 'bordro'],
@@ -179,21 +202,15 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
             <p className="text-[8px] text-rose-400 font-medium">(%2 Teşvikli)</p>
           </div>
         </div>
-        <div className="space-y-2">
-          <h4 className="text-xs font-bold text-slate-500 uppercase">Kesinti Detayları:</h4>
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs py-1 border-b border-slate-100">
-              <span className="text-slate-600">SGK İşçi Payı (%14)</span>
-              <span className="font-bold">4.624,20 TL</span>
-            </div>
-            <div className="flex justify-between text-xs py-1 border-b border-slate-100">
-              <span className="text-slate-600">İşsizlik İşçi Payı (%1)</span>
-              <span className="font-bold">330,30 TL</span>
-            </div>
-            <div className="flex justify-between text-xs py-1 border-b border-slate-100">
-              <span className="text-slate-600">Gelir/Damga Vergisi</span>
-              <span className="text-emerald-600 font-bold">İSTİSNA (0,00 TL)</span>
-            </div>
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">SGK Tavan/Taban</h4>
+          <div className="flex justify-between text-xs py-1 border-b border-slate-100">
+            <span className="text-slate-600">Günlük Taban</span>
+            <span className="font-bold">1.101,00 TL</span>
+          </div>
+          <div className="flex justify-between text-xs py-1">
+            <span className="text-slate-600">Günlük Tavan</span>
+            <span className="font-bold">8.257,50 TL</span>
           </div>
         </div>
       </div>
