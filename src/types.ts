@@ -19,7 +19,8 @@ export enum ModuleId {
   BELGELER = 'belgeler',
   CARI_HESAP = 'cari-hesap',
   PERSONEL_BORDRO = 'personel-bordro',
-  CONTENT_CREATOR = 'content-creator'
+  CONTENT_CREATOR = 'content-creator',
+  HAP_NOTLAR = 'hap-notlar'
 }
 
 export interface Personnel {

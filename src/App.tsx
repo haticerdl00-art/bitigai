@@ -34,7 +34,8 @@ import {
   MessageCircle,
   ShieldCheck,
   Share2,
-  Bot
+  Bot,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Dashboard } from './components/Dashboard';
@@ -56,6 +57,7 @@ import { OfficeProductivityModule } from './components/OfficeProductivityModule'
 import { DocumentsModule } from './components/DocumentsModule';
 import { OCRModule } from './components/OCRModule';
 import { ContentCreatorModule } from './components/ContentCreatorModule';
+import { HapNotlarModule } from './components/HapNotlarModule';
 import { fetchLatestLegislation } from './services/geminiService';
 import { ModuleId, UserProfile, CompanyProfile } from './types';
 import { MEVZUAT_DATA } from './data/legislationData';
@@ -387,6 +389,7 @@ export default function App() {
     { id: ModuleId.CARI_HESAP, title: 'Cari & Tahsilat', icon: TrendingUp, desc: 'Müşteri bakiyeleri, gecikmiş alacaklar ve ödeme girişi.' },
     { id: ModuleId.OCR, title: 'Veri Girişi & OCR', icon: ScanLine, desc: 'Evraklardan otomatik veri çıkarma ve fiş aktarım sistemi.' },
     { id: ModuleId.CONTENT_CREATOR, title: 'İçerik Üretici', icon: Share2, desc: 'Analizlerden sosyal medya ve yönetici özeti oluşturma.' },
+    { id: ModuleId.HAP_NOTLAR, title: 'Hap Notlar', icon: Zap, desc: 'Mevzuat ve uygulama süreçlerinde pratik bilgiler.' },
     { id: ModuleId.BELGELER, title: 'Belge & Evrak', icon: FileText, desc: 'Firmalara ait resmi belgelerin takibi ve paylaşımı.' },
     { id: ModuleId.CHAT, title: 'Danışmana Sor', icon: Bot, desc: 'Mevzuat referanslı akıllı danışmanlık asistanı.' },
     { id: ModuleId.MEVZUAT, title: 'Mevzuat Takip', icon: Gavel, desc: 'Mevzuat riskini sıfıra indiren akıllı takip sistemi.' },
@@ -521,6 +524,8 @@ export default function App() {
         }} />;
       case ModuleId.CONTENT_CREATOR:
         return <ContentCreatorModule user={user} />;
+      case ModuleId.HAP_NOTLAR:
+        return <HapNotlarModule />;
       case ModuleId.FIS_AKTARIM:
         return <VoucherTransferModule initialData={ocrTransferData || undefined} profile={companyProfile} />;
       case ModuleId.NAKIT_AKIS:
