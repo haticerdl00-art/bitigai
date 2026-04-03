@@ -2284,6 +2284,18 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
   const [showPayrollModal, setShowPayrollModal] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
 
+  const getBrutFromNet = (net: number, type: 'normal' | 'huzur_hakki' = 'normal', group: string = 'İşçi') => {
+    if (type === 'huzur_hakki') {
+      return net / (1 - 0.15 - 0.00759);
+    }
+    if (group === 'Emekli') {
+      if (net <= 30181.16) return (net - 4211.325) / 0.78625;
+      return (net - 4462.025) / 0.71491; // Simplified for higher brackets
+    }
+    if (net <= 28075.50) return net / 0.85;
+    return (net - 4462.025) / 0.71491;
+  };
+
   useEffect(() => {
     if (companies.length > 0 && !secilenFirmaId) {
       const sorted = [...companies].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'tr'));
@@ -2303,6 +2315,9 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
     if (selectedCompany && selectedCompany.personnel && selectedCompany.personnel.length > 0) {
       const persData = selectedCompany.personnel.map((p, idx) => {
         const isHuzurHakki = p.type === 'huzur_hakki' || (p.fullName && (p.fullName.includes('Recep Baş') || p.fullName.includes('Selim Baş'))) || (p.role && p.role.includes('Yönetim'));
+        const type = isHuzurHakki ? 'huzur_hakki' : 'normal';
+        const group = p.group || (isHuzurHakki ? 'Yönetim' : 'İşçi');
+        
         return {
           ...p,
           id: p.id || `pers_${idx}`,
@@ -2310,7 +2325,7 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
           ad: p.fullName || 'İsimsiz',
           tc: p.idNumber || '---',
           gorev: p.role || '---',
-          brut: isHuzurHakki ? (p.netSalary || 0) / 0.84241 : (p.netSalary || 0) * 1.4,
+          brut: getBrutFromNet(p.netSalary || 0, type, group),
           giris: p.startDate || '---',
           durum: p.leaveStatus || 'Aktif',
           izinHak: 14,
@@ -2318,7 +2333,8 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
           sgkNo: p.idNumber || '---',
           tesvik: isHuzurHakki ? "Yok" : "5510",
           tesvikBitis: isHuzurHakki ? "-" : "2026-12-31",
-          type: isHuzurHakki ? 'huzur_hakki' : 'normal'
+          type,
+          group
         };
       });
       persData.sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
@@ -2333,7 +2349,9 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
       snapshot.forEach((doc) => {
         const p = doc.data() as Personnel;
         const isHuzurHakki = p.type === 'huzur_hakki' || (p.fullName && (p.fullName.includes('Recep Baş') || p.fullName.includes('Selim Baş'))) || (p.role && p.role.includes('Yönetim'));
-        
+        const type = isHuzurHakki ? 'huzur_hakki' : 'normal';
+        const group = p.group || (isHuzurHakki ? 'Yönetim' : 'İşçi');
+
         persData.push({
           ...p,
           id: doc.id,
@@ -2341,7 +2359,7 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
           ad: p.fullName || 'İsimsiz',
           tc: p.idNumber || '---',
           gorev: p.role || '---',
-          brut: isHuzurHakki ? (p.netSalary || 0) / 0.84241 : (p.netSalary || 0) * 1.4,
+          brut: getBrutFromNet(p.netSalary || 0, type, group),
           giris: p.startDate || '---',
           durum: p.leaveStatus || 'Aktif',
           izinHak: 14,
@@ -2349,7 +2367,8 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
           sgkNo: p.idNumber || '---',
           tesvik: isHuzurHakki ? "Yok" : "5510",
           tesvikBitis: isHuzurHakki ? "-" : "2026-12-31",
-          type: isHuzurHakki ? 'huzur_hakki' : 'normal'
+          type,
+          group
         });
       });
       persData.sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
@@ -2369,11 +2388,32 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
 
   const firmaPersonel = personnel;
 
-  const hesaplaBordro = (brut: number, type: 'normal' | 'huzur_hakki' = 'normal') => {
+  const BORDRO_PARAM = {
+    BRUT_ASGARI: 33030.00,
+    SGK_ISCI_ORAN: 0.14,
+    ISSIZLIK_ISCI_ORAN: 0.01,
+    SGK_ISVEREN_ORAN: 0.2175,
+    ISSIZLIK_ISVEREN_ORAN: 0.02,
+    TESVIK_5_PUAN: 0.05,
+    TESVIK_2_PUAN: 0.02,
+    
+    SGDP_ISCI_ORAN: 0.075,
+    SGDP_ISVEREN_ORAN: 0.2475,
+    
+    GV_ORAN: 0.15,
+    DV_ORAN: 0.00759,
+    
+    PEK_UST_AYLIK: 297270.00,
+  };
+
+  const hesaplaBordro = (brut: number, type: 'normal' | 'huzur_hakki' = 'normal', group: string = 'İşçi', tesvik: string = '5510') => {
+    // PEK Tavan Kontrolü
+    const pekMatrah = Math.min(brut, BORDRO_PARAM.PEK_UST_AYLIK);
+    
     if (type === 'huzur_hakki') {
       // Huzur Hakkı: SGK yok, sadece Gelir Vergisi ve Damga Vergisi
-      const gelirVergisi = brut * 0.15; // Basit %15
-      const damgaVergisi = brut * 0.00759;
+      const gelirVergisi = brut * BORDRO_PARAM.GV_ORAN;
+      const damgaVergisi = brut * BORDRO_PARAM.DV_ORAN;
       const net = brut - gelirVergisi - damgaVergisi;
       return { 
         net, 
@@ -2387,15 +2427,42 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
       };
     }
 
-    const sgkIsci = brut * 0.14;
-    const issizlikIsci = brut * 0.01;
-    const gelirVergisiMatrahi = brut - (sgkIsci + issizlikIsci);
-    const gelirVergisi = gelirVergisiMatrahi * 0.15;
-    const damgaVergisi = brut * 0.00759;
+    let sgkIsci, issizlikIsci, sgkIsveren, issizlikIsveren;
+    
+    if (group === 'Emekli') {
+      sgkIsci = pekMatrah * BORDRO_PARAM.SGDP_ISCI_ORAN;
+      issizlikIsci = 0;
+      sgkIsveren = pekMatrah * BORDRO_PARAM.SGDP_ISVEREN_ORAN;
+      issizlikIsveren = 0;
+    } else {
+      sgkIsci = pekMatrah * BORDRO_PARAM.SGK_ISCI_ORAN;
+      issizlikIsci = pekMatrah * BORDRO_PARAM.ISSIZLIK_ISCI_ORAN;
+      sgkIsveren = pekMatrah * BORDRO_PARAM.SGK_ISVEREN_ORAN;
+      issizlikIsveren = pekMatrah * BORDRO_PARAM.ISSIZLIK_ISVEREN_ORAN;
+      
+      // Teşvik Uygulama
+      if (tesvik === '5510') {
+        sgkIsveren -= pekMatrah * BORDRO_PARAM.TESVIK_5_PUAN;
+      } else if (tesvik === '2puan') {
+        sgkIsveren -= pekMatrah * BORDRO_PARAM.TESVIK_2_PUAN;
+      }
+    }
+
+    const gvMatrah = brut - (sgkIsci + issizlikIsci);
+    const gvHam = gvMatrah * BORDRO_PARAM.GV_ORAN;
+    
+    // Asgari Ücret İstisnası (2026)
+    const asgariGvMatrah = BORDRO_PARAM.BRUT_ASGARI - (BORDRO_PARAM.BRUT_ASGARI * (BORDRO_PARAM.SGK_ISCI_ORAN + BORDRO_PARAM.ISSIZLIK_ISCI_ORAN));
+    const gvIstisna = asgariGvMatrah * BORDRO_PARAM.GV_ORAN;
+    const gelirVergisi = Math.max(0, gvHam - gvIstisna);
+    
+    const dvHam = brut * BORDRO_PARAM.DV_ORAN;
+    const dvIstisna = BORDRO_PARAM.BRUT_ASGARI * BORDRO_PARAM.DV_ORAN;
+    const damgaVergisi = Math.max(0, dvHam - dvIstisna);
+    
     const net = brut - (sgkIsci + issizlikIsci + gelirVergisi + damgaVergisi);
-    const sgkIsveren = brut * 0.155;
-    const issizlikIsveren = brut * 0.02;
     const toplamMaliyet = brut + sgkIsveren + issizlikIsveren;
+    
     return { net, sgkIsci, gelirVergisi, damgaVergisi, sgkIsveren, toplamMaliyet, issizlikIsci, issizlikIsveren };
   };
 
@@ -2414,8 +2481,8 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
   };
 
   const toplamBrut = personnel.reduce((acc, p) => acc + p.brut, 0);
-  const toplamNet = personnel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).net, 0);
-  const toplamMaliyet = personnel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type).toplamMaliyet, 0);
+  const toplamNet = personnel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type, p.group, p.tesvik).net, 0);
+  const toplamMaliyet = personnel.reduce((acc, p) => acc + hesaplaBordro(p.brut, p.type, p.group, p.tesvik).toplamMaliyet, 0);
 
   if (companies.length === 0) {
     return (
@@ -2682,15 +2749,15 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
                                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                       <span style={{ color: C.ikinci }}>Net Maaş:</span>
-                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).net)}</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type, p.group, p.tesvik).net)}</span>
                                     </div>
                                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                       <span style={{ color: C.ikinci }}>SGK İşçi Payı:</span>
-                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).sgkIsci)}</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type, p.group, p.tesvik).sgkIsci)}</span>
                                     </div>
                                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                       <span style={{ color: C.ikinci }}>İşsizlik İşçi:</span>
-                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).issizlikIsci)}</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type, p.group, p.tesvik).issizlikIsci)}</span>
                                     </div>
                                   </div>
                                 </div>
@@ -2699,15 +2766,15 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
                                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                       <span style={{ color: C.ikinci }}>SGK İşveren:</span>
-                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).sgkIsveren)}</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type, p.group, p.tesvik).sgkIsveren)}</span>
                                     </div>
                                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                       <span style={{ color: C.ikinci }}>İşsizlik İşv:</span>
-                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type).issizlikIsveren)}</span>
+                                      <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(p.brut, p.type, p.group, p.tesvik).issizlikIsveren)}</span>
                                     </div>
                                     <div style={{ borderTop: `1px dashed ${C.sinir}`, marginTop: 4, paddingTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                                       <span style={{ fontWeight: 800, color: C.mavi }}>Toplam Maliyet:</span>
-                                      <span style={{ fontWeight: 800, color: C.mavi }}>{para(hesaplaBordro(p.brut, p.type).toplamMaliyet)}</span>
+                                      <span style={{ fontWeight: 800, color: C.mavi }}>{para(hesaplaBordro(p.brut, p.type, p.group, p.tesvik).toplamMaliyet)}</span>
                                     </div>
                                   </div>
                               </div>
@@ -2808,7 +2875,7 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div style={{ padding: 16, background: C.bg, borderRadius: 16 }}>
                     <div style={{ fontSize: 10, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase", marginBottom: 4 }}>Net Ödenen</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: C.mavi }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).net)}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: C.mavi }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type, selectedPersonnel.group, selectedPersonnel.tesvik).net)}</div>
                   </div>
                   <div style={{ padding: 16, background: C.bg, borderRadius: 16 }}>
                     <div style={{ fontSize: 10, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase", marginBottom: 4 }}>Brüt Maaş</div>
@@ -2819,27 +2886,27 @@ function PersonelBordro({ companies = [], profile }: { companies?: CompanyProfil
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <h4 style={{ fontSize: 13, fontWeight: 800, color: C.metin, margin: 0, borderBottom: `1px solid ${C.sinir}`, paddingBottom: 8 }}>Kesintiler & Vergiler</h4>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                    <span style={{ color: C.ikinci }}>SGK İşçi Payı (%14):</span>
-                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).sgkIsci)}</span>
+                    <span style={{ color: C.ikinci }}>SGK İşçi Payı:</span>
+                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type, selectedPersonnel.group, selectedPersonnel.tesvik).sgkIsci)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                    <span style={{ color: C.ikinci }}>İşsizlik Sigortası (%1):</span>
-                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).issizlikIsci)}</span>
+                    <span style={{ color: C.ikinci }}>İşsizlik Sigortası:</span>
+                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type, selectedPersonnel.group, selectedPersonnel.tesvik).issizlikIsci)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                    <span style={{ color: C.ikinci }}>Gelir Vergisi (%15):</span>
-                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).gelirVergisi)}</span>
+                    <span style={{ color: C.ikinci }}>Gelir Vergisi:</span>
+                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type, selectedPersonnel.group, selectedPersonnel.tesvik).gelirVergisi)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                     <span style={{ color: C.ikinci }}>Damga Vergisi:</span>
-                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).damgaVergisi)}</span>
+                    <span style={{ fontWeight: 700, color: C.metin }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type, selectedPersonnel.group, selectedPersonnel.tesvik).damgaVergisi)}</span>
                   </div>
                 </div>
 
                 <div style={{ marginTop: 8, padding: 16, background: C.maviSoluk, borderRadius: 16, border: `1px solid ${C.mavi}20` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>Toplam İşveren Maliyeti:</span>
-                    <span style={{ fontSize: 16, fontWeight: 900, color: C.mavi }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type).toplamMaliyet)}</span>
+                    <span style={{ fontSize: 16, fontWeight: 900, color: C.mavi }}>{para(hesaplaBordro(selectedPersonnel.brut, selectedPersonnel.type, selectedPersonnel.group, selectedPersonnel.tesvik).toplamMaliyet)}</span>
                   </div>
                 </div>
               </div>
