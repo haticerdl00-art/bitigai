@@ -2122,7 +2122,7 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
           <p className="text-2xl font-black text-emerald-500">{para(summary.totalTahsilat)}</p>
         </div>
         <div className="glass-card p-6 border-l-4 border-amber-500">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Bekleyen Tahsilat</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Toplam Bakiye</p>
           <p className="text-2xl font-black text-amber-500">{para(summary.bekleyen)}</p>
         </div>
         <div className="glass-card p-6 border-l-4 border-rose-500">
@@ -2138,9 +2138,9 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Müşteri / Firma</th>
+              <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Alacak</th>
+              <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tahsilat</th>
               <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bakiye</th>
-              <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Gecikmiş</th>
-              <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Durum</th>
               <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">İşlem</th>
             </tr>
           </thead>
@@ -2155,17 +2155,19 @@ function CariHesapTahsilat({ companies = [], profile }: { companies?: CompanyPro
                     <span className="font-bold text-slate-800 text-sm group-hover:text-kilim-blue transition-colors">{c.name}</span>
                   </td>
                   <td className="p-4">
-                    <span className={`font-bold text-sm ${c.balance < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                      {para(Math.abs(c.balance))} {c.balance < 0 ? '(A)' : '(B)'}
+                    <span className="font-bold text-slate-700 text-sm">
+                      {para(c.totalFatura)}
                     </span>
                   </td>
                   <td className="p-4">
-                    <span className={`font-bold text-sm ${c.overdue > 0 ? 'text-rose-500' : 'text-slate-400'}`}>
-                      {para(c.overdue)}
+                    <span className="font-bold text-emerald-600 text-sm">
+                      {para(c.totalTahsilat)}
                     </span>
                   </td>
                   <td className="p-4">
-                    <Badge label={c.status} renk={c.status === 'Kritik' ? C.kirmizi : c.status === 'Alacaklı' ? C.yesil : C.mavi} />
+                    <span className={`font-bold text-sm ${c.balance > 0 ? 'text-rose-500' : 'text-slate-700'}`}>
+                      {para(c.balance)}
+                    </span>
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
