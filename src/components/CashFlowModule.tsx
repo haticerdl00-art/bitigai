@@ -26,7 +26,8 @@ import {
   XCircle,
   Calculator,
   Search,
-  Building2
+  Building2,
+  Bot
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -49,11 +50,15 @@ import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { VergiTakipModulu } from './VergiTakipModulu';
 
+import { analyzeFinancialStatements } from '../services/geminiService';
+
 interface CashFlowModuleProps {
   profile: CompanyProfile;
+  companies: CompanyProfile[];
+  onSelectCompany: (company: CompanyProfile) => void;
 }
 
-export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
+export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, companies, onSelectCompany }) => {
   const [activeTab, setActiveTab] = useState<'projection' | 'kdv-refund' | 'mali-tablo'>('projection');
   const [selectedPeriod, setSelectedPeriod] = useState('6ay');
   const [mizanUploaded, setMizanUploaded] = useState(false);
@@ -148,35 +153,35 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
     }, 2500);
   };
 
-  const handleMaliTabloAnalyze = () => {
+  const handleMaliTabloAnalyze = async () => {
+    if (uploadedFiles.length === 0) return;
+    
     setIsMaliTabloAnalyzing(true);
-    setTimeout(() => {
+    try {
+      const filePromises = uploadedFiles.map(async (file) => {
+        return new Promise<{ data: string, mimeType: string, name: string }>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            resolve({
+              data: base64,
+              mimeType: file.type || 'application/pdf',
+              name: file.name
+            });
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const processedFiles = await Promise.all(filePromises);
+      const report = await analyzeFinancialStatements(processedFiles, profile);
+      setMaliTabloReport(report || "Analiz raporu oluşturulamadı.");
+    } catch (error) {
+      console.error("Analysis error:", error);
+      setMaliTabloReport("Analiz sırasında bir hata oluştu. Lütfen dosyalarınızın okunabilir olduğundan emin olun.");
+    } finally {
       setIsMaliTabloAnalyzing(false);
-      setMaliTabloReport(`### 📊 Mizan & Mali Tablo Analiz Raporu (${profile.title})
-
-**1. Mizan Teknik Denetim (Hata Masası)**
-- 🚩 **100 Kasa Hesabı:** Bakiye yüksek (${(mizanData?.summary.totalCash || 45000).toLocaleString('tr-TR')} ₺), adatlandırma ve vergi inceleme riski mevcut.
-- 🚩 **120 Alıcılar:** Bazı alt hesaplarda ters bakiye tespit edildi, düzeltilmeli.
-- ⚠️ **320 Satıcılar:** Vadesi geçmiş borçlar nakit akışını zorlayabilir.
-- 💡 **Öneri:** Mizan nizamı için 131/331 hesaplarındaki bakiyeler dönem sonu öncesi netleştirilmeli.
-
-**2. Mali Tablo & Rasyo Analizi**
-- **Cari Oran:** 1.45 (Likidite durumu yeterli)
-- **Asit Test Oranı:** 1.10
-- **Brüt Satış Kârı:** %32 (Sektör ortalaması %28)
-- **Net Kâr Marjı:** %8.5
-
-**3. Eksiklikler & Düzeltme Önerileri**
-- **Eksiklik:** Gelir tablosunda faaliyet giderleri sektör ortalamasının üzerinde.
-- **Öneri:** 760/770 hesaplarındaki genel yönetim ve pazarlama giderleri kalem bazlı incelenmeli.
-- **Eksiklik:** Stok devir hızı yavaşlamış görünüyor.
-- **Öneri:** Stok yönetimi için FIFO yerine LIFO (veya tam tersi) analizi yapılmalı ve atıl stoklar eritilmeli.
-
-**4. Sektörel & Sermaye Tavsiyeleri**
-- **Sektör:** ${profile.naceCodes.length > 0 ? profile.naceCodes[0] : 'Genel Ticaret'}
-- **Sermaye:** Mevcut özkaynak yapısı kısa vadeli borçları karşılamada güçlü ancak uzun vadeli yatırım için ek sermaye artırımı veya uzun vadeli kredi yapılandırması önerilir.
-- **Tavsiye:** ${profile.isExporter ? 'İhracat teşvikleri ve KDV iade süreçleri optimize edilerek işletme sermayesi güçlendirilmeli.' : 'İhracat potansiyeli olan ürünler için pazar araştırması yapılarak döviz getirisi hedeflenmeli.'}`);
-    }, 3000);
+    }
   };
 
   const renderProjection = () => (
@@ -560,15 +565,45 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
             animate={{ opacity: 1 }}
             className="space-y-6"
           >
-            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 prose prose-slate max-w-none">
-              <div className="flex items-center justify-between mb-4 border-b border-slate-200 pb-4">
-                <h4 className="font-bold text-kilim-blue-dark m-0">Yapay Zeka Analiz Raporu</h4>
-                <button onClick={() => setMaliTabloReport(null)} className="text-xs text-kilim-red font-bold">Yeni Analiz</button>
+              <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-kilim-blue/10 rounded-xl flex items-center justify-center">
+                      <Bot className="w-6 h-6 text-kilim-blue" />
+                    </div>
+                    <h4 className="font-black text-kilim-blue-dark m-0 uppercase tracking-tight">Yapay Zeka Analiz Raporu</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        const blob = new Blob([maliTabloReport], { type: 'text/markdown' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `Analiz_Raporu_${profile.title}.md`;
+                        a.click();
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all"
+                    >
+                      <Download className="w-3 h-3" />
+                      Markdown Olarak İndir
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setMaliTabloReport(null);
+                        setUploadedFiles([]);
+                      }} 
+                      className="flex items-center gap-2 px-3 py-1.5 bg-kilim-red/10 text-kilim-red rounded-lg text-xs font-bold hover:bg-kilim-red/20 transition-all"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Yeni Analiz Başlat
+                    </button>
+                  </div>
+                </div>
+                <div className="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                  {maliTabloReport}
+                </div>
               </div>
-              <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                {maliTabloReport}
-              </div>
-            </div>
           </motion.div>
         )}
       </div>
@@ -577,25 +612,62 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile }) => {
 
   return (
     <div className="space-y-8 pb-10 bg-white min-h-screen p-6 rounded-3xl">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-kilim-blue-dark flex items-center gap-2">
-            <Wallet className="w-7 h-7 text-kilim-blue" />
-            Finansal Durum & Analiz: <span className="text-kilim-red">{profile.title}</span>
-          </h1>
-          <p className="text-slate-500">Mizan verilerine dayalı mali tablo analizleri, nakit tahmini ve KDV iade yönetimi.</p>
+      {/* Company Selector & Header */}
+      <div className="glass-card p-6 border-b-4 border-kilim-blue bg-white shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-kilim-blue/10 rounded-2xl flex items-center justify-center shadow-inner">
+              <Building2 className="w-8 h-8 text-kilim-blue" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-kilim-blue-dark tracking-tight">Finansal Durum & Analiz</h1>
+              <p className="text-sm text-slate-500 font-medium">Mizan, Nakit Akışı ve KDV İade Yönetimi</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <Search className="w-4 h-4 text-slate-400" />
+              </div>
+              <select 
+                value={profile.id}
+                onChange={(e) => {
+                  const selected = companies.find(c => c.id === e.target.value);
+                  if (selected) onSelectCompany(selected);
+                }}
+                className="pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-kilim-blue focus:border-transparent transition-all appearance-none cursor-pointer min-w-[240px]"
+              >
+                <option value="0" disabled>Firma Seçiniz...</option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
+              </div>
+            </div>
+
+            <button className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20">
+              <Download className="w-4 h-4" />
+              Genel Raporu İndir
+            </button>
+            <button 
+              onClick={() => {
+                setMizanUploaded(false);
+                setMizanData(null);
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Verileri Yenile
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white border border-emerald-500 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm">
-            <Download className="w-4 h-4" />
-            Raporu İndir
-          </button>
-        </div>
-      </header>
+      </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-2xl w-fit">
+      <div className="flex items-center gap-1 p-1.5 bg-slate-100 rounded-2xl w-fit shadow-inner">
         <button 
           onClick={() => setActiveTab('projection')}
           className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${

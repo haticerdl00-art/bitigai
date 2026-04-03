@@ -524,7 +524,7 @@ export default function App() {
       case ModuleId.FIS_AKTARIM:
         return <VoucherTransferModule initialData={ocrTransferData || undefined} profile={companyProfile} />;
       case ModuleId.NAKIT_AKIS:
-        return <CashFlowModule profile={companyProfile} />;
+        return <CashFlowModule profile={companyProfile} companies={companies} onSelectCompany={handleSetCompanyProfile} />;
       case ModuleId.MALIYET_ANALIZI:
         return <CostAnalysisModule profile={companyProfile} />;
       case ModuleId.BEYANNAME:
