@@ -32,6 +32,7 @@ import {
   Plus,
   FileText,
   MessageCircle,
+  MessageCircleHeart,
   ShieldCheck,
   Share2,
   Bot,
@@ -58,6 +59,7 @@ import { DocumentsModule } from './components/DocumentsModule';
 import { OCRModule } from './components/OCRModule';
 import { ContentCreatorModule } from './components/ContentCreatorModule';
 import { HapNotlarModule } from './components/HapNotlarModule';
+import { FloatingChat } from './components/FloatingChat';
 import { fetchLatestLegislation } from './services/geminiService';
 import { ModuleId, UserProfile, CompanyProfile } from './types';
 import { MEVZUAT_DATA } from './data/legislationData';
@@ -311,6 +313,7 @@ export default function App() {
     }
   };
   const [activeModule, setActiveModule] = useState<ModuleId>(ModuleId.DASHBOARD);
+  const [isFloatingChatOpen, setIsFloatingChatOpen] = useState(false);
 
   const handleSetActiveModule = async (id: ModuleId) => {
     setActiveModule(id);
@@ -700,40 +703,54 @@ export default function App() {
           </AnimatePresence>
 
           {/* Floating Copilot Shortcut */}
-          {activeModule !== ModuleId.CHAT && (
-            <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-2">
-              <motion.button
-                initial={{ y: 100, opacity: 0 }}
+          <FloatingChat 
+            isOpen={isFloatingChatOpen} 
+            onClose={() => setIsFloatingChatOpen(false)} 
+            userId={user?.id}
+            companies={companies}
+          />
+
+          <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-2">
+            <motion.button
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ 
+                y: [0, -20, 0], 
+                opacity: 1,
+                transition: {
+                  y: {
+                    delay: 2.5,
+                    duration: 0.6,
+                    times: [0, 0.5, 1],
+                    ease: "easeOut"
+                  },
+                  opacity: { delay: 2.5, duration: 0.3 }
+                }
+              }}
+              whileHover={{ 
+                scale: 1.1,
+                boxShadow: "0 20px 25px -5px rgba(139, 26, 26, 0.3), 0 10px 10px -5px rgba(139, 26, 26, 0.2)"
+              }}
+              whileTap={{ scale: 0.9 }}
+              onMouseEnter={() => setIsCopilotHovered(true)}
+              onMouseLeave={() => setIsCopilotHovered(false)}
+              onClick={() => setIsFloatingChatOpen(!isFloatingChatOpen)}
+              className="w-16 h-16 bg-kilim-red text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-kilim-red/90 transition-all border-4 border-white relative group overflow-hidden"
+            >
+              <motion.div
                 animate={{ 
-                  y: [0, -20, 0], 
-                  opacity: 1,
-                  transition: {
-                    y: {
-                      delay: 2.5,
-                      duration: 0.6,
-                      times: [0, 0.5, 1],
-                      ease: "easeOut"
-                    },
-                    opacity: { delay: 2.5, duration: 0.3 }
-                  }
+                  rotate: isFloatingChatOpen ? 180 : 0,
+                  scale: isFloatingChatOpen ? 0.8 : 1
                 }}
-                whileHover={{ 
-                  scale: 1.05,
-                  boxShadow: "0 20px 25px -5px rgba(139, 26, 26, 0.2), 0 10px 10px -5px rgba(139, 26, 26, 0.1)"
-                }}
-                whileTap={{ scale: 0.95 }}
-                onMouseEnter={() => setIsCopilotHovered(true)}
-                onMouseLeave={() => setIsCopilotHovered(false)}
-                onClick={() => handleSetActiveModule(ModuleId.CHAT)}
-                className="w-14 h-14 bg-kilim-red text-white rounded-full shadow-xl flex items-center justify-center hover:bg-kilim-red/90 transition-all border-4 border-white relative group"
               >
-                <Bot className="w-7 h-7" />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full border-2 border-kilim-red flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 bg-kilim-red rounded-full animate-ping" />
+                {isFloatingChatOpen ? <X className="w-8 h-8" /> : <MessageCircleHeart className="w-9 h-9" />}
+              </motion.div>
+              {!isFloatingChatOpen && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full border-2 border-kilim-red flex items-center justify-center">
+                  <div className="w-2 h-2 bg-kilim-red rounded-full animate-ping" />
                 </span>
-              </motion.button>
-            </div>
-          )}
+              )}
+            </motion.button>
+          </div>
         </div>
       </main>
     </div>
