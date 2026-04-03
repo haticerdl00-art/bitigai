@@ -16,7 +16,9 @@ import {
   MessageCircle,
   ExternalLink,
   ChevronRight,
-  Building2
+  Building2,
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, CompanyDocument } from '../types';
@@ -42,9 +44,15 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
   const [filterType, setFilterType] = useState<string>('Tümü');
   const [documents, setDocuments] = useState<CompanyDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   useEffect(() => {
-    if (!selectedCompany || !auth.currentUser) return;
+    if (!selectedCompany || !auth.currentUser) {
+      setDocuments([]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     const docsRef = collection(db, 'documents');
@@ -99,7 +107,8 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
     if (!file || !selectedCompany || !auth.currentUser) return;
 
     try {
-      setLoading(true);
+      setUploading(true);
+      setNotification(null);
       const storagePath = `documents/${auth.currentUser.uid}/${selectedCompany.id}/${Date.now()}_${file.name}`;
       const downloadUrl = await uploadFile(storagePath, file);
 
@@ -117,11 +126,16 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
       };
 
       await addDoc(collection(db, 'documents'), newDocMetadata);
-      setLoading(false);
+      setNotification({ type: 'success', message: 'Belge başarıyla yüklendi.' });
+      setUploading(false);
+      
+      // Reset input
+      event.target.value = '';
     } catch (error) {
       console.error('Upload error:', error);
+      setNotification({ type: 'error', message: 'Belge yüklenirken bir hata oluştu. Lütfen tekrar deneyin.' });
       handleFirestoreError(error, OperationType.WRITE, 'documents');
-      setLoading(false);
+      setUploading(false);
     }
   };
 
@@ -158,7 +172,11 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
       try {
         const response = await fetch(doc.fileUrl);
         const blob = await response.blob();
-        const file = new File([blob], doc.title + '.' + doc.fileType, { type: blob.type });
+        // Avoid double extension if title already has it
+        const fileName = doc.title.toLowerCase().endsWith('.' + doc.fileType) 
+          ? doc.title 
+          : `${doc.title}.${doc.fileType}`;
+        const file = new File([blob], fileName, { type: blob.type });
 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
@@ -196,16 +214,47 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
             className="hidden"
             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.csv"
             onChange={handleUpload}
+            disabled={uploading || !selectedCompany}
           />
           <label 
             htmlFor="file-upload"
-            className="flex items-center gap-2 px-6 py-2.5 bg-kilim-blue text-white rounded-xl font-bold hover:bg-kilim-blue-dark transition-all shadow-lg shadow-kilim-blue/20 cursor-pointer"
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg cursor-pointer ${
+              uploading || !selectedCompany
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                : 'bg-kilim-blue text-white hover:bg-kilim-blue-dark shadow-kilim-blue/20'
+            }`}
           >
-            <Upload className="w-4 h-4" />
-            Yeni Belge Yükle
+            {uploading ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
+            {uploading ? 'Yükleniyor...' : 'Yeni Belge Yükle'}
           </label>
         </div>
       </div>
+
+      {/* Notification */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`p-4 rounded-xl flex items-center justify-between ${
+              notification.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {notification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+              <span className="text-sm font-medium">{notification.message}</span>
+            </div>
+            <button onClick={() => setNotification(null)} className="p-1 hover:bg-black/5 rounded-lg">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Company List Sidebar */}
@@ -213,27 +262,33 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
           <div className="glass-card p-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-2">Firmalar</h3>
             <div className="space-y-1 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
-              {companies.map((company) => (
-                <button
-                  key={company.id}
-                  onClick={() => setSelectedCompany(company)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
-                    selectedCompany?.id === company.id 
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                      : 'hover:bg-slate-50 text-slate-600 border border-transparent'
-                  }`}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    selectedCompany?.id === company.id ? 'bg-emerald-100' : 'bg-slate-100'
-                  }`}>
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold truncate">{company.title}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{company.taxNumber}</p>
-                  </div>
-                </button>
-              ))}
+              {companies.length > 0 ? (
+                companies.map((company) => (
+                  <button
+                    key={company.id}
+                    onClick={() => setSelectedCompany(company)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
+                      selectedCompany?.id === company.id 
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                        : 'hover:bg-slate-50 text-slate-600 border border-transparent'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      selectedCompany?.id === company.id ? 'bg-emerald-100' : 'bg-slate-100'
+                    }`}>
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate">{company.title}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{company.taxNumber}</p>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="p-4 text-center text-xs text-slate-400 italic">
+                  Henüz firma eklenmemiş.
+                </div>
+              )}
             </div>
           </div>
 
@@ -358,14 +413,25 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
                     )}
 
                     <div className="mt-4 grid grid-cols-2 gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="flex items-center justify-center gap-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors">
+                      <a 
+                        href={doc.fileUrl} 
+                        download={doc.title}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors"
+                      >
                         <Download className="w-3 h-3" />
                         İndir
-                      </button>
-                      <button className="flex items-center justify-center gap-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors">
+                      </a>
+                      <a 
+                        href={doc.fileUrl} 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors"
+                      >
                         <ExternalLink className="w-3 h-3" />
                         Görüntüle
-                      </button>
+                      </a>
                     </div>
                   </motion.div>
                 ))
