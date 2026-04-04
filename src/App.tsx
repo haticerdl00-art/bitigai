@@ -32,7 +32,7 @@ import {
   Plus,
   FileText,
   MessageCircle,
-  MessageCircleHeart,
+  Library,
   ShieldCheck,
   Share2,
   Bot,
@@ -742,7 +742,7 @@ export default function App() {
                   scale: isFloatingChatOpen ? 0.8 : 1
                 }}
               >
-                {isFloatingChatOpen ? <X className="w-8 h-8" /> : <MessageCircleHeart className="w-9 h-9" />}
+                {isFloatingChatOpen ? <X className="w-8 h-8" /> : <Library className="w-9 h-9" />}
               </motion.div>
               {!isFloatingChatOpen && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full border-2 border-kilim-red flex items-center justify-center">

@@ -81,13 +81,21 @@ async function startServer() {
             ...options, 
             signal: controller.signal,
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+              'Referer': 'https://www.genelpara.com/',
+              'Origin': 'https://www.genelpara.com',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
               ...options.headers
             }
           });
           return response;
         } catch (e) {
-          console.error(`Fetch error for ${url}:`, e);
+          if (e instanceof Error && e.name !== 'AbortError') {
+            console.error(`Fetch error for ${url}:`, e.message);
+          }
           throw e;
         } finally {
           clearTimeout(timeoutId);
@@ -98,7 +106,14 @@ async function startServer() {
       console.log('Fetching external market data...');
       const results = await Promise.allSettled([
         fetchWithTimeout('https://www.tcmb.gov.tr/kurlar/today.xml', { headers: { 'Accept': 'application/xml' } }),
-        fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json')
+        fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json', {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Referer': 'https://www.genelpara.com/',
+            'Origin': 'https://www.genelpara.com'
+          }
+        })
       ]);
 
       const tcmbRes = results[0];
@@ -143,6 +158,7 @@ async function startServer() {
       }
 
       // Process GenelPara
+      let gpSuccess = false;
       if (gpRes.status === 'fulfilled' && gpRes.value.ok) {
         try {
           const gpData = await gpRes.value.json();
@@ -161,13 +177,49 @@ async function startServer() {
               value: parseVal('BIST100', fallbackData.bist.value),
               change: parseChange('BIST100')
             };
+            gpSuccess = true;
             console.log('GenelPara data processed successfully');
           }
         } catch (err) {
           console.error('GenelPara Parse Error:', err);
         }
-      } else {
-        console.warn('GenelPara fetch failed or not ok:', gpRes.status === 'fulfilled' ? gpRes.value.status : gpRes.reason);
+      }
+
+      // If GenelPara fails, try Truncgil as a backup
+      if (!gpSuccess) {
+        const errorStatus = gpRes.status === 'fulfilled' ? gpRes.value.status : 'Fetch failed';
+        console.warn(`GenelPara fetch failed or not ok: ${errorStatus}. Attempting backup...`);
+        
+        try {
+          const backupRes = await fetchWithTimeout('https://finans.truncgil.com/today.json');
+          if (backupRes.ok) {
+            const backupData = await backupRes.json();
+            if (backupData) {
+              const parseT = (key: string, fallback: string) => {
+                const val = backupData[key]?.Selling?.replace(',', '.');
+                return val && val !== '0' ? val : fallback;
+              };
+              const parseC = (key: string) => {
+                const val = backupData[key]?.Change?.replace('%', '').replace(',', '.');
+                return parseFloat(val || '0');
+              };
+              
+              gold = [
+                { label: 'Gram Altın', value: parseT('gram-altin', fallbackData.gold[0].value), change: parseC('gram-altin'), unit: 'TL' },
+                { label: 'Çeyrek Altın', value: parseT('ceyrek-altin', fallbackData.gold[1].value), change: parseC('ceyrek-altin'), unit: 'TL' }
+              ];
+              bist = {
+                value: parseT('XU100', fallbackData.bist.value),
+                change: parseC('XU100')
+              };
+              console.log('Backup data from Truncgil processed successfully');
+            }
+          } else {
+            console.warn(`Backup fetch failed with status: ${backupRes.status}`);
+          }
+        } catch (backupErr) {
+          console.error('Backup fetch failed:', backupErr instanceof Error ? backupErr.message : backupErr);
+        }
       }
 
       res.json({ currencies, gold, bist, stocks: fallbackData.stocks });

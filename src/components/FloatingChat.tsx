@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Mic, MicOff, X, Minimize2, Maximize2, Eraser } from 'lucide-react';
+import { Send, Library, User, Loader2, Mic, MicOff, X, Minimize2, Maximize2, Eraser } from 'lucide-react';
 import { askCopilotStream } from '../services/geminiService';
 import { handleAssistantAction } from '../services/actionService';
 import Markdown from 'react-markdown';
@@ -140,7 +140,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({ isOpen, onClose, com
       <div className="p-4 bg-kilim-red text-white flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-            <Bot className="w-5 h-5 text-white" />
+            <Library className="w-5 h-5 text-white" />
           </div>
           <div>
             <h3 className="font-bold text-sm">Hızlı Danışman</h3>
@@ -183,7 +183,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({ isOpen, onClose, com
                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     msg.role === 'user' ? 'bg-slate-200' : 'bg-rose-50'
                   }`}>
-                    {msg.role === 'user' ? <User className="w-3 h-3 text-slate-600" /> : <Bot className="w-3 h-3 text-kilim-red" />}
+                    {msg.role === 'user' ? <User className="w-3 h-3 text-slate-600" /> : <Library className="w-3 h-3 text-kilim-red" />}
                   </div>
                   <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
                     msg.role === 'user' 

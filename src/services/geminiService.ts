@@ -37,12 +37,16 @@ export async function askCopilotStream(prompt: string, history: { role: 'user' |
   TEMEL GÖREVLERİN:
   1. DANIŞMANLIK: Mevzuat, vergi, SGK ve muhasebe konularında uzman görüşü ver.
   2. EYLEM TESPİTİ: Kullanıcının mesajlarından somut görevler çıkar.
+  3. İKON VE TEMA: Sağ alt köşedeki ikonun bir "Kütüphane/Defter" (Library) amblemi olup, Anadolu kilim motifleri ve muhasebe kayıt defteri ile ilişkilendirilmiştir. Bu ikon hem bilgiye hem de kayıtlara olan hakimiyeti simgeler.
   
   EYLEM FORMATI:
   Eğer kullanıcı bir kayıt, not veya güncelleme talep ederse, yanıtının en sonuna MUTLAKA şu formatta bir JSON bloğu ekle:
   [ACTION: {"type": "ADD_NOTE", "company": "Firma Adı veya Genel", "content": "Not içeriği"}]
   [ACTION: {"type": "UPDATE_DECLARATION", "company": "Firma Adı", "declaration": "KDV/MUHSGK/GEÇİCİ/BERAT", "status": "Verildi"}]
   [ACTION: {"type": "ADD_TASK", "content": "Görev içeriği", "date": "YYYY-MM-DD"}]
+  [ACTION: {"type": "ADD_COMPANY", "title": "Firma Ünvanı", "vkn": "123...", "taxOffice": "...", "ledgerType": "...", "legalStatus": "...", "sector": "..."}]
+  [ACTION: {"type": "ADD_PERSONNEL", "company": "Firma Adı", "gender": "male/female"}]
+  [ACTION: {"type": "ADD_COLLECTION", "company": "Firma Adı", "amount": 5000}]
   
   ${companyContext}
   

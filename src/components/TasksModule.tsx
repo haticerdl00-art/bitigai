@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Plus, Trash2, ListTodo, Clock, Calendar, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CheckCircle2, Circle, Plus, Trash2, ListTodo, Clock, Calendar, AlertCircle, Loader2, Mic, MicOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { 
@@ -27,6 +27,38 @@ export const TasksModule: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [newTask, setNewTask] = useState('');
   const [newTaskDate, setNewTaskDate] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleSpeechRecognition = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Tarayıcınız ses tanıma özelliğini desteklemiyor.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'tr-TR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsRecording(true);
+    recognition.onend = () => setIsRecording(false);
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setNewTask((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
 
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
@@ -170,14 +202,24 @@ export const TasksModule: React.FC = () => {
             value={newTask}
             onChange={(e) => setNewTask(e.target.value)}
             placeholder="Yeni görev ekle..."
-            className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-kilim-red/20 focus:border-kilim-red outline-none transition-all"
+            className={`w-full pl-4 pr-20 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-kilim-red/20 focus:border-kilim-red outline-none transition-all ${isRecording ? 'border-kilim-red ring-2 ring-kilim-red/10' : ''}`}
           />
-          <button
-            type="submit"
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-kilim-red text-white rounded-lg hover:bg-kilim-red/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleSpeechRecognition}
+              className={`p-2 rounded-lg transition-all ${isRecording ? 'bg-kilim-red text-white animate-pulse' : 'text-slate-400 hover:bg-slate-100'}`}
+              title="Sesle Not Ekle"
+            >
+              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+            <button
+              type="submit"
+              className="p-2 bg-kilim-red text-white rounded-lg hover:bg-kilim-red/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-slate-400" />
