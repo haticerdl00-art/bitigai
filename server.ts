@@ -67,6 +67,12 @@ async function startServer() {
     };
 
     try {
+      // Check if fetch is available
+      if (typeof fetch === 'undefined') {
+        console.warn('Fetch is not defined in this environment, using fallback data');
+        return res.json(fallbackData);
+      }
+
       const fetchWithTimeout = async (url: string, options: any = {}, timeout = 5000) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -80,16 +86,23 @@ async function startServer() {
             }
           });
           return response;
+        } catch (e) {
+          console.error(`Fetch error for ${url}:`, e);
+          throw e;
         } finally {
           clearTimeout(timeoutId);
         }
       };
 
       // Fetch in parallel
-      const [tcmbRes, gpRes] = await Promise.allSettled([
+      console.log('Fetching external market data...');
+      const results = await Promise.allSettled([
         fetchWithTimeout('https://www.tcmb.gov.tr/kurlar/today.xml', { headers: { 'Accept': 'application/xml' } }),
         fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json')
       ]);
+
+      const tcmbRes = results[0];
+      const gpRes = results[1];
 
       let currencies = [...fallbackData.currencies];
       let gold = [...fallbackData.gold];
@@ -108,22 +121,25 @@ async function startServer() {
               currencies = [
                 { 
                   label: 'Dolar', 
-                  value: usd.BanknoteSelling?.[0] || usd.ForexSelling?.[0] || '0.00', 
+                  value: usd.BanknoteSelling?.[0] || usd.ForexSelling?.[0] || '32.15', 
                   change: 0.05, 
                   unit: 'TL' 
                 },
                 { 
                   label: 'Euro', 
-                  value: eur.BanknoteSelling?.[0] || eur.ForexSelling?.[0] || '0.00', 
+                  value: eur.BanknoteSelling?.[0] || eur.ForexSelling?.[0] || '34.85', 
                   change: -0.02, 
                   unit: 'TL' 
                 }
               ];
+              console.log('TCMB data processed successfully');
             }
           }
         } catch (err) {
           console.error('TCMB Parse Error:', err);
         }
+      } else {
+        console.warn('TCMB fetch failed or not ok:', tcmbRes.status === 'fulfilled' ? tcmbRes.value.status : tcmbRes.reason);
       }
 
       // Process GenelPara
@@ -131,7 +147,10 @@ async function startServer() {
         try {
           const gpData = await gpRes.value.json();
           if (gpData) {
-            const parseVal = (key: string, fallback: string) => gpData[key]?.satis?.replace(',', '.') || fallback;
+            const parseVal = (key: string, fallback: string) => {
+              const val = gpData[key]?.satis?.replace(',', '.');
+              return val && val !== '0' ? val : fallback;
+            };
             const parseChange = (key: string) => parseFloat(gpData[key]?.degisim?.replace(',', '.') || '0');
             
             gold = [
@@ -142,20 +161,19 @@ async function startServer() {
               value: parseVal('BIST100', fallbackData.bist.value),
               change: parseChange('BIST100')
             };
+            console.log('GenelPara data processed successfully');
           }
         } catch (err) {
           console.error('GenelPara Parse Error:', err);
         }
+      } else {
+        console.warn('GenelPara fetch failed or not ok:', gpRes.status === 'fulfilled' ? gpRes.value.status : gpRes.reason);
       }
 
-      res.setHeader('Content-Type', 'application/json');
       res.json({ currencies, gold, bist, stocks: fallbackData.stocks });
     } catch (error) {
       console.error('Market data general error:', error);
-      if (!res.headersSent) {
-        res.setHeader('Content-Type', 'application/json');
-        res.status(200).json(fallbackData);
-      }
+      res.json(fallbackData);
     }
   };
 

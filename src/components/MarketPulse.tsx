@@ -38,7 +38,6 @@ export const MarketPulse = () => {
     setError(null);
     
     // Don't clear old data if we already have some to avoid flickering
-    // Only clear if it's the first load or if there's an error
     if (marketData.length === 0) {
       setMarketData([]);
       setBistData(null);
@@ -47,14 +46,17 @@ export const MarketPulse = () => {
 
     console.log('Fetching market data from /api/market/pulse...');
     try {
-      const response = await fetch('/api/market/pulse');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
+      const response = await fetch('/api/market/pulse', { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
       console.log('Market pulse response status:', response.status);
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Invalid response content type:', contentType, 'Body snippet:', text.substring(0, 100));
-        throw new Error(`Sunucudan geçersiz yanıt alındı (${response.status}). Lütfen sistem yöneticisine başvurun.`);
+        throw new Error('Sunucudan geçersiz yanıt alındı. Lütfen tekrar deneyin.');
       }
 
       const data = await response.json();
@@ -66,6 +68,11 @@ export const MarketPulse = () => {
       const currencies = (data.currencies || []).map((c: any) => ({ ...c, type: 'currency' }));
       const gold = (data.gold || []).map((g: any) => ({ ...g, type: 'gold' }));
       
+      // Ensure we have some data to show
+      if (currencies.length === 0 && gold.length === 0) {
+        throw new Error('Piyasa verileri şu an ulaşılamaz durumda.');
+      }
+
       setMarketData([...currencies, ...gold]);
       setBistData({
         label: 'BIST 100',
@@ -76,7 +83,11 @@ export const MarketPulse = () => {
       setLastUpdated(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err: any) {
       console.error('Market data error:', err);
-      setError(err.message || 'Veri şu an güncellenemedi');
+      if (err.name === 'AbortError') {
+        setError('Bağlantı zaman aşımına uğradı');
+      } else {
+        setError(err.message || 'Veri şu an güncellenemedi');
+      }
     } finally {
       setIsRefreshing(false);
     }
