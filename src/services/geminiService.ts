@@ -471,17 +471,54 @@ export async function analyzeFinancialStatements(files: { data: string, mimeType
              - Vergi planlaması fırsatları.
              - Nakit akışı yönetimi tavsiyeleri.
           
-          Yanıtını Markdown formatında, profesyonel ve yönetici özeti niteliğinde hazırla.`
+          Yanıtını aşağıdaki JSON formatında döndür:
+          {
+            "report": "Markdown formatında rapor metni...",
+            "chartData": {
+              "liquidity": [
+                { "name": "Cari Oran", "value": 1.8, "target": 2.0 },
+                { "name": "Asit Test", "value": 1.2, "target": 1.0 },
+                { "name": "Nakit Oran", "value": 0.4, "target": 0.2 }
+              ],
+              "expenses": [
+                { "name": "Pazarlama", "value": 400 },
+                { "name": "Yönetim", "value": 300 },
+                { "name": "Finansman", "value": 200 },
+                { "name": "Ar-Ge", "value": 100 }
+              ],
+              "profitability": [
+                { "month": "Oca", "kar": 100 },
+                { "month": "Şub", "kar": 120 },
+                { "month": "Mar", "kar": 110 },
+                { "month": "Nis", "kar": 150 },
+                { "month": "May", "kar": 180 }
+              ]
+            }
+          }
+          Sadece JSON döndür. chartData içindeki değerleri analiz ettiğin mizan ve mali tablolara göre gerçekçi bir şekilde doldur.`
   });
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: {
       parts: parts
+    },
+    config: {
+      responseMimeType: "application/json"
     }
   });
 
-  return response.text;
+  try {
+    const text = response.text || '{}';
+    const cleanedText = cleanJsonString(text);
+    return JSON.parse(cleanedText);
+  } catch (e) {
+    console.error("JSON parse error in analyzeFinancialStatements:", e);
+    return {
+      report: response.text || "Analiz raporu oluşturulamadı.",
+      chartData: null
+    };
+  }
 }
 
 export async function analyzeKdvRefundPotential(mizanData: any, manualData: any, profile: any) {

@@ -280,7 +280,7 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${turRengi(item.tur)}`}>{item.tur}</span>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${item.color === 'rose' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>{item.durum}</span>
                       </div>
-                      <p className="font-bold text-slate-800 truncate group-hover:text-kilim-blue transition-colors">{item.title}</p>
+                      <p className="font-bold text-slate-800 group-hover:text-kilim-blue transition-colors">{item.title}</p>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="text-[10px] text-slate-400 font-medium">🏢 Tüm Firmalar</span>
                         {item.diffDays > 0 && <span className="text-[10px] text-rose-500 font-bold">⏳ {item.diffDays} gün kaldı</span>}

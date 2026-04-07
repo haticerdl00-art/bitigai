@@ -31,6 +31,7 @@ import {
   addDoc, 
   deleteDoc, 
   doc, 
+  updateDoc,
   serverTimestamp 
 } from 'firebase/firestore';
 
@@ -46,6 +47,8 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
 
   useEffect(() => {
     if (!selectedCompany || !auth.currentUser) {
@@ -136,6 +139,22 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
       setNotification({ type: 'error', message: 'Belge yüklenirken bir hata oluştu. Lütfen tekrar deneyin.' });
       handleFirestoreError(error, OperationType.WRITE, 'documents');
       setUploading(false);
+    }
+  };
+
+  const handleRename = async (id: string) => {
+    if (!newName.trim()) return;
+    try {
+      setLoading(true);
+      const docRef = doc(db, 'documents', id);
+      await updateDoc(docRef, { title: newName });
+      setRenamingId(null);
+      setNewName('');
+      setNotification({ type: 'success', message: 'Belge adı güncellendi.' });
+      setLoading(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
+      setLoading(false);
     }
   };
 
@@ -357,6 +376,34 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
                         <FileText className="w-5 h-5" />
                       </div>
                       <div className="flex items-center gap-1">
+                        {renamingId === doc.id ? (
+                          <div className="flex items-center gap-1">
+                            <input 
+                              type="text" 
+                              value={newName}
+                              onChange={(e) => setNewName(e.target.value)}
+                              className="text-[10px] p-1 border border-slate-200 rounded outline-none"
+                              autoFocus
+                            />
+                            <button onClick={() => handleRename(doc.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                              <CheckCircle2 className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => setRenamingId(null)} className="p-1 text-rose-600 hover:bg-rose-50 rounded">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => {
+                              setRenamingId(doc.id);
+                              setNewName(doc.title);
+                            }}
+                            className="p-1.5 hover:bg-slate-50 text-slate-400 rounded-lg transition-colors"
+                            title="Yeniden Adlandır"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        )}
                         <button 
                           onClick={() => handleShare(doc, 'whatsapp')}
                           className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors"

@@ -9,7 +9,7 @@ import {
   ArrowDownRight,
   Wallet,
   Calendar,
-  PieChart,
+  PieChart as PieChartIcon,
   BarChart3,
   LineChart as LineChartIcon,
   ChevronRight,
@@ -30,8 +30,6 @@ import {
   Bot
 } from 'lucide-react';
 import { 
-  BarChart, 
-  Bar, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -42,8 +40,16 @@ import {
   Line, 
   AreaChart, 
   Area,
-  Cell
+  Cell,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie
 } from 'recharts';
+import { jsPDF } from 'jspdf';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { saveAs } from 'file-saver';
+import html2canvas from 'html2canvas';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, MizanData } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
@@ -59,11 +65,13 @@ interface CashFlowModuleProps {
 }
 
 export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, companies, onSelectCompany }) => {
-  const [activeTab, setActiveTab] = useState<'projection' | 'kdv-refund' | 'mali-tablo'>('projection');
+  const [activeTab, setActiveTab] = useState<'kdv-refund' | 'mali-tablo'>('mali-tablo');
+  const [showUpload, setShowUpload] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('6ay');
   const [mizanUploaded, setMizanUploaded] = useState(false);
   const [isMizanAnalyzing, setIsMizanAnalyzing] = useState(false);
   const [maliTabloReport, setMaliTabloReport] = useState<string | null>(null);
+  const [maliTabloChartData, setMaliTabloChartData] = useState<any | null>(null);
   const [isMaliTabloAnalyzing, setIsMaliTabloAnalyzing] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const [mizanData, setMizanData] = useState<MizanData | null>(null);
@@ -174,8 +182,14 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
       });
 
       const processedFiles = await Promise.all(filePromises);
-      const report = await analyzeFinancialStatements(processedFiles, profile);
-      setMaliTabloReport(report || "Analiz raporu oluşturulamadı.");
+      const result = await analyzeFinancialStatements(processedFiles, profile);
+      
+      if (result && typeof result === 'object' && 'report' in result) {
+        setMaliTabloReport(result.report || "Analiz raporu oluşturulamadı.");
+        setMaliTabloChartData(result.chartData);
+      } else {
+        setMaliTabloReport(result || "Analiz raporu oluşturulamadı.");
+      }
     } catch (error) {
       console.error("Analysis error:", error);
       setMaliTabloReport("Analiz sırasında bir hata oluştu. Lütfen dosyalarınızın okunabilir olduğundan emin olun.");
@@ -475,10 +489,22 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
               <p className="text-xs text-slate-500">Firma: <span className="font-bold">{profile.title}</span> | Mizan, Gelir Tablosu ve Bilanço Analizi</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowUpload(!showUpload)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                showUpload ? 'bg-kilim-red text-white' : 'bg-kilim-blue text-white shadow-lg shadow-kilim-blue/20'
+              }`}
+              title="Belge Yükleme Panelini Aç/Kapat"
+            >
+              <span className="text-lg">K</span>
+              {showUpload ? 'Kapat' : 'Belge Yükle'}
+            </button>
+          </div>
         </div>
 
-        {!maliTabloReport ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {showUpload && !maliTabloReport && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
             <div className="lg:col-span-5 space-y-6">
               <div className="p-8 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 text-center relative group">
                 <input 
@@ -519,7 +545,10 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
               )}
 
               <button 
-                onClick={handleMaliTabloAnalyze}
+                onClick={async () => {
+                  await handleMaliTabloAnalyze();
+                  setShowUpload(false);
+                }}
                 disabled={isMaliTabloAnalyzing || uploadedFiles.length === 0}
                 className="w-full py-4 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
               >
@@ -547,63 +576,181 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                   Önce mizanınızdaki teknik eksiklikleri ve düzeltilmesi gereken yerleri saptıyoruz. Ardından mali tablolarınızı (Gelir Tablosu, Bilanço) analiz ederek rasyolarınızı yorumluyoruz.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-4 w-full mt-4">
-                <div className="p-4 bg-white rounded-2xl border border-slate-100 text-left">
-                  <p className="text-[10px] font-bold text-kilim-blue uppercase mb-1">Adım 1</p>
-                  <p className="text-xs font-bold text-slate-700">Mizan Denetimi</p>
-                </div>
-                <div className="p-4 bg-white rounded-2xl border border-slate-100 text-left">
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Adım 2</p>
-                  <p className="text-xs font-bold text-slate-700">Mali Tablo Analizi</p>
-                </div>
-              </div>
             </div>
           </div>
-        ) : (
+        )}
+
+        {!maliTabloReport && !showUpload && (
+          <div className="py-20 flex flex-col items-center justify-center text-center space-y-6">
+            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center">
+              <FileSearch className="w-12 h-12 text-slate-300" />
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-xl font-bold text-slate-800">Analiz Başlatılmadı</h4>
+              <p className="text-slate-500 max-w-md">
+                Mali tablo analizini başlatmak için yukarıdaki <span className="font-bold text-kilim-blue">K</span> butonuna basarak belgelerinizi yükleyiniz.
+              </p>
+            </div>
+          </div>
+        )}
+          {maliTabloReport && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-6"
+            className="space-y-8"
+            id="analysis-report-container"
           >
-              <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-kilim-blue/10 rounded-xl flex items-center justify-center">
-                      <Bot className="w-6 h-6 text-kilim-blue" />
-                    </div>
-                    <h4 className="font-black text-kilim-blue-dark m-0 uppercase tracking-tight">Yapay Zeka Analiz Raporu</h4>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => {
-                        const blob = new Blob([maliTabloReport], { type: 'text/markdown' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `Analiz_Raporu_${profile.title}.md`;
-                        a.click();
-                      }}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all"
-                    >
-                      <Download className="w-3 h-3" />
-                      Markdown Olarak İndir
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setMaliTabloReport(null);
-                        setUploadedFiles([]);
-                      }} 
-                      className="flex items-center gap-2 px-3 py-1.5 bg-kilim-red/10 text-kilim-red rounded-lg text-xs font-bold hover:bg-kilim-red/20 transition-all"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      Yeni Analiz Başlat
-                    </button>
-                  </div>
-                </div>
-                <div className="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                  {maliTabloReport}
+            {/* Infographic Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="glass-card p-6 bg-white border border-slate-100 shadow-sm">
+                <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Likidite Oranları</h5>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={maliTabloChartData?.liquidity || [
+                      { name: 'Cari Oran', value: 1.8, target: 2.0 },
+                      { name: 'Asit Test', value: 1.2, target: 1.0 },
+                      { name: 'Nakit Oran', value: 0.4, target: 0.2 }
+                    ]}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" fontSize={10} />
+                      <YAxis fontSize={10} />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="#1e40af" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
+
+              <div className="glass-card p-6 bg-white border border-slate-100 shadow-sm">
+                <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Gider Dağılımı</h5>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={maliTabloChartData?.expenses || [
+                          { name: 'Pazarlama', value: 400 },
+                          { name: 'Yönetim', value: 300 },
+                          { name: 'Finansman', value: 200 },
+                          { name: 'Ar-Ge', value: 100 }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={60}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {['#1e40af', '#10b981', '#f59e0b', '#ef4444'].map((color, index) => (
+                          <Cell key={`cell-${index}`} fill={color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="glass-card p-6 bg-white border border-slate-100 shadow-sm">
+                <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Karlılık Trendi</h5>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={maliTabloChartData?.profitability || [
+                      { month: 'Oca', kar: 100 },
+                      { month: 'Şub', kar: 120 },
+                      { month: 'Mar', kar: 110 },
+                      { month: 'Nis', kar: 150 },
+                      { month: 'May', kar: 180 }
+                    ]}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="month" fontSize={10} />
+                      <YAxis fontSize={10} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="kar" stroke="#1e40af" strokeWidth={2} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-kilim-blue/10 rounded-xl flex items-center justify-center">
+                    <Bot className="w-6 h-6 text-kilim-blue" />
+                  </div>
+                  <h4 className="font-black text-kilim-blue-dark m-0 uppercase tracking-tight">Yapay Zeka Analiz Raporu</h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={async () => {
+                      const element = document.getElementById('analysis-report-container');
+                      if (!element) return;
+                      const canvas = await html2canvas(element);
+                      const imgData = canvas.toDataURL('image/png');
+                      const pdf = new jsPDF('p', 'mm', 'a4');
+                      const imgProps = pdf.getImageProperties(imgData);
+                      const pdfWidth = pdf.internal.pageSize.getWidth();
+                      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                      pdf.save(`Analiz_Raporu_${profile.title}.pdf`);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-all"
+                  >
+                    <Download className="w-3 h-3" />
+                    PDF İndir
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      const doc = new Document({
+                        sections: [{
+                          properties: {},
+                          children: [
+                            new Paragraph({
+                              children: [
+                                new TextRun({
+                                  text: `Mali Tablo Analiz Raporu - ${profile.title}`,
+                                  bold: true,
+                                  size: 32,
+                                }),
+                              ],
+                            }),
+                            new Paragraph({
+                              children: [
+                                new TextRun({
+                                  text: maliTabloReport,
+                                  size: 24,
+                                }),
+                              ],
+                            }),
+                          ],
+                        }],
+                      });
+
+                      const blob = await Packer.toBlob(doc);
+                      saveAs(blob, `Analiz_Raporu_${profile.title}.docx`);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-all"
+                  >
+                    <Download className="w-3 h-3" />
+                    Word İndir
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setMaliTabloReport(null);
+                      setMaliTabloChartData(null);
+                      setUploadedFiles([]);
+                    }} 
+                    className="flex items-center gap-2 px-3 py-1.5 bg-kilim-red/10 text-kilim-red rounded-lg text-xs font-bold hover:bg-kilim-red/20 transition-all"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Yeni Analiz Başlat
+                  </button>
+                </div>
+              </div>
+              <div className="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                {maliTabloReport}
+              </div>
+            </div>
           </motion.div>
         )}
       </div>
@@ -669,16 +816,6 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
       {/* Tabs */}
       <div className="flex items-center gap-1 p-1.5 bg-slate-100 rounded-2xl w-fit shadow-inner">
         <button 
-          onClick={() => setActiveTab('projection')}
-          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
-            activeTab === 'projection' 
-              ? 'bg-white text-kilim-blue shadow-sm' 
-              : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Nakit Akış Projeksiyonu
-        </button>
-        <button 
           onClick={() => setActiveTab('mali-tablo')}
           className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
             activeTab === 'mali-tablo' 
@@ -709,8 +846,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
           exit={{ opacity: 0, x: -10 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'projection' ? renderProjection() : 
-           activeTab === 'kdv-refund' ? renderKdvRefundAnalysis() : 
+          {activeTab === 'kdv-refund' ? renderKdvRefundAnalysis() : 
            renderMaliTabloAnalizi()}
         </motion.div>
       </AnimatePresence>

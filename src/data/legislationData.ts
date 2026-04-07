@@ -19,7 +19,7 @@ export const MEVZUAT_DATA: LegislationItem[] = [
     kaynak: "Resmi Gazete",
     tur: "VERGİ",
     etki: "YÜKSEK",
-    ozet: "Bazı mal ve hizmetlerde KDV oranları yeniden düzenlendi. İhracat istisnası kapsamı genişletildi. Tüm mükellefleri ilgilendiriyor.",
+    ozet: "7491 Sayılı Kanun ile KDV oranlarında önemli düzenlemeler yapıldı. Temel gıda maddeleri ve bazı hizmetlerdeki %10 ve %20'lik oranlar korunurken, ihracat istisnası kapsamı teknoloji ve yazılım hizmetlerini de kapsayacak şekilde genişletildi. Mükelleflerin fatura düzenleme süreçlerinde güncel oranları teyit etmeleri ve ihracatçıların yeni istisna kalemlerini incelemeleri kritik önem taşıyor.",
     eslestir: (f: CompanyProfile) => {
       const nedenler = ["Tüm mükellefler bu düzenlemeden etkilenmektedir."];
       if (f.isExporter) nedenler.push("İhracatçı firma — genişleyen istisna kapsamından doğrudan yararlanabilir.");
@@ -34,7 +34,7 @@ export const MEVZUAT_DATA: LegislationItem[] = [
     kaynak: "SGK",
     tur: "SGK",
     etki: "YÜKSEK",
-    ozet: "10 ve üzeri çalışanı olan işyerleri için asgari ücret desteği kapsamı genişletildi. Başvuru süresi 30 Nisan 2026'ya uzatıldı.",
+    ozet: "10 ve üzeri çalışanı olan işyerleri için asgari ücret desteği aylık 700 TL'den 1.000 TL'ye yükseltildi. Destekten yararlanma şartı olarak prim borcu bulunmaması ve bildirgelerin süresinde verilmesi gerekiyor. Başvuru süresi 30 Nisan 2026'ya kadar uzatılarak işverenlerin maliyet yükünün hafifletilmesi hedefleniyor.",
     eslestir: (f: CompanyProfile) => {
       const totalWorkers = f.hrProfile?.totalWorkers || 0;
       if (totalWorkers < 10) return { eslesti: false, nedenler: [] };
@@ -54,7 +54,7 @@ export const MEVZUAT_DATA: LegislationItem[] = [
     kaynak: "GİB",
     tur: "E-DÖNÜŞÜM",
     etki: "ORTA",
-    ozet: "Yıllık cirosu 5 milyon TL'yi aşan mükellefler Temmuz 2026'dan itibaren e-deftere geçmek zorunda. Henüz geçiş yapmayan firmalar için aksiyon gerekiyor.",
+    ozet: "GİB tarafından yapılan yeni düzenleme ile 2025 yılı brüt satış hasılatı 5 Milyon TL'yi aşan tüm mükellefler için e-defter kullanımı Temmuz 2026 itibariyle zorunlu hale getirildi. Bu kapsama giren firmaların mali mühür/e-imza temini ve yazılım entegrasyonu süreçlerini en geç Haziran sonuna kadar tamamlamaları cezai yaptırımlarla karşılaşmamaları adına kritiktir.",
     eslestir: (f: CompanyProfile) => {
       if (f.ledgerType.includes('E-Defter')) return { eslesti: false, nedenler: [] };
       return {
@@ -73,7 +73,7 @@ export const MEVZUAT_DATA: LegislationItem[] = [
     kaynak: "Ticaret Bakanlığı",
     tur: "TEŞVİK",
     etki: "YÜKSEK",
-    ozet: "İmalat ve teknoloji sektörlerinde faaliyet gösteren ihracatçı firmalar için Ar-Ge ve pazarlama destekleri artırıldı. Son başvuru: 31 Mayıs 2026.",
+    ozet: "Ticaret Bakanlığı, imalat ve teknoloji odaklı ihracat yapan firmalar için Ar-Ge, tasarım ve yurt dışı pazarlama destek limitlerini %50 oranında artırdı. Özellikle yazılım ve yüksek teknoloji ürünleri ihraç eden firmalar için hibe oranları %75'e kadar çıkabiliyor. Başvuruların DYS üzerinden 31 Mayıs'a kadar yapılması gerekmektedir.",
     eslestir: (f: CompanyProfile) => {
       const sektorUygun = ["Teknoloji", "İmalat", "Tekstil", "Yazılım / Teknoloji"].includes(f.sector || '');
       if (!f.isExporter || !sektorUygun) return { eslesti: false, nedenler: [] };
@@ -94,7 +94,7 @@ export const MEVZUAT_DATA: LegislationItem[] = [
     kaynak: "GİB",
     tur: "VERGİ",
     etki: "ORTA",
-    ozet: "Yapım işleri ve hizmet alımlarında tevkifat oranları yeniden belirlendi. İnşaat sektöründe 3/10 oranı 4/10'a çıkarıldı.",
+    ozet: "KDV Uygulama Genel Tebliği'nde yapılan değişiklikle, özellikle inşaat ve temizlik hizmetherindeki tevkifat oranları artırıldı. Yapım işlerinde 3/10 olan oran 4/10'a, temizlik hizmetlerinde ise 7/10'dan 9/10'a yükseltildi. Bu değişiklik, firmaların nakit akışını ve iade süreçlerini doğrudan etkileyecektir.",
     eslestir: (f: CompanyProfile) => {
       if (!f.hasWithholdingSales) return { eslesti: false, nedenler: [] };
       const insaat = f.sector === "İnşaat";
@@ -114,7 +114,7 @@ export const MEVZUAT_DATA: LegislationItem[] = [
     kaynak: "ÇSGB",
     tur: "İŞ HUKUKU",
     etki: "ORTA",
-    ozet: "50 ve üzeri çalışanı olan işyerlerinde %3 engelli istihdamı zorunluluğu denetimi sıkılaştırıldı. Eksik istihdam için ceza miktarları güncellendi.",
+    ozet: "Çalışma ve Sosyal Güvenlik Bakanlığı, 50 ve üzeri çalışanı olan özel sektör işyerlerinde %3 engelli istihdamı zorunluluğuna yönelik denetimlerin dijital veriler üzerinden aylık olarak yapılacağını duyurdu. Kotayı doldurmayan her bir engelli için aylık idari para cezası miktarı 2026 yılı için yeniden değerleme oranında artırıldı.",
     eslestir: (f: CompanyProfile) => {
       const totalWorkers = f.hrProfile?.totalWorkers || 0;
       if (totalWorkers < 50) return { eslesti: false, nedenler: [] };

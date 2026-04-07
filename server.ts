@@ -82,10 +82,8 @@ async function startServer() {
             signal: controller.signal,
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Accept': 'application/json, text/plain, */*',
+              'Accept': '*/*',
               'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-              'Referer': 'https://www.genelpara.com/',
-              'Origin': 'https://www.genelpara.com',
               'Cache-Control': 'no-cache',
               'Pragma': 'no-cache',
               ...options.headers
@@ -105,13 +103,20 @@ async function startServer() {
       // Fetch in parallel
       console.log('Fetching external market data...');
       const results = await Promise.allSettled([
-        fetchWithTimeout('https://www.tcmb.gov.tr/kurlar/today.xml', { headers: { 'Accept': 'application/xml' } }),
+        fetchWithTimeout('https://www.tcmb.gov.tr/kurlar/today.xml', { 
+          headers: { 'Accept': 'application/xml' } 
+        }),
         fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json', {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
+            'Accept': 'application/json, text/plain, */*',
             'Referer': 'https://www.genelpara.com/',
-            'Origin': 'https://www.genelpara.com'
+            'Origin': 'https://www.genelpara.com',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-site',
+            'Sec-Ch-Ua': '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"'
           }
         })
       ]);
@@ -188,7 +193,11 @@ async function startServer() {
       // If GenelPara fails, try Truncgil as a backup
       if (!gpSuccess) {
         const errorStatus = gpRes.status === 'fulfilled' ? gpRes.value.status : 'Fetch failed';
-        console.warn(`GenelPara fetch failed or not ok: ${errorStatus}. Attempting backup...`);
+        if (errorStatus === 403) {
+          console.warn(`GenelPara (Primary) access restricted (403). Using Truncgil (Backup) for market data.`);
+        } else {
+          console.warn(`GenelPara fetch failed or not ok: ${errorStatus}. Attempting backup...`);
+        }
         
         try {
           const backupRes = await fetchWithTimeout('https://finans.truncgil.com/today.json');
