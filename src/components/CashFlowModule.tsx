@@ -230,15 +230,15 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
         </div>
 
         {showUpload && !maliTabloReport && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
+          <div id="upload-panel" className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8 scroll-mt-20">
             <div className="lg:col-span-5 space-y-6">
-              <div className="p-8 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 text-center relative group">
+              <div className="p-8 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 text-center relative group hover:border-kilim-blue/30 transition-colors">
                 <input 
                   type="file" 
                   multiple
                   onChange={(e) => {
                     if (e.target.files) {
-                      setUploadedFiles(Array.from(e.target.files));
+                      setUploadedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
                     }
                   }}
                   className="absolute inset-0 opacity-0 cursor-pointer"
@@ -246,27 +246,40 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                 <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-sm mb-4 group-hover:scale-110 transition-transform">
                   <Upload className="w-8 h-8 text-kilim-blue" />
                 </div>
-                <h4 className="font-bold text-slate-800">Belgeleri Yükleyin</h4>
+                <h4 className="font-bold text-slate-800">Belgeleri Sürükleyin veya Seçin</h4>
                 <p className="text-xs text-slate-500 mt-2">
                   Mizan, Gelir Tablosu, Bilanço vb. <br />
-                  Birden fazla dosya seçebilirsiniz.
+                  PDF, Excel veya Görsel formatları desteklenir.
                 </p>
               </div>
 
               {uploadedFiles.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Yüklenen Belgeler ({uploadedFiles.length})</p>
-                  {uploadedFiles.map((f, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-kilim-blue" />
-                        <span className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{f.name}</span>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Yüklenen Belgeler ({uploadedFiles.length})</p>
+                    <button 
+                      onClick={() => setUploadedFiles([])}
+                      className="text-[10px] font-bold text-rose-500 hover:underline"
+                    >
+                      Tümünü Temizle
+                    </button>
+                  </div>
+                  <div className="max-height-[200px] overflow-y-auto space-y-2 pr-2">
+                    {uploadedFiles.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm group">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-kilim-blue" />
+                          <span className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{f.name}</span>
+                        </div>
+                        <button 
+                          onClick={() => setUploadedFiles(prev => prev.filter((_, idx) => idx !== i))} 
+                          className="text-slate-400 hover:text-rose-500 p-1 rounded-lg transition-colors"
+                        >
+                          <RefreshCw className="w-3 h-3 rotate-45" />
+                        </button>
                       </div>
-                      <button onClick={() => setUploadedFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-rose-500 hover:bg-rose-50 p-1 rounded-lg">
-                        <RefreshCw className="w-3 h-3 rotate-45" />
-                      </button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -308,14 +321,28 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
 
         {!maliTabloReport && !showUpload && (
           <div className="py-20 flex flex-col items-center justify-center text-center space-y-6">
-            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center">
-              <FileSearch className="w-12 h-12 text-slate-300" />
+            <div className="w-24 h-24 bg-kilim-blue/5 rounded-full flex items-center justify-center">
+              <FileSearch className="w-12 h-12 text-kilim-blue/30" />
             </div>
-            <div className="space-y-2">
-              <h4 className="text-xl font-bold text-slate-800">Analiz Başlatılmadı</h4>
-              <p className="text-slate-500 max-w-md">
-                Mali tablo analizini başlatmak için yukarıdaki <span className="font-bold text-kilim-blue">K</span> butonuna basarak belgelerinizi yükleyiniz.
-              </p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h4 className="text-xl font-bold text-slate-800">Analiz Başlatılmadı</h4>
+                <p className="text-slate-500 max-w-md">
+                  Mali tablo analizini başlatmak için belgelerinizi yüklemeniz gerekmektedir.
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowUpload(true);
+                  setTimeout(() => {
+                    document.getElementById('upload-panel')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                }}
+                className="flex items-center gap-3 px-8 py-4 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-xl shadow-kilim-blue/20 mx-auto"
+              >
+                <Upload className="w-5 h-5" />
+                Belge Yüklemeyi Başlat
+              </button>
             </div>
           </div>
         )}
