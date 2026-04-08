@@ -181,59 +181,103 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
   },
   {
     id: 'yevmiye-kayitlari',
-    title: 'Sık Unutulan Yevmiye Kayıt Örnekleri',
+    title: 'Kritik Yevmiye Kayıt Örnekleri',
     category: 'Muhasebe',
     icon: FileText,
     tags: ['yevmiye', 'muhasebe kaydı', 'amortisman', 'reeskont', 'sermaye'],
     content: (
       <div className="space-y-6">
-        <div className="space-y-4">
-          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">1. Amortisman Kaydı</h4>
-          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
-            <div className="flex justify-between"><span>770 GENEL YÖNETİM GİDERLERİ</span><span>10.000</span></div>
-            <div className="flex justify-between pl-4"><span>257 BİRİKMİŞ AMORTİSMANLAR (-)</span><span>10.000</span></div>
-          </div>
+        <div className="grid grid-cols-1 gap-4">
+          {[
+            { 
+              title: '1. Amortisman Kaydı', 
+              entries: [
+                { account: '770 GENEL YÖNETİM GİDERLERİ', amount: '10.000', side: 'B' },
+                { account: '257 BİRİKMİŞ AMORTİSMANLAR (-)', amount: '10.000', side: 'A' }
+              ] 
+            },
+            { 
+              title: '2. Reeskont Kaydı (Dönem Sonu)', 
+              entries: [
+                { account: '657 REESKONT FAİZ GİDERLERİ', amount: '5.000', side: 'B' },
+                { account: '122 ALACAK SENETLERİ REESKONTU (-)', amount: '5.000', side: 'A' }
+              ],
+              note: '* Borç senetleri için 322 (B) / 647 (A) kullanılır.'
+            },
+            { 
+              title: '3. Sermaye Artırımı (Taahhüt)', 
+              entries: [
+                { account: '501 ÖDENMEMİŞ SERMAYE (-)', amount: '100.000', side: 'B' },
+                { account: '500 SERMAYE', amount: '100.000', side: 'A' }
+              ] 
+            },
+            { 
+              title: '4. Sermaye Ödemesi', 
+              entries: [
+                { account: '102 BANKALAR', amount: '100.000', side: 'B' },
+                { account: '501 ÖDENMEMİŞ SERMAYE (-)', amount: '100.000', side: 'A' }
+              ] 
+            },
+            { 
+              title: '5. Kur Farkı Karı Kaydı', 
+              entries: [
+                { account: '102 BANKALAR (Dövizli)', amount: '2.500', side: 'B' },
+                { account: '646 KAMBİYO KARLARI', amount: '2.500', side: 'A' }
+              ] 
+            },
+            { 
+              title: '6. Uzun Vadeli Kredinin Kısa Vadeliye Aktarımı', 
+              entries: [
+                { account: '400 BANKA KREDİLERİ', amount: '50.000', side: 'B' },
+                { account: '303 U.V. KREDİLERİN ANAPARA TAKSİT VE FAİZLERİ', amount: '50.000', side: 'A' }
+              ] 
+            },
+            { 
+              title: '7. Leasing Kaydı (Haklar)', 
+              entries: [
+                { account: '260 HAKLAR (Finansal Kiralama)', amount: 'Varlık Bedeli', side: 'B' },
+                { account: '301 FİN. KİRALAMA İŞL. BORÇLAR', amount: 'Toplam Borç', side: 'A' },
+                { account: '302 ERTELENMİŞ FİN. KİRALAMA BORÇLANMA GİDERLERİ (-)', amount: 'Faiz', side: 'B' }
+              ] 
+            },
+            { 
+              title: '8. Sigorta Gider Mahsubu', 
+              entries: [
+                { account: '770 GENEL YÖNETİM GİDERLERİ', amount: 'Aylık Pay', side: 'B' },
+                { account: '180 GELECEK AYLARA AİT GİDERLER', amount: 'Aylık Pay', side: 'A' }
+              ] 
+            },
+            { 
+              title: '9. Menkul Kıymet Satış Zararı', 
+              entries: [
+                { account: '102 BANKALAR', amount: 'Satış Bedeli', side: 'B' },
+                { account: '655 MENKUL KIYMET SATIŞ ZARARI', amount: 'Zarar', side: 'B' },
+                { account: '111 ÖZEL KESİM TAHVİL SENET VB', amount: 'Maliyet', side: 'A' }
+              ] 
+            }
+          ].map((item, idx) => (
+            <div key={idx} className="space-y-2">
+              <h4 className="text-xs font-bold text-kilim-blue-dark border-b border-slate-100 pb-1 uppercase tracking-wider">{item.title}</h4>
+              <div className="bg-slate-50 p-3 rounded-xl font-mono text-[10px] space-y-1 border border-slate-100">
+                {item.entries.map((entry, eIdx) => (
+                  <div key={eIdx} className={`flex justify-between ${entry.side === 'A' ? 'pl-4' : ''}`}>
+                    <span className={entry.side === 'A' ? 'text-rose-600' : 'text-emerald-700'}>{entry.account}</span>
+                    <span className="font-bold">{entry.amount}</span>
+                  </div>
+                ))}
+                {item.note && <p className="text-[9px] text-slate-400 mt-1 italic">{item.note}</p>}
+              </div>
+            </div>
+          ))}
         </div>
 
-        <div className="space-y-4">
-          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">2. Reeskont Kaydı (Dönem Sonu)</h4>
-          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
-            <div className="flex justify-between"><span>657 REESKONT FAİZ GİDERLERİ</span><span>5.000</span></div>
-            <div className="flex justify-between pl-4"><span>122 ALACAK SENETLERİ REESKONTU (-)</span><span>5.000</span></div>
-            <p className="text-[9px] text-slate-400 mt-1 italic">* Borç senetleri için 322 (B) / 647 (A) kullanılır.</p>
+        <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+          <div className="flex items-center gap-2 mb-2">
+            <Info className="w-4 h-4 text-amber-600" />
+            <h4 className="text-[10px] font-black text-amber-800 uppercase">Önemli Hatırlatma</h4>
           </div>
-        </div>
-
-        <div className="space-y-4">
-          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">3. Sermaye Artırımı Kaydı</h4>
-          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
-            <div className="flex justify-between"><span>501 ÖDENMEMİŞ SERMAYE (-)</span><span>100.000</span></div>
-            <div className="flex justify-between pl-4"><span>500 SERMAYE</span><span>100.000</span></div>
-            <div className="text-slate-400 my-1">--- Ödeme Yapıldığında ---</div>
-            <div className="flex justify-between"><span>102 BANKALAR</span><span>100.000</span></div>
-            <div className="flex justify-between pl-4"><span>501 ÖDENMEMİŞ SERMAYE (-)</span><span>100.000</span></div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">4. Kur Farkı Karı Kaydı</h4>
-          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
-            <div className="flex justify-between"><span>102 BANKALAR (Dövizli)</span><span>2.500</span></div>
-            <div className="flex justify-between pl-4"><span>646 KAMBİYO KARLARI</span><span>2.500</span></div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">5. Uzun Vadeli Kredinin Kısa Vadeliye Aktarımı</h4>
-          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
-            <div className="flex justify-between"><span>400 BANKA KREDİLERİ</span><span>50.000</span></div>
-            <div className="flex justify-between pl-4"><span>303 U.V. KREDİLERİN ANAPARA TAKSİT VE FAİZLERİ</span><span>50.000</span></div>
-          </div>
-        </div>
-
-        <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
-          <p className="text-[10px] text-amber-800 leading-relaxed">
-            <b>Not:</b> Leasing (Finansal Kiralama) kayıtlarında 301/302 ve 401/402 hesaplar kullanılır. Sigorta gider mahsuplarında 180/280 hesaplardan 700'lü hesaplara aktarım yapılır.
+          <p className="text-[11px] text-amber-900 leading-relaxed">
+            Yevmiye kayıtlarında <b>7/A seçeneği</b> (fonksiyonel esas) kullanılıyorsa giderler 750, 760, 770 veya 780 hesaplarda izlenir. Dönem sonlarında bu hesaplar <b>yansıtma hesapları</b> aracılığıyla 6'lı sonuç hesaplarına aktarılmalıdır.
           </p>
         </div>
       </div>
@@ -248,41 +292,56 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
     content: (
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-            <h4 className="text-xs font-bold text-blue-800 uppercase mb-2">Güncel Bağ-Kur Primi</h4>
-            <p className="text-lg font-bold text-blue-900">11.560,50 TL</p>
-            <p className="text-[10px] text-blue-600">%5 indirimli (borçsuz) tutar.</p>
+          <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+            <h4 className="text-[10px] font-black text-blue-800 uppercase mb-2">Güncel Bağ-Kur Primi</h4>
+            <p className="text-xl font-black text-blue-900">11.560,50 TL</p>
+            <p className="text-[10px] text-blue-600 font-medium">%5 indirimli (borçsuz) tutar.</p>
           </div>
-          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-            <h4 className="text-xs font-bold text-emerald-800 uppercase mb-2">İşsizlik Maaşı Üst Sınırı</h4>
-            <p className="text-lg font-bold text-emerald-900">26.424,00 TL</p>
-            <p className="text-[10px] text-emerald-600">Brüt asgari ücretin %80'i.</p>
+          <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+            <h4 className="text-[10px] font-black text-emerald-800 uppercase mb-2">İşsizlik Maaşı Üst Sınırı</h4>
+            <p className="text-xl font-black text-emerald-900">26.424,00 TL</p>
+            <p className="text-[10px] text-emerald-600 font-medium">Brüt asgari ücretin %80'i.</p>
           </div>
         </div>
 
         <div className="space-y-3">
-          <h4 className="text-sm font-bold text-slate-700">Emeklilik Şartları (Genel):</h4>
+          <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+            <Users className="w-4 h-4 text-kilim-blue" /> Emeklilik Şartları:
+          </h4>
           <div className="space-y-2">
-            <div className="p-3 bg-white border border-slate-100 rounded-xl">
-              <p className="text-xs font-bold text-slate-800">EYT Kapsamı:</p>
-              <p className="text-[11px] text-slate-600">08.09.1999 öncesi girişi olanlar için yaş şartı aranmaz. Prim günü (5000-5975) ve sigortalılık süresi (20-25 yıl) yeterlidir.</p>
+            <div className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+              <p className="text-xs font-bold text-slate-800">EYT Kapsamı (08.09.1999 Öncesi):</p>
+              <p className="text-[11px] text-slate-600 mt-1">Yaş şartı aranmaz. Prim günü (5000-5975) ve sigortalılık süresi (20-25 yıl) yeterlidir.</p>
             </div>
-            <div className="p-3 bg-white border border-slate-100 rounded-xl">
-              <p className="text-xs font-bold text-slate-800">Normal Emeklilik (4A):</p>
-              <p className="text-[11px] text-slate-600">08.09.1999 - 30.04.2008 arası girişliler: Kadın 58, Erkek 60 yaş ve 7000 gün prim.</p>
+            <div className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+              <p className="text-xs font-bold text-slate-800">1999 - 2008 Arası Girişliler:</p>
+              <p className="text-[11px] text-slate-600 mt-1">Kadın 58, Erkek 60 yaş ve 7000 gün prim veya 25 yıl sigortalılık süresi ve 4500 gün.</p>
+            </div>
+            <div className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+              <p className="text-xs font-bold text-slate-800">2008 Sonrası Girişliler:</p>
+              <p className="text-[11px] text-slate-600 mt-1">7200 gün prim ve 65 yaşa kadar kademeli artış (Kadın 58, Erkek 60'tan başlar).</p>
             </div>
           </div>
         </div>
 
-        <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+          <div className="flex items-center gap-2 mb-3">
             <Info className="w-4 h-4 text-amber-600" />
-            <h4 className="text-xs font-bold text-amber-800 uppercase">İşsizlik Maaşı Şartları</h4>
+            <h4 className="text-[10px] font-black text-amber-800 uppercase">İşsizlik Maaşı Şartları</h4>
           </div>
-          <ul className="text-[11px] text-amber-900 space-y-1 list-disc pl-4">
-            <li>Kendi istek ve kusuru dışında işsiz kalmak.</li>
-            <li>Son 120 gün hizmet akdine tabi olmak.</li>
-            <li>Son 3 yıl içinde en az 600 gün prim ödemiş olmak.</li>
+          <ul className="text-[11px] text-amber-900 space-y-2">
+            <li className="flex items-start gap-2">
+              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
+              <span>Kendi istek ve kusuru dışında işsiz kalmak.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
+              <span>Son 120 gün hizmet akdine tabi olmak ve son 3 yılda en az 600 gün prim.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
+              <span>İşten ayrıldıktan sonraki <b>30 gün</b> içinde İŞKUR'a başvurmak.</span>
+            </li>
           </ul>
         </div>
       </div>
@@ -475,172 +534,6 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
         </div>
       </div>
     )
-  },
-  {
-    id: 'yevmiye-kayitlari',
-    title: 'Kritik Yevmiye Kayıt Örnekleri',
-    category: 'Muhasebe',
-    icon: FileText,
-    tags: ['yevmiye', 'kayıt', 'amortisman', 'reeskont', 'sermaye'],
-    content: (
-      <div className="space-y-4">
-        <div className="space-y-4">
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Amortisman Kaydı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              770 GENEL YÖNETİM GİDERLERİ      (B)<br />
-              257 BİRİKMİŞ AMORTİSMANLAR (-)   (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Reeskont Kaydı (Alacak Senetleri)</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              657 REESKONT FAİZ GİDERLERİ      (B)<br />
-              122 ALACAK SENETLERİ REESKONTU   (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Sermaye Taahhüt Kaydı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              501 ÖDENMEMİŞ SERMAYE (-)        (B)<br />
-              500 SERMAYE                      (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Leasing Kaydı (Haklar)</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              260 HAKLAR (Finansal Kiralama)   (B)<br />
-              301 FİN. KİRALAMA İŞL. BORÇLAR   (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Kur Farkı Geliri Kaydı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              102 BANKALAR                     (B)<br />
-              646 KAMBİYO KARLARI              (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Sermaye Ödemesi Kaydı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              500 SERMAYE                      (B)<br />
-              501 ÖDENMEMİŞ SERMAYE (-)        (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Vergi Ödemesi Kaydı (KDV)</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              360 ÖDENECEK VERGİ VE FONLAR     (B)<br />
-              102 BANKALAR                     (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Uzun Vadeli Kredi Kaydı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              102 BANKALAR                     (B)<br />
-              400 B.V. BANKA KREDİLERİ         (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Menkul Kıymet Alım Kaydı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              111 ÖZEL KESİM TAHVİL SENET VB   (B)<br />
-              102 BANKALAR                     (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Sigorta Gider Mahsubu</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              770 GENEL YÖNETİM GİDERLERİ      (B)<br />
-              180 GELECEK AYLARA AİT GİDERLER  (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Olağandışı Kar Kaydı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              102 BANKALAR                     (B)<br />
-              679 DİĞER OLAĞANDIŞI GELİR VE KAR(A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Sermaye Artırımı Kaydı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              501 ÖDENMEMİŞ SERMAYE            (B)<br />
-              500 SERMAYE                      (A)
-            </pre>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Menkul Kıymet Satış Zararı</h4>
-            <pre className="text-[10px] font-mono bg-slate-900 text-emerald-400 p-2 rounded-lg">
-              102 BANKALAR                     (B)<br />
-              655 MENKUL KIYMET SATIŞ ZARARI   (B)<br />
-              111 ÖZEL KESİM TAHVİL SENET VB   (A)
-            </pre>
-          </div>
-        </div>
-      </div>
-    )
-  },
-  {
-    id: 'sosyal-guvenlik-2026',
-    title: 'Sosyal Güvenlik & Emeklilik (2026)',
-    category: 'SGK',
-    icon: ShieldCheck,
-    tags: ['emeklilik', 'bağkur', 'işsizlik', 'prim'],
-    content: (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-            <h4 className="text-xs font-bold text-emerald-700 uppercase mb-2">Bağ-Kur Primleri (2026)</h4>
-            <p className="text-sm font-bold text-emerald-900">11.560,50 TL / Ay</p>
-            <p className="text-[10px] text-emerald-600">Düzenli ödeme indirimi (%5) dahil.</p>
-          </div>
-          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-            <h4 className="text-xs font-bold text-blue-700 uppercase mb-2">İşsizlik Ödeneği Üst Sınırı</h4>
-            <p className="text-sm font-bold text-blue-900">16.000,00 TL</p>
-            <p className="text-[10px] text-blue-600">Brüt asgari ücretin %80'ini geçemez.</p>
-          </div>
-        </div>
-        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-          <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Emeklilik Şartları (Genel):</h4>
-          <ul className="space-y-2 text-xs text-slate-700">
-            <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-kilim-blue rounded-full" />
-              <span>8 Eylül 1999 öncesi girişliler için <b>EYT</b> kapsamında yaş şartı aranmaz.</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-kilim-blue rounded-full" />
-              <span>1999-2008 arası girişliler: Kadın 58, Erkek 60 yaş ve 7000 gün.</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-kilim-blue rounded-full" />
-              <span>2008 sonrası girişliler: 7200 gün ve 65 yaşa kadar kademeli artış.</span>
-            </li>
-          </ul>
-        </div>
-        <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-          <h4 className="text-xs font-bold text-amber-700 uppercase mb-3">İşsizlik Maaşı Şartları:</h4>
-          <ul className="space-y-2 text-xs text-amber-900">
-            <li className="flex items-start gap-2">
-              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1" />
-              <span>Kendi istek ve kusuru dışında işsiz kalmak.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1" />
-              <span>Hizmet akdinin sona ermesinden önceki son 120 gün hizmet akdine tabi olmak.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1" />
-              <span>Son 3 yıl içinde en az 600 gün işsizlik sigortası primi ödemiş olmak.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full mt-1" />
-              <span>İşten ayrıldıktan sonraki 30 gün içinde İŞKUR'a başvurmak.</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-    )
   }
 ];
 
@@ -715,7 +608,7 @@ export const HapNotlarModule: React.FC = () => {
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <AnimatePresence mode="popLayout">
           {filteredData.map((item) => (
             <motion.div
