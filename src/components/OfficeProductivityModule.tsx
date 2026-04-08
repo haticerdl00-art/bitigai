@@ -387,8 +387,16 @@ function Panel({ profile, companies = [] }: { profile?: CompanyProfile, companie
                   <div style={{ color: t.completed ? C.yesil : C.ucuncu }}>
                     {t.completed ? <CheckCircle2 size={16} /> : <Clock size={16} />}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: C.metin, textDecoration: t.completed ? "line-through" : "none" }}>{t.text}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ 
+                      fontSize: 13, 
+                      fontWeight: 600, 
+                      color: C.metin, 
+                      textDecoration: t.completed ? "line-through" : "none",
+                      wordBreak: "break-word"
+                    }}>
+                      {t.text}
+                    </div>
                     {t.date && <div style={{ fontSize: 10, color: C.ucuncu }}>📅 {t.date}</div>}
                   </div>
                 </div>
@@ -415,10 +423,13 @@ function Panel({ profile, companies = [] }: { profile?: CompanyProfile, companie
               borderRadius: 12, 
               border: "1px solid #FFEBB3",
               minHeight: "120px",
+              maxHeight: "300px",
+              overflowY: "auto",
               fontSize: 13,
               color: "#856404",
               lineHeight: 1.6,
-              whiteSpace: "pre-wrap"
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word"
             }}>
               {generalNotes || "Danışman üzerinden eklediğiniz genel notlar burada görünecektir."}
             </div>

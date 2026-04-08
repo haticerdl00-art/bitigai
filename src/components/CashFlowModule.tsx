@@ -198,280 +198,6 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
     }
   };
 
-  const renderProjection = () => (
-    <div className="space-y-8">
-      {!mizanUploaded ? (
-        <div className="glass-card p-12 text-center border-2 border-dashed border-kilim-blue-light/30 bg-white shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4">
-            <div className="flex items-center gap-2 px-3 py-1 bg-kilim-blue-light/10 text-kilim-blue rounded-full text-[10px] font-bold border border-kilim-blue-light/20">
-              <RefreshCw className="w-3 h-3 animate-spin" />
-              AI PROFIL AKTİF: {profile.title}
-            </div>
-          </div>
-          
-          <div className="max-w-xl mx-auto space-y-6">
-            <div className="w-20 h-20 bg-kilim-blue-light/10 rounded-3xl flex items-center justify-center mx-auto rotate-3 shadow-inner">
-              <FileText className="w-10 h-10 text-kilim-blue" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-slate-800">Mizan Verisini Yükleyin</h2>
-              <p className="text-slate-500">
-                Yapay zeka, <span className="font-bold text-slate-700">{profile.title}</span> firmasına ait 
-                <span className="font-bold text-slate-700"> {profile.hrProfile.totalWorkers} çalışan</span> ve 
-                <span className="font-bold text-slate-700"> {profile.ledgerType}</span> bilgilerini mizanla birleştirerek 6 aylık yol haritası çıkaracaktır.
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4 py-4">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Defter Türü</p>
-                <p className="text-xs font-bold text-slate-700">{profile.ledgerType}</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Personel</p>
-                <p className="text-xs font-bold text-slate-700">{profile.hrProfile.totalWorkers} Kişi</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Vergi Statüsü</p>
-                <p className="text-xs font-bold text-slate-700">{profile.legalStatus}</p>
-              </div>
-            </div>
-
-            <label className="w-full py-4 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50">
-              {isMizanAnalyzing ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  Belgeler Analiz Ediliyor (Data Fusion)...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-5 h-5" />
-                  Belge Yükle
-                </>
-              )}
-              <input 
-                type="file" 
-                className="hidden" 
-                onChange={handleMizanUpload} 
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png"
-                disabled={isMizanAnalyzing}
-              />
-            </label>
-            <p className="text-[10px] text-slate-400">Desteklenen formatlar: .pdf, .doc, .xls, .xlsx, .csv, .jpg (Mizan, Beyanname ve Faturalar)</p>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: 'Mevcut Nakit (100+102)', value: currentLiquidity.toLocaleString('tr-TR') + ' ₺', icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              { label: 'Beklenen Tahsilat (120)', value: receivablesTotal.toLocaleString('tr-TR') + ' ₺', icon: ArrowUpRight, color: 'text-blue-600', bg: 'bg-blue-50' },
-              { label: 'Ödenecek Borçlar (320)', value: payablesTotal.toLocaleString('tr-TR') + ' ₺', icon: ArrowDownRight, color: 'text-rose-600', bg: 'bg-rose-50' },
-              { label: 'Net Nakit Pozisyonu', value: (currentLiquidity + receivablesTotal - payablesTotal).toLocaleString('tr-TR') + ' ₺', icon: TrendingUp, color: 'text-amber-600', bg: 'bg-amber-50' },
-            ].map((stat, i) => (
-              <motion.div 
-                key={i} 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className={`p-6 rounded-2xl ${stat.bg} border border-white shadow-sm`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium text-slate-600">{stat.label}</p>
-                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                </div>
-                <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Bar Chart: Inflow vs Outflow */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-kilim-blue-dark flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-kilim-blue" />
-                  Nakit Giriş vs Çıkış Projeksiyonu
-                </h3>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div> Giriş</span>
-                  <span className="flex items-center gap-1"><div className="w-3 h-3 bg-rose-500 rounded-sm"></div> Çıkış</span>
-                </div>
-              </div>
-              <div className="h-80 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dynamicProjectionData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `${value / 1000}k`} />
-                    <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: number) => [value.toLocaleString('tr-TR') + ' ₺']}
-                    />
-                    <Bar dataKey="inflow" fill="#1B4F8A" radius={[4, 4, 0, 0]} barSize={32} />
-                    <Bar dataKey="outflow" fill="#2E6DB4" radius={[4, 4, 0, 0]} barSize={32} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Line Chart: Cumulative Cash Balance */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-kilim-blue-dark flex items-center gap-2">
-                  <LineChartIcon className="w-5 h-5 text-kilim-blue" />
-                  Kümülatif Nakit Dengesi (Trend)
-                </h3>
-                <span className="text-xs text-slate-500 italic">Banka + Kasa + Beklenen Net Akış</span>
-              </div>
-              <div className="h-80 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={dynamicCumulativeData}>
-                    <defs>
-                      <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `${value / 1000}k`} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: number) => [value.toLocaleString('tr-TR') + ' ₺', 'Kümülatif Bakiye']}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="total" 
-                      stroke="#1B4F8A" 
-                      strokeWidth={3} 
-                      fillOpacity={1} 
-                      fill="url(#colorTotal)" 
-                      dot={{ r: 4, fill: '#1B4F8A', strokeWidth: 2, stroke: '#fff' }}
-                      activeDot={{ r: 6, strokeWidth: 0 }}
-                    />
-                    <Line type="monotone" dataKey={() => 0} stroke="#cbd5e1" strokeDasharray="5 5" dot={false} activeDot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          {/* AI Analysis & Table Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Cash Flow Table */}
-            <div className="lg:col-span-2 glass-card overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-bold text-slate-800">📅 3 Aylık Detaylı Nakit Akış Tablosu</h3>
-                <button className="text-xs text-emerald-600 font-semibold hover:underline">Tümünü Gör</button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-kilim-blue-pale text-kilim-blue-dark font-bold">
-                    <tr>
-                      <th className="px-6 py-4">Kalem</th>
-                      <th className="px-6 py-4">Mart 2026</th>
-                      <th className="px-6 py-4">Nisan 2026</th>
-                      <th className="px-6 py-4">Mayıs 2026</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    <tr className="bg-kilim-blue-pale/50">
-                      <td className="px-6 py-4 font-semibold text-kilim-blue-dark">NAKİT GİRİŞLERİ</td>
-                      <td className="px-6 py-4 font-bold">130.000 ₺</td>
-                      <td className="px-6 py-4 font-bold">245.000 ₺</td>
-                      <td className="px-6 py-4 font-bold">380.000 ₺</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 pl-10 text-slate-600">Ticari Tahsilatlar (120)</td>
-                      <td className="px-6 py-4">130.000 ₺</td>
-                      <td className="px-6 py-4">245.000 ₺</td>
-                      <td className="px-6 py-4">380.000 ₺</td>
-                    </tr>
-                    <tr className="bg-kilim-blue-pale/30">
-                      <td className="px-6 py-4 font-semibold text-kilim-blue-dark">NAKİT ÇIKIŞLARI</td>
-                      <td className="px-6 py-4 font-bold">329.500 ₺</td>
-                      <td className="px-6 py-4 font-bold">260.000 ₺</td>
-                      <td className="px-6 py-4 font-bold">450.000 ₺</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 pl-10 text-slate-600">Personel (Maaş+SGK+MHT)</td>
-                      <td className="px-6 py-4">260.000 ₺</td>
-                      <td className="px-6 py-4">260.000 ₺</td>
-                      <td className="px-6 py-4">260.000 ₺</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 pl-10 text-slate-600">Tedarikçi Ödemeleri (320)</td>
-                      <td className="px-6 py-4">12.000 ₺</td>
-                      <td className="px-6 py-4">0 ₺</td>
-                      <td className="px-6 py-4">115.000 ₺</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 pl-10 text-slate-600">Vergi Ödemeleri (KDV+Geçici)</td>
-                      <td className="px-6 py-4">57.500 ₺</td>
-                      <td className="px-6 py-4">0 ₺</td>
-                      <td className="px-6 py-4">75.000 ₺</td>
-                    </tr>
-                    <tr className="bg-slate-50 font-bold">
-                      <td className="px-6 py-4">NET DÖNEM BAKİYESİ</td>
-                      <td className="px-6 py-4 text-rose-600">-199.500 ₺</td>
-                      <td className="px-6 py-4 text-rose-600">-15.000 ₺</td>
-                      <td className="px-6 py-4 text-rose-600">-70.000 ₺</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* AI Analysis "Hap Analiz" */}
-            <div className="space-y-6">
-              <div className="glass-card p-6 border-l-4 border-amber-500">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
-                  <AlertTriangle className="w-5 h-5 text-amber-500" />
-                  ⚠️ Riskli Dönemler & Uyarılar
-                </h3>
-                <div className="space-y-4">
-                  <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
-                    <p className="text-sm font-bold text-rose-800 mb-1">Kritik Nakit Darboğazı: Mart - Mayıs</p>
-                    <p className="text-xs text-rose-700 leading-relaxed">
-                      {profile.hrProfile.totalWorkers} çalışanınızın maaş yükü ve {profile.legalStatus === 'AŞ' || profile.legalStatus === 'LTD' ? 'Geçici Vergi' : 'Gelir Vergisi'} ödemeleri nedeniyle Mart ayında nakit dengesi [-199.500 ₺] bakiye verebilir.
-                    </p>
-                  </div>
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-                    <p className="text-sm font-bold text-amber-800 mb-1">Mayıs Ayı Sınırda!</p>
-                    <p className="text-xs text-amber-700 leading-relaxed">
-                      Dikkat! {profile.ledgerType === 'E-Defter (Bilanço)' ? '770/760 hesaplarınızın ortalamasına göre' : 'Genel gider trendinize göre'} Mayıs ayında borç ödemeleri yoğunlaşıyor. Net Durum: +15.000 TL - Sınırda!
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="glass-card p-6 border-l-4 border-kilim-blue">
-                <h3 className="font-bold text-kilim-blue-dark flex items-center gap-2 mb-4">
-                  <TrendingUp className="w-5 h-5 text-kilim-blue" />
-                  💡 Stratejik Öneriler
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Nakit akışını dengelemek için 120 hesabındaki yüksek tutarlı alacakların tahsilatını 10 gün öne çekmeniz önerilir. {profile.hrProfile.femaleWorkers > 0 ? 'Kadın istihdamı teşviklerinden (6111) yararlanarak SGK yükünüzü %15 azaltabilirsiniz.' : ''}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-
   const renderKdvRefundAnalysis = () => (
     <VergiTakipModulu profile={profile} />
   );
@@ -497,7 +223,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
               }`}
               title="Belge Yükleme Panelini Aç/Kapat"
             >
-              <span className="text-lg">K</span>
+              <ChevronRight className={`w-4 h-4 transition-transform ${showUpload ? 'rotate-90' : ''}`} />
               {showUpload ? 'Kapat' : 'Belge Yükle'}
             </button>
           </div>
@@ -601,29 +327,29 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
             id="analysis-report-container"
           >
             {/* Infographic Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="glass-card p-6 bg-white border border-slate-100 shadow-sm">
-                <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Likidite Oranları</h5>
-                <div className="h-48">
+                <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Likidite Oranları</h5>
+                <div className="h-40">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={maliTabloChartData?.liquidity || [
-                      { name: 'Cari Oran', value: 1.8, target: 2.0 },
-                      { name: 'Asit Test', value: 1.2, target: 1.0 },
-                      { name: 'Nakit Oran', value: 0.4, target: 0.2 }
+                      { name: 'Cari', value: 1.8 },
+                      { name: 'Asit', value: 1.2 },
+                      { name: 'Nakit', value: 0.4 }
                     ]}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" fontSize={10} />
-                      <YAxis fontSize={10} />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#1e40af" radius={[4, 4, 0, 0]} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" fontSize={9} axisLine={false} tickLine={false} />
+                      <YAxis fontSize={9} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '10px' }} />
+                      <Bar dataKey="value" fill="#1B4F8A" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
               <div className="glass-card p-6 bg-white border border-slate-100 shadow-sm">
-                <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Gider Dağılımı</h5>
-                <div className="h-48">
+                <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Gider Dağılımı</h5>
+                <div className="h-40">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -631,28 +357,28 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                           { name: 'Pazarlama', value: 400 },
                           { name: 'Yönetim', value: 300 },
                           { name: 'Finansman', value: 200 },
-                          { name: 'Ar-Ge', value: 100 }
+                          { name: 'Diğer', value: 100 }
                         ]}
                         cx="50%"
                         cy="50%"
-                        innerRadius={40}
-                        outerRadius={60}
+                        innerRadius={30}
+                        outerRadius={50}
                         paddingAngle={5}
                         dataKey="value"
                       >
-                        {['#1e40af', '#10b981', '#f59e0b', '#ef4444'].map((color, index) => (
+                        {['#1B4F8A', '#2E6DB4', '#8B1A1A', '#C9A227'].map((color, index) => (
                           <Cell key={`cell-${index}`} fill={color} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '10px' }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
               <div className="glass-card p-6 bg-white border border-slate-100 shadow-sm">
-                <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Karlılık Trendi</h5>
-                <div className="h-48">
+                <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Karlılık Trendi</h5>
+                <div className="h-40">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={maliTabloChartData?.profitability || [
                       { month: 'Oca', kar: 100 },
@@ -661,12 +387,31 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                       { month: 'Nis', kar: 150 },
                       { month: 'May', kar: 180 }
                     ]}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="month" fontSize={10} />
-                      <YAxis fontSize={10} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="kar" stroke="#1e40af" strokeWidth={2} dot={{ r: 4 }} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="month" fontSize={9} axisLine={false} tickLine={false} />
+                      <YAxis fontSize={9} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '10px' }} />
+                      <Line type="monotone" dataKey="kar" stroke="#1B4F8A" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="glass-card p-6 bg-white border border-slate-100 shadow-sm">
+                <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Borç Yapısı</h5>
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={maliTabloChartData?.debtStructure || [
+                      { name: 'Kısa V.', value: 65 },
+                      { name: 'Uzun V.', value: 25 },
+                      { name: 'Özkaynak', value: 10 }
+                    ]} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" fontSize={9} axisLine={false} tickLine={false} width={50} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '10px' }} />
+                      <Bar dataKey="value" fill="#8B1A1A" radius={[0, 4, 4, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>

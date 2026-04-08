@@ -180,6 +180,115 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
     )
   },
   {
+    id: 'yevmiye-kayitlari',
+    title: 'Sık Unutulan Yevmiye Kayıt Örnekleri',
+    category: 'Muhasebe',
+    icon: FileText,
+    tags: ['yevmiye', 'muhasebe kaydı', 'amortisman', 'reeskont', 'sermaye'],
+    content: (
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">1. Amortisman Kaydı</h4>
+          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
+            <div className="flex justify-between"><span>770 GENEL YÖNETİM GİDERLERİ</span><span>10.000</span></div>
+            <div className="flex justify-between pl-4"><span>257 BİRİKMİŞ AMORTİSMANLAR (-)</span><span>10.000</span></div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">2. Reeskont Kaydı (Dönem Sonu)</h4>
+          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
+            <div className="flex justify-between"><span>657 REESKONT FAİZ GİDERLERİ</span><span>5.000</span></div>
+            <div className="flex justify-between pl-4"><span>122 ALACAK SENETLERİ REESKONTU (-)</span><span>5.000</span></div>
+            <p className="text-[9px] text-slate-400 mt-1 italic">* Borç senetleri için 322 (B) / 647 (A) kullanılır.</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">3. Sermaye Artırımı Kaydı</h4>
+          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
+            <div className="flex justify-between"><span>501 ÖDENMEMİŞ SERMAYE (-)</span><span>100.000</span></div>
+            <div className="flex justify-between pl-4"><span>500 SERMAYE</span><span>100.000</span></div>
+            <div className="text-slate-400 my-1">--- Ödeme Yapıldığında ---</div>
+            <div className="flex justify-between"><span>102 BANKALAR</span><span>100.000</span></div>
+            <div className="flex justify-between pl-4"><span>501 ÖDENMEMİŞ SERMAYE (-)</span><span>100.000</span></div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">4. Kur Farkı Karı Kaydı</h4>
+          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
+            <div className="flex justify-between"><span>102 BANKALAR (Dövizli)</span><span>2.500</span></div>
+            <div className="flex justify-between pl-4"><span>646 KAMBİYO KARLARI</span><span>2.500</span></div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="text-sm font-bold text-kilim-blue-dark border-b pb-1">5. Uzun Vadeli Kredinin Kısa Vadeliye Aktarımı</h4>
+          <div className="bg-slate-50 p-3 rounded-lg font-mono text-[11px] space-y-1">
+            <div className="flex justify-between"><span>400 BANKA KREDİLERİ</span><span>50.000</span></div>
+            <div className="flex justify-between pl-4"><span>303 U.V. KREDİLERİN ANAPARA TAKSİT VE FAİZLERİ</span><span>50.000</span></div>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
+          <p className="text-[10px] text-amber-800 leading-relaxed">
+            <b>Not:</b> Leasing (Finansal Kiralama) kayıtlarında 301/302 ve 401/402 hesaplar kullanılır. Sigorta gider mahsuplarında 180/280 hesaplardan 700'lü hesaplara aktarım yapılır.
+          </p>
+        </div>
+      </div>
+    )
+  },
+  {
+    id: 'sosyal-guvenlik-2026',
+    title: 'Sosyal Güvenlik & Emeklilik (2026)',
+    category: 'SGK',
+    icon: ShieldCheck,
+    tags: ['bağ-kur', 'emeklilik', 'eyt', 'işsizlik maaşı'],
+    content: (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+            <h4 className="text-xs font-bold text-blue-800 uppercase mb-2">Güncel Bağ-Kur Primi</h4>
+            <p className="text-lg font-bold text-blue-900">11.560,50 TL</p>
+            <p className="text-[10px] text-blue-600">%5 indirimli (borçsuz) tutar.</p>
+          </div>
+          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+            <h4 className="text-xs font-bold text-emerald-800 uppercase mb-2">İşsizlik Maaşı Üst Sınırı</h4>
+            <p className="text-lg font-bold text-emerald-900">26.424,00 TL</p>
+            <p className="text-[10px] text-emerald-600">Brüt asgari ücretin %80'i.</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h4 className="text-sm font-bold text-slate-700">Emeklilik Şartları (Genel):</h4>
+          <div className="space-y-2">
+            <div className="p-3 bg-white border border-slate-100 rounded-xl">
+              <p className="text-xs font-bold text-slate-800">EYT Kapsamı:</p>
+              <p className="text-[11px] text-slate-600">08.09.1999 öncesi girişi olanlar için yaş şartı aranmaz. Prim günü (5000-5975) ve sigortalılık süresi (20-25 yıl) yeterlidir.</p>
+            </div>
+            <div className="p-3 bg-white border border-slate-100 rounded-xl">
+              <p className="text-xs font-bold text-slate-800">Normal Emeklilik (4A):</p>
+              <p className="text-[11px] text-slate-600">08.09.1999 - 30.04.2008 arası girişliler: Kadın 58, Erkek 60 yaş ve 7000 gün prim.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+          <div className="flex items-center gap-2 mb-2">
+            <Info className="w-4 h-4 text-amber-600" />
+            <h4 className="text-xs font-bold text-amber-800 uppercase">İşsizlik Maaşı Şartları</h4>
+          </div>
+          <ul className="text-[11px] text-amber-900 space-y-1 list-disc pl-4">
+            <li>Kendi istek ve kusuru dışında işsiz kalmak.</li>
+            <li>Son 120 gün hizmet akdine tabi olmak.</li>
+            <li>Son 3 yıl içinde en az 600 gün prim ödemiş olmak.</li>
+          </ul>
+        </div>
+      </div>
+    )
+  },
+  {
     id: 'asgari-ucret-2026',
     title: 'Asgari Ücret Parametreleri (2026)',
     category: 'SGK',
