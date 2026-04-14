@@ -20,7 +20,7 @@ async function startServer() {
   // Log all requests to debug API issues
   app.use((req, res, next) => {
     if (req.url.startsWith('/api')) {
-      console.log(`${req.method} ${req.url}`);
+      console.log(`[API REQUEST] ${req.method} ${req.url} - ${new Date().toISOString()}`);
     }
     next();
   });
@@ -31,15 +31,6 @@ async function startServer() {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
-
-  // Bildirim Sayacı Endpoint
-  const notificationHandler = (req: express.Request, res: express.Response) => {
-    console.log('Serving notification count...');
-    res.json({ count: 5 });
-  };
-
-  app.get('/api/notifications/count', notificationHandler);
-  app.get('/api/notifications/count/', notificationHandler);
 
   // Market Data Endpoint (TCMB & Gold)
   const marketHandler = async (req: express.Request, res: express.Response) => {
@@ -267,6 +258,15 @@ async function startServer() {
 
   app.get('/api/market/pulse', marketHandler);
   app.get('/api/market/pulse/', marketHandler);
+
+  // Bildirim Sayacı Endpoint
+  const notificationHandler = (req: express.Request, res: express.Response) => {
+    console.log('Serving notification count...');
+    res.json({ count: 5 });
+  };
+
+  app.get('/api/notifications/count', notificationHandler);
+  app.get('/api/notifications/count/', notificationHandler);
 
   // OCR Endpoint
   app.post('/api/ocr/process', (req, res) => {

@@ -63,8 +63,8 @@ export const MarketPulse = () => {
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
-        console.error('Invalid response format:', text.substring(0, 100));
-        throw new Error('Sunucudan geçersiz yanıt alındı. Lütfen tekrar deneyin.');
+        console.error('Invalid response format. Status:', response.status, 'Content-Type:', contentType, 'Body preview:', text.substring(0, 200));
+        throw new Error(`Sunucudan geçersiz yanıt alındı (Durum: ${response.status}). Lütfen tekrar deneyin.`);
       }
 
       const data = await response.json();
