@@ -33,8 +33,9 @@ async function startServer() {
   });
 
   // Market Data Endpoint (TCMB & Gold)
-  const marketHandler = async (req: express.Request, res: express.Response) => {
-    console.log('Market pulse request received');
+  async function marketHandler(req: express.Request, res: express.Response) {
+    console.log(`[MARKET API] Request received at ${new Date().toISOString()}`);
+    
     const fallbackData = {
       currencies: [
         { label: 'Dolar', value: '32.15', change: 0.12, unit: 'TL' },
@@ -57,207 +58,13 @@ async function startServer() {
       ]
     };
 
-    try {
-      // Check if fetch is available
-      if (typeof fetch === 'undefined') {
-        console.warn('Fetch is not defined in this environment, using fallback data');
-        return res.json(fallbackData);
-      }
+    // For now, return fallback data immediately to test connectivity
+    // We can re-enable external fetching once we confirm the route works
+    return res.json(fallbackData);
+  }
 
-      const fetchWithTimeout = async (url: string, options: any = {}, timeout = 10000) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        try {
-          const response = await fetch(url, { 
-            ...options, 
-            signal: controller.signal,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Accept': 'application/json, text/plain, */*',
-              'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache',
-              ...options.headers
-            }
-          });
-          return response;
-        } catch (e) {
-          if (e instanceof Error && e.name !== 'AbortError') {
-            console.error(`Fetch error for ${url}:`, e.message);
-          }
-          throw e;
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      };
-
-      // Fetch in parallel
-      console.log('Fetching external market data...');
-      const results = await Promise.allSettled([
-        fetchWithTimeout('https://www.tcmb.gov.tr/kurlar/today.xml', { 
-          headers: { 'Accept': 'application/xml' } 
-        }),
-        fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json', {
-          headers: {
-            'Referer': 'https://www.genelpara.com/',
-            'Origin': 'https://www.genelpara.com'
-          }
-        }),
-        // Third fallback for currencies only
-        fetchWithTimeout('https://open.er-api.com/v6/latest/TRY')
-      ]);
-
-      const tcmbRes = results[0];
-      const gpRes = results[1];
-      const erRes = results[2];
-
-      let currencies = [...fallbackData.currencies];
-      let gold = [...fallbackData.gold];
-      let bist = { ...fallbackData.bist };
-
-      // Process TCMB
-      if (tcmbRes.status === 'fulfilled' && tcmbRes.value.ok) {
-        try {
-          const xml = await tcmbRes.value.text();
-          const result = await parseStringPromise(xml);
-          const currencyList = result?.Tarih_Date?.Currency;
-          if (Array.isArray(currencyList)) {
-            const usd = currencyList.find((c: any) => c?.$?.CurrencyCode === 'USD');
-            const eur = currencyList.find((c: any) => c?.$?.CurrencyCode === 'EUR');
-            if (usd && eur) {
-              currencies = [
-                { 
-                  label: 'Dolar', 
-                  value: usd.BanknoteSelling?.[0] || usd.ForexSelling?.[0] || '32.15', 
-                  change: 0.05, 
-                  unit: 'TL' 
-                },
-                { 
-                  label: 'Euro', 
-                  value: eur.BanknoteSelling?.[0] || eur.ForexSelling?.[0] || '34.85', 
-                  change: -0.02, 
-                  unit: 'TL' 
-                }
-              ];
-              console.log('TCMB data processed successfully');
-            }
-          }
-        } catch (err) {
-          console.error('TCMB Parse Error:', err);
-        }
-      } else {
-        console.warn('TCMB fetch failed or not ok:', tcmbRes.status === 'fulfilled' ? tcmbRes.value.status : tcmbRes.reason);
-      }
-
-      // Process ER API (Currency Fallback)
-      if (currencies[0].value === fallbackData.currencies[0].value && erRes.status === 'fulfilled' && erRes.value.ok) {
-        try {
-          const erData = await erRes.value.json();
-          if (erData && erData.rates) {
-            const tryToUsd = erData.rates.USD;
-            const tryToEur = erData.rates.EUR;
-            if (tryToUsd && tryToEur) {
-              currencies = [
-                { label: 'Dolar', value: (1 / tryToUsd).toFixed(4), change: 0.01, unit: 'TL' },
-                { label: 'Euro', value: (1 / tryToEur).toFixed(4), change: -0.01, unit: 'TL' }
-              ];
-              console.log('ExchangeRate-API data processed successfully');
-            }
-          }
-        } catch (err) {
-          console.error('ER API Parse Error:', err);
-        }
-      }
-
-      // Process GenelPara
-      let gpSuccess = false;
-      if (gpRes.status === 'fulfilled' && gpRes.value.ok) {
-        try {
-          const gpData = await gpRes.value.json();
-          if (gpData) {
-            const parseVal = (key: string, fallback: string) => {
-              const item = gpData[key];
-              if (!item) return fallback;
-              const val = (item.satis || item.fiyat || '0').toString().replace(',', '.');
-              return val && val !== '0' ? val : fallback;
-            };
-            const parseChange = (key: string) => {
-              const item = gpData[key];
-              if (!item) return 0;
-              return parseFloat((item.degisim || item.yuzde || '0').toString().replace(',', '.'));
-            };
-            
-            gold = [
-              { label: 'Gram Altın', value: parseVal('GA', fallbackData.gold[0].value), change: parseChange('GA'), unit: 'TL' },
-              { label: 'Çeyrek Altın', value: parseVal('C', fallbackData.gold[1].value), change: parseChange('C'), unit: 'TL' }
-            ];
-            bist = {
-              value: parseVal('BIST100', fallbackData.bist.value),
-              change: parseChange('BIST100')
-            };
-            gpSuccess = true;
-            console.log('GenelPara data processed successfully');
-          }
-        } catch (err) {
-          console.error('GenelPara Parse Error:', err);
-        }
-      }
-
-      // If GenelPara fails, try Truncgil as a backup
-      if (!gpSuccess) {
-        const errorStatus = gpRes.status === 'fulfilled' ? gpRes.value.status : 'Fetch failed';
-        if (errorStatus === 403) {
-          console.warn(`GenelPara (Primary) access restricted (403). Using Truncgil (Backup) for market data.`);
-        } else {
-          console.warn(`GenelPara fetch failed or not ok: ${errorStatus}. Attempting backup...`);
-        }
-        
-        try {
-          const backupRes = await fetchWithTimeout('https://finans.truncgil.com/today.json');
-          if (backupRes.ok) {
-            const backupData = await backupRes.json();
-            if (backupData) {
-              const parseT = (key: string, fallback: string) => {
-                const item = backupData[key] || backupData[key.toUpperCase()] || backupData[key.toLowerCase()];
-                if (!item) return fallback;
-                const val = (item.Selling || item.satis || item.fiyat || '0').toString().replace(',', '.');
-                return val && val !== '0' ? val : fallback;
-              };
-              const parseC = (key: string) => {
-                const item = backupData[key] || backupData[key.toUpperCase()] || backupData[key.toLowerCase()];
-                if (!item) return 0;
-                const val = (item.Change || item.degisim || item.yuzde || '0').toString().replace('%', '').replace(',', '.');
-                return parseFloat(val || '0');
-              };
-              
-              gold = [
-                { label: 'Gram Altın', value: parseT('gram-altin', fallbackData.gold[0].value), change: parseC('gram-altin'), unit: 'TL' },
-                { label: 'Çeyrek Altın', value: parseT('ceyrek-altin', fallbackData.gold[1].value), change: parseC('ceyrek-altin'), unit: 'TL' }
-              ];
-              bist = {
-                value: parseT('XU100', fallbackData.bist.value),
-                change: parseC('XU100')
-              };
-              console.log('Backup data from Truncgil processed successfully');
-            }
-          }
- else {
-            console.warn(`Backup fetch failed with status: ${backupRes.status}`);
-          }
-        } catch (backupErr) {
-          console.error('Backup fetch failed:', backupErr instanceof Error ? backupErr.message : backupErr);
-        }
-      }
-
-      res.json({ currencies, gold, bist, stocks: fallbackData.stocks });
-    } catch (error) {
-      console.error('Market data general error:', error);
-      res.json(fallbackData);
-    }
-  };
-
+  app.get('/api/market-data', marketHandler);
   app.get('/api/market/pulse', marketHandler);
-  app.get('/api/market/pulse/', marketHandler);
 
   // Bildirim Sayacı Endpoint
   const notificationHandler = (req: express.Request, res: express.Response) => {

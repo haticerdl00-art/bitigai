@@ -44,12 +44,12 @@ export const MarketPulse = () => {
       setStocks([]);
     }
 
-    console.log('Fetching market data from /api/market/pulse...');
+    console.log('Fetching market data from /api/market-data...');
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout to allow server-side fallbacks
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-      const response = await fetch('/api/market/pulse', { 
+      const response = await fetch('/api/market-data', { 
         signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache',
@@ -63,8 +63,15 @@ export const MarketPulse = () => {
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
-        console.error('Invalid response format. Status:', response.status, 'Content-Type:', contentType, 'Body preview:', text.substring(0, 200));
-        throw new Error(`Sunucudan geçersiz yanıt alındı (Durum: ${response.status}). Lütfen tekrar deneyin.`);
+        const bodyPreview = text.substring(0, 100).replace(/[\n\r]/g, ' ');
+        console.error(`Invalid response format. Status: ${response.status}, Content-Type: ${contentType}, Body: ${bodyPreview}`);
+        
+        // If it looks like HTML, it's probably the SPA fallback
+        if (text.toLowerCase().includes('<!doctype html>') || text.toLowerCase().includes('<html')) {
+          throw new Error(`Sunucu hatası: API rotası bulunamadı (404/SPA Fallback).`);
+        }
+        
+        throw new Error(`Sunucudan geçersiz yanıt alındı (Durum: ${response.status}).`);
       }
 
       const data = await response.json();
@@ -140,7 +147,12 @@ export const MarketPulse = () => {
         </div>
         <div className="text-center">
           <p className="text-sm font-black text-kilim-blue-dark uppercase tracking-tighter mb-1">Piyasa Nabzı</p>
-          <p className="text-xs font-bold text-kilim-red uppercase tracking-widest">{error}</p>
+          {error && (
+            <div className="mt-1">
+              <p className="text-[10px] font-bold text-kilim-red uppercase tracking-widest leading-tight">{error}</p>
+              <p className="text-[8px] text-gray-400 mt-0.5">Endpoint: /api/market-data</p>
+            </div>
+          )}
         </div>
         <button 
           onClick={handleRefresh}
