@@ -73,7 +73,7 @@ async function startServer() {
         return res.json(fallbackData);
       }
 
-      const fetchWithTimeout = async (url: string, options: any = {}, timeout = 5000) => {
+      const fetchWithTimeout = async (url: string, options: any = {}, timeout = 10000) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         try {
@@ -81,8 +81,8 @@ async function startServer() {
             ...options, 
             signal: controller.signal,
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Accept': '*/*',
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
               'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
               'Cache-Control': 'no-cache',
               'Pragma': 'no-cache',
@@ -108,21 +108,17 @@ async function startServer() {
         }),
         fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json', {
           headers: {
-            'Accept': 'application/json, text/plain, */*',
             'Referer': 'https://www.genelpara.com/',
-            'Origin': 'https://www.genelpara.com',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-site',
-            'Sec-Ch-Ua': '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"'
+            'Origin': 'https://www.genelpara.com'
           }
-        })
+        }),
+        // Third fallback for currencies only
+        fetchWithTimeout('https://open.er-api.com/v6/latest/TRY')
       ]);
 
       const tcmbRes = results[0];
       const gpRes = results[1];
+      const erRes = results[2];
 
       let currencies = [...fallbackData.currencies];
       let gold = [...fallbackData.gold];
@@ -162,6 +158,26 @@ async function startServer() {
         console.warn('TCMB fetch failed or not ok:', tcmbRes.status === 'fulfilled' ? tcmbRes.value.status : tcmbRes.reason);
       }
 
+      // Process ER API (Currency Fallback)
+      if (currencies[0].value === fallbackData.currencies[0].value && erRes.status === 'fulfilled' && erRes.value.ok) {
+        try {
+          const erData = await erRes.value.json();
+          if (erData && erData.rates) {
+            const tryToUsd = erData.rates.USD;
+            const tryToEur = erData.rates.EUR;
+            if (tryToUsd && tryToEur) {
+              currencies = [
+                { label: 'Dolar', value: (1 / tryToUsd).toFixed(4), change: 0.01, unit: 'TL' },
+                { label: 'Euro', value: (1 / tryToEur).toFixed(4), change: -0.01, unit: 'TL' }
+              ];
+              console.log('ExchangeRate-API data processed successfully');
+            }
+          }
+        } catch (err) {
+          console.error('ER API Parse Error:', err);
+        }
+      }
+
       // Process GenelPara
       let gpSuccess = false;
       if (gpRes.status === 'fulfilled' && gpRes.value.ok) {
@@ -169,10 +185,16 @@ async function startServer() {
           const gpData = await gpRes.value.json();
           if (gpData) {
             const parseVal = (key: string, fallback: string) => {
-              const val = gpData[key]?.satis?.replace(',', '.');
+              const item = gpData[key];
+              if (!item) return fallback;
+              const val = (item.satis || item.fiyat || '0').toString().replace(',', '.');
               return val && val !== '0' ? val : fallback;
             };
-            const parseChange = (key: string) => parseFloat(gpData[key]?.degisim?.replace(',', '.') || '0');
+            const parseChange = (key: string) => {
+              const item = gpData[key];
+              if (!item) return 0;
+              return parseFloat((item.degisim || item.yuzde || '0').toString().replace(',', '.'));
+            };
             
             gold = [
               { label: 'Gram Altın', value: parseVal('GA', fallbackData.gold[0].value), change: parseChange('GA'), unit: 'TL' },
@@ -205,11 +227,15 @@ async function startServer() {
             const backupData = await backupRes.json();
             if (backupData) {
               const parseT = (key: string, fallback: string) => {
-                const val = backupData[key]?.Selling?.replace(',', '.');
+                const item = backupData[key] || backupData[key.toUpperCase()] || backupData[key.toLowerCase()];
+                if (!item) return fallback;
+                const val = (item.Selling || item.satis || item.fiyat || '0').toString().replace(',', '.');
                 return val && val !== '0' ? val : fallback;
               };
               const parseC = (key: string) => {
-                const val = backupData[key]?.Change?.replace('%', '').replace(',', '.');
+                const item = backupData[key] || backupData[key.toUpperCase()] || backupData[key.toLowerCase()];
+                if (!item) return 0;
+                const val = (item.Change || item.degisim || item.yuzde || '0').toString().replace('%', '').replace(',', '.');
                 return parseFloat(val || '0');
               };
               
@@ -223,7 +249,8 @@ async function startServer() {
               };
               console.log('Backup data from Truncgil processed successfully');
             }
-          } else {
+          }
+ else {
             console.warn(`Backup fetch failed with status: ${backupRes.status}`);
           }
         } catch (backupErr) {

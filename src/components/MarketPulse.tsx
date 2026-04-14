@@ -47,22 +47,30 @@ export const MarketPulse = () => {
     console.log('Fetching market data from /api/market/pulse...');
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout to allow server-side fallbacks
 
-      const response = await fetch('/api/market/pulse', { signal: controller.signal });
+      const response = await fetch('/api/market/pulse', { 
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
       clearTimeout(timeoutId);
       
       console.log('Market pulse response status:', response.status);
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Invalid response format:', text.substring(0, 100));
         throw new Error('Sunucudan geçersiz yanıt alındı. Lütfen tekrar deneyin.');
       }
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Veriler alınamadı');
+        throw new Error(data.error || `Hata: ${response.status}`);
       }
       
       const currencies = (data.currencies || []).map((c: any) => ({ ...c, type: 'currency' }));
