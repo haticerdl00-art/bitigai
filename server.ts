@@ -58,13 +58,100 @@ async function startServer() {
       ]
     };
 
-    // For now, return fallback data immediately to test connectivity
-    // We can re-enable external fetching once we confirm the route works
-    return res.json(fallbackData);
+    try {
+      const fetchWithTimeout = async (url: string, options: any = {}, timeout = 10000) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        try {
+          const response = await fetch(url, { 
+            ...options, 
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Cache-Control': 'no-cache',
+              ...options.headers
+            }
+          });
+          return response;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      // Fetch from multiple sources in parallel
+      const results = await Promise.allSettled([
+        fetchWithTimeout('https://www.tcmb.gov.tr/kurlar/today.xml'),
+        fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json', {
+          headers: { 'Referer': 'https://www.genelpara.com/' }
+        }),
+        fetchWithTimeout('https://open.er-api.com/v6/latest/TRY')
+      ]);
+
+      let currencies = [...fallbackData.currencies];
+      let gold = [...fallbackData.gold];
+      let bist = { ...fallbackData.bist };
+
+      // Process TCMB (Primary Currency)
+      if (results[0].status === 'fulfilled' && results[0].value.ok) {
+        try {
+          const xml = await results[0].value.text();
+          const result = await parseStringPromise(xml);
+          const currencyList = result?.Tarih_Date?.Currency;
+          if (Array.isArray(currencyList)) {
+            const usd = currencyList.find((c: any) => c?.$?.CurrencyCode === 'USD');
+            const eur = currencyList.find((c: any) => c?.$?.CurrencyCode === 'EUR');
+            if (usd && eur) {
+              currencies = [
+                { label: 'Dolar', value: usd.ForexSelling?.[0] || '32.15', change: 0.05, unit: 'TL' },
+                { label: 'Euro', value: eur.ForexSelling?.[0] || '34.85', change: -0.02, unit: 'TL' }
+              ];
+            }
+          }
+        } catch (e) { console.error('TCMB Parse Error'); }
+      }
+
+      // Process GenelPara (Gold & BIST)
+      if (results[1].status === 'fulfilled' && results[1].value.ok) {
+        try {
+          const data = await results[1].value.json();
+          if (data) {
+            const parseV = (key: string, fb: string) => (data[key]?.satis || fb).toString().replace(',', '.');
+            const parseC = (key: string) => parseFloat((data[key]?.yuzde || '0').toString().replace(',', '.'));
+            
+            gold = [
+              { label: 'Gram Altın', value: parseV('GA', gold[0].value), change: parseC('GA'), unit: 'TL' },
+              { label: 'Çeyrek Altın', value: parseV('C', gold[1].value), change: parseC('C'), unit: 'TL' }
+            ];
+            bist = { value: parseV('BIST100', bist.value), change: parseC('BIST100') };
+          }
+        } catch (e) { console.error('GenelPara Parse Error'); }
+      }
+
+      // ExchangeRate-API (Backup for Currencies)
+      if (currencies[0].value === fallbackData.currencies[0].value && results[2].status === 'fulfilled' && results[2].value.ok) {
+        try {
+          const data = await results[2].value.json();
+          if (data?.rates) {
+            currencies = [
+              { label: 'Dolar', value: (1 / data.rates.USD).toFixed(4), change: 0.01, unit: 'TL' },
+              { label: 'Euro', value: (1 / data.rates.EUR).toFixed(4), change: -0.01, unit: 'TL' }
+            ];
+          }
+        } catch (e) { console.error('ER API Parse Error'); }
+      }
+
+      return res.json({ currencies, gold, bist, stocks: fallbackData.stocks });
+    } catch (error) {
+      console.error('Market API Error:', error);
+      return res.json(fallbackData);
+    }
   }
 
   app.get('/api/market-data', marketHandler);
+  app.get('/api/market-data/', marketHandler);
   app.get('/api/market/pulse', marketHandler);
+  app.get('/api/market/pulse/', marketHandler);
 
   // Bildirim Sayacı Endpoint
   const notificationHandler = (req: express.Request, res: express.Response) => {

@@ -328,7 +328,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
               <div className="space-y-2">
                 <h4 className="text-xl font-bold text-slate-800">Analiz Başlatılmadı</h4>
                 <p className="text-slate-500 max-w-md">
-                  Mali tablo analizini başlatmak için belgelerinizi yüklemeniz gerekmektedir.
+                  Mali tablo analizini başlatmak için yukarıdaki "Belge Yükle" butonuna dokunarak belgelerinizi sisteme aktarın.
                 </p>
               </div>
               <button 

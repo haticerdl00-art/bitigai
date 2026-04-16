@@ -219,14 +219,36 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
               ] 
             },
             { 
-              title: '5. Kur Farkı Karı Kaydı', 
+              title: '5. Kur Farkı Karı/Zararı', 
               entries: [
                 { account: '102 BANKALAR (Dövizli)', amount: '2.500', side: 'B' },
                 { account: '646 KAMBİYO KARLARI', amount: '2.500', side: 'A' }
+              ],
+              note: '* Zarar durumunda 656 (B) / 102 (A) kullanılır.'
+            },
+            { 
+              title: '6. Sermaye Azaltımı', 
+              entries: [
+                { account: '500 SERMAYE', amount: '50.000', side: 'B' },
+                { account: '331 ORTAKLARA BORÇLAR', amount: '50.000', side: 'A' }
               ] 
             },
             { 
-              title: '6. Uzun Vadeli Kredinin Kısa Vadeliye Aktarımı', 
+              title: '7. Vergi Ödemeleri', 
+              entries: [
+                { account: '360 ÖDENECEK VERGİ VE FONLAR', amount: 'Tutar', side: 'B' },
+                { account: '102 BANKALAR', amount: 'Tutar', side: 'A' }
+              ] 
+            },
+            { 
+              title: '8. Olağandışı Kar/Zarar', 
+              entries: [
+                { account: '689 DİĞER OLAĞANDIŞI GİDER VE ZARARLAR', amount: 'Tutar', side: 'B' },
+                { account: '100/102/...,', amount: 'Tutar', side: 'A' }
+              ] 
+            },
+            { 
+              title: '9. Uzun Vadeli Kredinin Aktarımı', 
               entries: [
                 { account: '400 BANKA KREDİLERİ', amount: '50.000', side: 'B' },
                 { account: '303 U.V. KREDİLERİN ANAPARA TAKSİT VE FAİZLERİ', amount: '50.000', side: 'A' }
@@ -537,6 +559,75 @@ const HAP_NOTLAR_DATA: NoteItem[] = [
   }
 ];
 
+const NoteCard = ({ item, expandedId, setExpandedId }: { item: any; expandedId: string | null; setExpandedId: (id: string | null) => void }) => (
+  <motion.div
+    layout
+    initial={{ opacity: 0, scale: 0.95 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 0.95 }}
+    className={`bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${
+      expandedId === item.id 
+        ? 'border-kilim-blue ring-4 ring-kilim-blue/5 shadow-2xl' 
+        : 'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
+    }`}
+  >
+    <div 
+      className="p-6 cursor-pointer"
+      onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
+            expandedId === item.id ? 'bg-kilim-blue text-white' : 'bg-slate-100 text-slate-500'
+          }`}>
+            <item.icon className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-kilim-blue uppercase tracking-widest mb-1 block">
+              {item.category}
+            </span>
+            <h3 className="text-xl font-black text-slate-800 leading-tight">
+              {item.title}
+            </h3>
+          </div>
+        </div>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform duration-300 ${
+          expandedId === item.id ? 'rotate-90 bg-kilim-blue/10 text-kilim-blue' : 'bg-slate-50 text-slate-400'
+        }`}>
+          <ChevronRight className="w-5 h-5" />
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {item.tags.slice(0, 3).map(tag => (
+          <span key={tag} className="px-2 py-0.5 bg-slate-50 text-slate-400 text-[10px] font-medium rounded-md">
+            #{tag}
+          </span>
+        ))}
+        {item.tags.length > 3 && (
+          <span className="text-[10px] text-slate-300 font-medium">+{item.tags.length - 3}</span>
+        )}
+      </div>
+    </div>
+
+    <AnimatePresence>
+      {expandedId === item.id && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="border-t border-slate-100"
+        >
+          <div className="p-6 bg-slate-50/50">
+            {item.content}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </motion.div>
+);
+
 export const HapNotlarModule: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -607,79 +698,32 @@ export const HapNotlarModule: React.FC = () => {
         ))}
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <AnimatePresence mode="popLayout">
-          {filteredData.map((item) => (
-            <motion.div
-              key={item.id}
-              layout
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className={`bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${
-                expandedId === item.id 
-                  ? 'border-kilim-blue ring-4 ring-kilim-blue/5 shadow-2xl' 
-                  : 'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
-              }`}
-            >
-              <div 
-                className="p-6 cursor-pointer"
-                onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
-                      expandedId === item.id ? 'bg-kilim-blue text-white' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      <item.icon className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-kilim-blue uppercase tracking-widest mb-1 block">
-                        {item.category}
-                      </span>
-                      <h3 className="text-xl font-black text-slate-800 leading-tight">
-                        {item.title}
-                      </h3>
-                    </div>
-                  </div>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform duration-300 ${
-                    expandedId === item.id ? 'rotate-90 bg-kilim-blue/10 text-kilim-blue' : 'bg-slate-50 text-slate-400'
-                  }`}>
-                    <ChevronRight className="w-5 h-5" />
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {item.tags.slice(0, 3).map(tag => (
-                    <span key={tag} className="px-2 py-0.5 bg-slate-50 text-slate-400 text-[10px] font-medium rounded-md">
-                      #{tag}
-                    </span>
-                  ))}
-                  {item.tags.length > 3 && (
-                    <span className="text-[10px] text-slate-300 font-medium">+{item.tags.length - 3}</span>
-                  )}
-                </div>
-              </div>
-
-              <AnimatePresence>
-                {expandedId === item.id && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="border-t border-slate-100"
-                  >
-                    <div className="p-6 bg-slate-50/50">
-                      {item.content}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      {/* Columns (Masonry-like) */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 space-y-6 w-full">
+          <AnimatePresence mode="popLayout">
+            {filteredData.filter((_, i) => i % 2 === 0).map((item) => (
+              <NoteCard 
+                key={item.id} 
+                item={item} 
+                expandedId={expandedId} 
+                setExpandedId={setExpandedId} 
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+        <div className="flex-1 space-y-6 w-full">
+          <AnimatePresence mode="popLayout">
+            {filteredData.filter((_, i) => i % 2 !== 0).map((item) => (
+              <NoteCard 
+                key={item.id} 
+                item={item} 
+                expandedId={expandedId} 
+                setExpandedId={setExpandedId} 
+              />
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
 
       {filteredData.length === 0 && (

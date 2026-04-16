@@ -267,7 +267,7 @@ export const TasksModule: React.FC = () => {
                     </button>
                     
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm transition-all ${
+                      <p className={`text-sm transition-all whitespace-pre-wrap break-words ${
                         task.completed ? 'line-through text-slate-400' : 'text-slate-700'
                       }`}>
                         {task.text}
