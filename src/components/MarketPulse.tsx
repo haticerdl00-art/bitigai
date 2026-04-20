@@ -100,6 +100,11 @@ export const MarketPulse = () => {
       const dateStr = now.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastUpdated(`${dateStr} ${timeStr}`);
+      
+      // Store some calculation metadata if available
+      if (data.xau_usd && data.usd_rate) {
+        console.log(`[MARKET PULSE] Calculation Context - Ons: ${data.xau_usd}, USD: ${data.usd_rate}`);
+      }
     } catch (err: any) {
       console.error('Market data error:', err);
       if (err.name === 'AbortError') {

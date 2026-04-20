@@ -67,14 +67,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json', {
         headers: { 'Referer': 'https://www.genelpara.com/' }
       }),
-      fetchWithTimeout('https://open.er-api.com/v6/latest/USD') // Changed to USD base to get XAU (Gold)
+      fetchWithTimeout('https://open.er-api.com/v6/latest/USD'), // For XAU/USD
+      fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD') // Backup for XAU/USD
     ]);
 
     let currencies = [...FALLBACK_DATA.currencies];
     let gold = [...FALLBACK_DATA.gold];
     let bist = { ...FALLBACK_DATA.bist };
     let usdRate = 32.15; // default fallback
-    let xauUsd = 2350.0; // default fallback Ounce Gold
+    let xauUsd = 2380.0; // default fallback Ounce Gold
 
     // 1. TCMB Processing (Highest Accuracy for USD/TRY)
     if (results[0].status === 'fulfilled' && results[0].value.ok) {
@@ -96,34 +97,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (e) { console.error('TCMB XML Error'); }
     }
 
-    // 2. ExchangeRate API Processing (XAU/USD and Backup for Currencies)
-    if (results[2].status === 'fulfilled' && results[2].value.ok) {
-      try {
-        const data = await results[2].value.json();
-        if (data?.rates) {
-          // If TCMB failed, use this for USD rate
-          if (currencies[0].value === FALLBACK_DATA.currencies[0].value) {
-             usdRate = parseFloat((1 / data.rates.TRY).toFixed(4));
-             currencies = [
-               { label: 'Dolar', value: usdRate.toFixed(2), change: 0.05, unit: 'TL' },
-               { label: 'Euro', value: (usdRate * (data.rates.EUR / data.rates.USD || 1.08)).toFixed(2), change: -0.05, unit: 'TL' }
-             ];
-          }
-          
-          // Get XAU (Gold Ounce) - Standard rate is 1 USD = X XAU, so 1/X = USD Price
-          if (data.rates.XAU) {
+    // 2. Ounce Gold (XAU) Processing from multiple sources
+    const xauSources = [results[2], results[3]];
+    for (const source of xauSources) {
+      if (source.status === 'fulfilled' && source.value.ok) {
+        try {
+          const data = await source.value.json();
+          // Source 1 (Open ER API)
+          if (data?.rates?.XAU) {
             xauUsd = 1 / data.rates.XAU;
+            break;
           }
-        }
-      } catch (e) { console.error('ExchangeRate API Error'); }
+          // Source 2 (Backup ER API)
+          if (data?.rates?.XAU) {
+             xauUsd = 1 / data.rates.XAU;
+             break;
+          }
+        } catch (e) { /* skip */ }
+      }
     }
 
-    // 3. Gold & BIST Calculation with the requested formula
-    // Formula: (Ons / 31.1035) * Dolar
+    // 3. GOLD CALCULATION (CRITICAL)
+    // Formula: (Ons / 31.1035) * Dolar Kuru
     const calculatedGramGold = (xauUsd / 31.1035) * usdRate;
-    const calculatedQuarterGold = calculatedGramGold * 1.64; // Approx 1.63-1.65 multiplier for retail market
+    
+    // VALIDATION: 1000 - 5000 TL range
+    if (calculatedGramGold < 1000 || calculatedGramGold > 5000) {
+      console.error(`VALIDATION FAILED: Gold price ${calculatedGramGold} is out of range (1000-5000)`);
+      throw new Error(`Altın fiyatı doğrulanamadı: ${calculatedGramGold.toFixed(2)} TL (Aralık dışı)`);
+    }
 
-    // 4. GenelPara (BIST & Secondary Gold Backup)
+    // Quarter Gold Formula: Gram * 1.63 + craftsmanship/margin
+    const calculatedQuarterGold = (calculatedGramGold * 1.63) + (calculatedGramGold * 0.02); // Adding 2% margin for retail/craftsmanship
+
+    // 4. GenelPara (BIST & Change Rates)
     if (results[1].status === 'fulfilled' && results[1].value.ok) {
       try {
         const data = await results[1].value.json();
@@ -133,15 +140,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           bist = { value: parseV('BIST100', bist.value), change: parseC('BIST100') };
           
-          // Apply calculated gold but use GenelPara's change rates for better realism
           gold = [
-            { label: 'Gram Altın', value: calculatedGramGold.toFixed(2), change: parseC('GA'), unit: 'TL' },
-            { label: 'Çeyrek Altın', value: calculatedQuarterGold.toFixed(2), change: parseC('C'), unit: 'TL' }
+            { label: 'Gram Altın', value: calculatedGramGold.toFixed(2), change: parseC('GA') || 0.45, unit: 'TL' },
+            { label: 'Çeyrek Altın', value: calculatedQuarterGold.toFixed(2), change: parseC('C') || 0.32, unit: 'TL' }
           ];
         }
       } catch (e) { 
         console.error('GenelPara Data Error');
-        // Fallback to purely calculated values if GenelPara fails
         gold = [
           { label: 'Gram Altın', value: calculatedGramGold.toFixed(2), change: 0.45, unit: 'TL' },
           { label: 'Çeyrek Altın', value: calculatedQuarterGold.toFixed(2), change: 0.32, unit: 'TL' }
@@ -155,7 +160,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       bist, 
       stocks: FALLBACK_DATA.stocks,
       status: 'success',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      usd_rate: usdRate.toFixed(4),
+      xau_usd: xauUsd.toFixed(2)
     });
 
   } catch (error) {
