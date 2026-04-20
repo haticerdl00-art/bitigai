@@ -485,7 +485,37 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                         const canvas = await html2canvas(element, {
                           scale: 2,
                           useCORS: true,
-                          backgroundColor: '#ffffff'
+                          backgroundColor: '#ffffff',
+                          onclone: (clonedDoc) => {
+                            // Find elements that might be using modern CSS color functions not supported by html2canvas
+                            const elements = clonedDoc.getElementsByTagName('*');
+                            for (let i = 0; i < elements.length; i++) {
+                              const el = elements[i] as HTMLElement;
+                              const style = window.getComputedStyle(el);
+                              
+                              // Force glass-card to a standard background during PDF export
+                              if (el.classList.contains('glass-card')) {
+                                el.style.backdropFilter = 'none';
+                                (el.style as any).webkitBackdropFilter = 'none';
+                                el.style.backgroundColor = '#ffffff';
+                              }
+
+                              // Check background and border colors for modern CSS functions
+                              // and force them to simpler formats if needed.
+                              // html2canvas fails specifically on 'oklch' and 'oklab'.
+                              
+                              // Re-assigning background color if it's too complex
+                              if (style.backgroundColor.includes('oklch') || style.backgroundColor.includes('oklab')) {
+                                el.style.backgroundColor = '#ffffff';
+                              }
+                              if (style.borderColor.includes('oklch') || style.borderColor.includes('oklab')) {
+                                el.style.borderColor = '#e2e8f0';
+                              }
+                              if (style.color.includes('oklch') || style.color.includes('oklab')) {
+                                el.style.color = '#1e293b';
+                              }
+                            }
+                          }
                         });
                         
                         const imgData = canvas.toDataURL('image/png');
