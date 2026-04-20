@@ -7,7 +7,7 @@ import xml2js from 'xml2js';
 const { parseStringPromise } = xml2js;
 
 // Import our new serverless handler logic for consistency
-import marketHandlerFunction from './api/veriler';
+import marketHandlerFunction from './api/market-data';
 
 dotenv.config();
 

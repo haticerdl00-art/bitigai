@@ -49,8 +49,7 @@ export const MarketPulse = () => {
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
       console.log(`[MARKET PULSE] Attempting fetch from /api/market-data...`);
-      // Try primary endpoint first
-      let response = await fetch('/api/market-data', { 
+      const response = await fetch('/api/market-data', { 
         signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache',
@@ -58,14 +57,6 @@ export const MarketPulse = () => {
         }
       });
       
-      // If 404, try the direct serverless endpoint as a fallback
-      if (response.status === 404) {
-        console.log('[MARKET PULSE] Primary endpoint 404, trying /api/veriler...');
-        response = await fetch('/api/veriler', { 
-          signal: controller.signal
-        });
-      }
-
       clearTimeout(timeoutId);
       console.log(`[MARKET PULSE] Response status: ${response.status}`);
       
@@ -143,7 +134,10 @@ export const MarketPulse = () => {
     return (
       <div className="bg-[#FDF5E6] border border-kilim-blue-dark/10 rounded-[2rem] p-12 flex flex-col items-center justify-center shadow-sm gap-4">
         <RefreshCw className="w-8 h-8 text-kilim-blue animate-spin" />
-        <p className="text-xs font-bold text-kilim-blue-dark uppercase tracking-widest animate-pulse">Piyasa Verileri Alınıyor...</p>
+        <div className="text-center">
+          <p className="text-xs font-bold text-kilim-blue-dark uppercase tracking-widest animate-pulse">Piyasa Verileri Alınıyor...</p>
+          <p className="text-[10px] text-slate-400 mt-2 font-medium">Veriler şu an güncelleniyor, lütfen bekleyiniz...</p>
+        </div>
       </div>
     );
   }

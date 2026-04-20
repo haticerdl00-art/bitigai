@@ -2,19 +2,23 @@
   "rewrites": [
     {
       "source": "/api/market-data",
-      "destination": "/api/veriler"
+      "destination": "/api/market-data"
     },
     {
       "source": "/api/market-data/",
-      "destination": "/api/veriler"
+      "destination": "/api/market-data"
     },
     {
       "source": "/api/market/pulse",
-      "destination": "/api/veriler"
+      "destination": "/api/market-data"
     },
     {
       "source": "/api/market/pulse/",
-      "destination": "/api/veriler"
+      "destination": "/api/market-data"
+    },
+    {
+      "source": "/api/veriler",
+      "destination": "/api/market-data"
     },
     {
       "source": "/api/(.*)",
