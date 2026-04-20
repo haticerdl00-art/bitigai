@@ -471,63 +471,65 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                 </div>
                 <div className="flex items-center gap-2">
                   <button 
-                    onClick={async () => {
-                      const element = document.getElementById('analysis-report-container');
-                      if (!element) return;
-                      const canvas = await html2canvas(element);
-                      const imgData = canvas.toDataURL('image/png');
-                      const pdf = new jsPDF('p', 'mm', 'a4');
-                      const imgProps = pdf.getImageProperties(imgData);
-                      const pdfWidth = pdf.internal.pageSize.getWidth();
-                      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-                      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                      pdf.save(`Analiz_Raporu_${profile.title}.pdf`);
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-all"
-                  >
-                    <Download className="w-3 h-3" />
-                    PDF İndir
-                  </button>
-                  <button 
-                    onClick={async () => {
-                      const doc = new Document({
-                        sections: [{
-                          properties: {},
-                          children: [
-                            new Paragraph({
-                              children: [
-                                new TextRun({
-                                  text: `Mali Tablo Analiz Raporu - ${profile.title}`,
-                                  bold: true,
-                                  size: 32,
-                                }),
-                              ],
-                            }),
-                            new Paragraph({
-                              children: [
-                                new TextRun({
-                                  text: maliTabloReport,
-                                  size: 24,
-                                }),
-                              ],
-                            }),
-                          ],
-                        }],
-                      });
+                    onClick={async (e) => {
+                      const btn = e.currentTarget;
+                      const originalText = btn.innerHTML;
+                      btn.disabled = true;
+                      btn.innerHTML = '<span class="animate-spin">⌛</span> PDF Hazırlanıyor...';
+                      
+                      try {
+                        // Capture the main container which holds both charts and the report text
+                        const element = document.getElementById('analysis-report-container');
+                        if (!element) return;
 
-                      const blob = await Packer.toBlob(doc);
-                      saveAs(blob, `Analiz_Raporu_${profile.title}.docx`);
+                        const canvas = await html2canvas(element, {
+                          scale: 2,
+                          useCORS: true,
+                          backgroundColor: '#ffffff'
+                        });
+                        
+                        const imgData = canvas.toDataURL('image/png');
+                        const pdf = new jsPDF('p', 'mm', 'a4');
+                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                        const pdfHeight = pdf.internal.pageSize.getHeight();
+                        
+                        const imgProps = pdf.getImageProperties(imgData);
+                        const imgWidth = pdfWidth - 20; // 10mm margins
+                        const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+                        
+                        let heightLeft = imgHeight;
+                        let position = 10;
+
+                        pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+                        heightLeft -= (pdfHeight - 20);
+
+                        while (heightLeft >= 0) {
+                          position = heightLeft - imgHeight;
+                          pdf.addPage();
+                          pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+                          heightLeft -= pdfHeight;
+                        }
+
+                        pdf.save(`Tam_Analiz_Raporu_${profile.title.replace(/\s+/g, '_')}.pdf`);
+                      } catch (err) {
+                        console.error("PDF Export Error:", err);
+                        alert("Rapor indirilirken bir hata oluştu. Lütfen tekrar deneyin.");
+                      } finally {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                      }
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-all"
+                    className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 disabled:opacity-50"
                   >
                     <Download className="w-3 h-3" />
-                    Word İndir
+                    Tüm Raporu İndir (PDF)
                   </button>
                   <button 
                     onClick={() => {
                       setMaliTabloReport(null);
                       setMaliTabloChartData(null);
                       setUploadedFiles([]);
+                      setShowUpload(true);
                     }} 
                     className="flex items-center gap-2 px-3 py-1.5 bg-kilim-red/10 text-kilim-red rounded-lg text-xs font-bold hover:bg-kilim-red/20 transition-all"
                   >
