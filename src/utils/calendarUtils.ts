@@ -109,6 +109,20 @@ export const getCalendarItems = (currentDate: Date, beratPreference: 'aylik' | '
     type: 'tax'
   });
 
+  // Örnek: Bugün için bildirim testi (20 Nisan 2026)
+  if (month === 3 && year === 2026) {
+    const testDate = getAdjustedDate(new Date(2026, 3, 20));
+    items.push({
+      id: 'test-notification',
+      date: testDate.date,
+      title: 'Yıllık Faaliyet Raporu Bildirimi',
+      description: 'Şirketlerin yıllık faaliyet raporlarının sisteme yüklenmesi için son gün.',
+      criticalNote: 'Yönetim kurulu onaylı raporun dijital imzalı hali gereklidir.',
+      legalWarning: 'Gecikme durumunda ticaret sicil kayıtlarında aksama yaşanabilir.',
+      type: 'legal'
+    });
+  }
+
   // GEKAP (Quarterly - Jan, Apr, Jul, Oct)
   if ([0, 3, 6, 9].includes(month)) {
     const gekapDate = getAdjustedDate(new Date(year, month + 1, 0)); // Last day of month

@@ -60,6 +60,8 @@ import { OCRModule } from './components/OCRModule';
 import { ContentCreatorModule } from './components/ContentCreatorModule';
 import { HapNotlarModule } from './components/HapNotlarModule';
 import { FloatingChat } from './components/FloatingChat';
+import { NotificationManager } from './components/NotificationManager';
+import { NotificationToast } from './components/NotificationToast';
 import { fetchLatestLegislation } from './services/geminiService';
 import { ModuleId, UserProfile, CompanyProfile } from './types';
 import { MEVZUAT_DATA } from './data/legislationData';
@@ -563,6 +565,8 @@ export default function App() {
 
   return (
     <div className="h-screen flex bg-kilim-bg overflow-hidden relative">
+      <NotificationManager />
+      <NotificationToast />
       {/* Mobile Sidebar Backdrop */}
       <AnimatePresence>
         {isSidebarOpen && (

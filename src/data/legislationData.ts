@@ -128,4 +128,14 @@ export const MEVZUAT_DATA: LegislationItem[] = [
       };
     },
   },
+  {
+    id: 7,
+    tarih: "20.04.2026",
+    baslik: "KDV Beyanname Sürelerinde Kalıcı Değişiklik",
+    kaynak: "GİB",
+    tur: "VERGİ",
+    etki: "YÜKSEK",
+    ozet: "GİB tarafından yapılan yeni duyuru ile KDV beyanname verme süreleri kalıcı olarak her ayın 28. gününe sabitlenmiştir. Ayrıca ödeme süreleri de beyanname verme süresinin son gününe kadar uzatılmıştır.",
+    eslestir: (f: CompanyProfile) => ({ eslesti: true, nedenler: ["Tüm KDV mükelleflerini etkileyen yapısal değişiklik."] }),
+  },
 ];
