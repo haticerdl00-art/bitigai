@@ -95,7 +95,11 @@ export const MarketPulse = () => {
         change: data.bist?.change || 0
       });
       setStocks(data.stocks || []);
-      setLastUpdated(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastUpdated(`${dateStr} ${timeStr}`);
     } catch (err: any) {
       console.error('Market data error:', err);
       if (err.name === 'AbortError') {
@@ -175,10 +179,15 @@ export const MarketPulse = () => {
             <Activity className="w-4 h-4 text-kilim-blue" />
           </div>
           <div>
-            <h3 className="font-black text-kilim-blue-dark text-sm uppercase tracking-tighter">Piyasa Nabzı</h3>
-            <div className="flex items-center gap-2">
-              <p className="text-[8px] text-slate-400 font-bold uppercase">Kaynak: TCMB & Canlı Veri</p>
-              {lastUpdated && <p className="text-[8px] text-emerald-600 font-bold uppercase">• Son Güncelleme: {lastUpdated}</p>}
+            <h3 className="font-black text-kilim-blue-dark text-sm uppercase tracking-tighter">Canlı Piyasa Verileri</h3>
+            <div className="flex flex-col xs:flex-row xs:items-center gap-1 xs:gap-3">
+              <p className="text-[8px] text-slate-400 font-bold uppercase whitespace-nowrap">📋 TCMB & Canlı Ons Verisi</p>
+              {lastUpdated && (
+                <p className="text-[8px] text-emerald-600 font-bold uppercase whitespace-nowrap flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                  Son Güncelleme: {lastUpdated}
+                </p>
+              )}
             </div>
           </div>
         </div>
