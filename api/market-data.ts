@@ -107,8 +107,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 5. ALTIN HESAPLAMA (GÜVENLİ MANTIK)
-    // Formül: Gram = (ONS / 31.1035) * USD_RATE
-    const calculatedGram = (xauUsd / 31.1035) * usdRate;
+    // Formül: Gram = (ONS / 31.1034768) * USD_RATE
+    const calculatedGram = (xauUsd / 31.1034768) * usdRate;
     
     let gramDisplay = 'Veri güncelleniyor...';
     let quarterDisplay = 'Veri güncelleniyor...';
