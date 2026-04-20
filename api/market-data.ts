@@ -117,18 +117,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // 3. GOLD CALCULATION (CRITICAL)
-    // Formula: (Ons / 31.1035) * Dolar Kuru
-    const calculatedGramGold = (xauUsd / 31.1035) * usdRate;
+    // 3. GOLD CALCULATION (CRITICAL REVISION)
+    // Formula: (ONS / 31.1034768) * USD_TRY
+    const calculatedGramGoldRaw = (xauUsd / 31.1034768) * usdRate;
     
-    // VALIDATION: 1000 - 5000 TL range
-    if (calculatedGramGold < 1000 || calculatedGramGold > 5000) {
-      console.error(`VALIDATION FAILED: Gold price ${calculatedGramGold} is out of range (1000-5000)`);
-      throw new Error(`Altın fiyatı doğrulanamadı: ${calculatedGramGold.toFixed(2)} TL (Aralık dışı)`);
-    }
+    let gramGoldValue: string;
+    let quarterGoldValue: string;
+    let goldStatus = 'stable';
 
-    // Quarter Gold Formula: Gram * 1.63 + craftsmanship/margin
-    const calculatedQuarterGold = (calculatedGramGold * 1.63) + (calculatedGramGold * 0.02); // Adding 2% margin for retail/craftsmanship
+    // SECURITY CHECK: 1500 - 4000 TL range
+    if (calculatedGramGoldRaw < 1500 || calculatedGramGoldRaw > 4000) {
+      console.warn(`SECURITY CHECK: Gram Gold ${calculatedGramGoldRaw} out of bounds (1500-4000).`);
+      gramGoldValue = 'Veri kontrol ediliyor';
+      quarterGoldValue = 'Veri kontrol ediliyor';
+      goldStatus = 'checking';
+    } else {
+      gramGoldValue = calculatedGramGoldRaw.toFixed(2);
+      // Quarter Gold Formula: (Gram * 1.63) + 150 TL craftsmanship
+      const calculatedQuarterGoldRaw = (calculatedGramGoldRaw * 1.63) + 150;
+      quarterGoldValue = calculatedQuarterGoldRaw.toFixed(2);
+    }
 
     // 4. GenelPara (BIST & Change Rates)
     if (results[1].status === 'fulfilled' && results[1].value.ok) {
@@ -141,15 +149,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           bist = { value: parseV('BIST100', bist.value), change: parseC('BIST100') };
           
           gold = [
-            { label: 'Gram Altın', value: calculatedGramGold.toFixed(2), change: parseC('GA') || 0.45, unit: 'TL' },
-            { label: 'Çeyrek Altın', value: calculatedQuarterGold.toFixed(2), change: parseC('C') || 0.32, unit: 'TL' }
+            { label: 'Gram Altın', value: gramGoldValue, change: parseC('GA') || 0.45, unit: gramGoldValue.includes('Veri') ? '' : 'TL' },
+            { label: 'Çeyrek Altın', value: quarterGoldValue, change: parseC('C') || 0.32, unit: quarterGoldValue.includes('Veri') ? '' : 'TL' }
           ];
         }
       } catch (e) { 
         console.error('GenelPara Data Error');
         gold = [
-          { label: 'Gram Altın', value: calculatedGramGold.toFixed(2), change: 0.45, unit: 'TL' },
-          { label: 'Çeyrek Altın', value: calculatedQuarterGold.toFixed(2), change: 0.32, unit: 'TL' }
+          { label: 'Gram Altın', value: gramGoldValue, change: 0.45, unit: gramGoldValue.includes('Veri') ? '' : 'TL' },
+          { label: 'Çeyrek Altın', value: quarterGoldValue, change: 0.32, unit: quarterGoldValue.includes('Veri') ? '' : 'TL' }
         ];
       }
     }

@@ -218,11 +218,11 @@ export const MarketPulse = () => {
               {getIcon(item.label)}
             </div>
             <div className="flex items-center justify-between">
-              <p className="font-black text-kilim-blue-dark text-sm sm:text-base">
+              <p className={`font-black text-kilim-blue-dark ${item.value && item.value.length > 10 ? 'text-[10px] sm:text-xs leading-tight' : 'text-sm sm:text-base'}`}>
                 {item.value === '0.00' || !item.value ? (
                   <span className="text-[9px] text-slate-400 animate-pulse">Güncelleniyor...</span>
                 ) : (
-                  <>{item.value} <span className="text-[10px] font-medium">{item.unit}</span></>
+                  <>{item.value} {item.unit && <span className="text-[10px] font-medium">{item.unit}</span>}</>
                 )}
               </p>
               <div className={`flex items-center text-[10px] font-bold ${item.change >= 0 ? 'text-emerald-600' : 'text-kilim-red'}`}>
