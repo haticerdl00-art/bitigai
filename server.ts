@@ -28,23 +28,25 @@ async function startServer() {
     next();
   });
 
-  // --- API ROUTES ---
-
+  // --- API ROUTES FIRST ---
+  
   // Health Check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Market Data Endpoint (TCMB & Gold)
-  async function marketHandler(req: any, res: any) {
+  // Market Data Endpoints
+  const sharedMarketHandler = (req: any, res: any) => {
+    console.log(`[SERVER] Market API hit: ${req.url}`);
     return marketHandlerFunction(req, res);
-  }
+  };
 
-  app.get('/api/market-data', marketHandler);
-  app.get('/api/market-data/', marketHandler);
-  app.get('/api/market/pulse', marketHandler);
-  app.get('/api/market/pulse/', marketHandler);
-  app.get('/api/veriler', (req: any, res: any) => marketHandlerFunction(req, res));
+  app.get('/api/market-data', sharedMarketHandler);
+  app.get('/api/market-data/', sharedMarketHandler);
+  app.get('/api/market/pulse', sharedMarketHandler);
+  app.get('/api/market/pulse/', sharedMarketHandler);
+  app.get('/api/veriler', sharedMarketHandler);
+  app.get('/api/veriler/', sharedMarketHandler);
 
   // Bildirim Sayacı Endpoint
   const notificationHandler = (req: express.Request, res: express.Response) => {

@@ -1,0 +1,28 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/market-data",
+      "destination": "/api/veriler"
+    },
+    {
+      "source": "/api/market-data/",
+      "destination": "/api/veriler"
+    },
+    {
+      "source": "/api/market/pulse",
+      "destination": "/api/veriler"
+    },
+    {
+      "source": "/api/market/pulse/",
+      "destination": "/api/veriler"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/server.ts"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

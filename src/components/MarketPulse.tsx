@@ -44,21 +44,30 @@ export const MarketPulse = () => {
       setStocks([]);
     }
 
-    console.log('Fetching market data from /api/market-data...');
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-      const response = await fetch('/api/market-data', { 
+      console.log(`[MARKET PULSE] Attempting fetch from /api/market-data...`);
+      // Try primary endpoint first
+      let response = await fetch('/api/market-data', { 
         signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
         }
       });
-      clearTimeout(timeoutId);
       
-      console.log('Market pulse response status:', response.status);
+      // If 404, try the direct serverless endpoint as a fallback
+      if (response.status === 404) {
+        console.log('[MARKET PULSE] Primary endpoint 404, trying /api/veriler...');
+        response = await fetch('/api/veriler', { 
+          signal: controller.signal
+        });
+      }
+
+      clearTimeout(timeoutId);
+      console.log(`[MARKET PULSE] Response status: ${response.status}`);
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
