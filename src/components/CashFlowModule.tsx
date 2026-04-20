@@ -216,6 +216,20 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {maliTabloReport && (
+              <button 
+                onClick={() => {
+                  setMaliTabloReport(null);
+                  setMaliTabloChartData(null);
+                  setUploadedFiles([]);
+                  setShowUpload(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Raporu Sıfırla
+              </button>
+            )}
             <button 
               onClick={() => setShowUpload(!showUpload)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -229,19 +243,20 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
           </div>
         </div>
 
-        {showUpload && !maliTabloReport && (
+        {showUpload && (
           <div id="upload-panel" className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8 scroll-mt-20">
             <div className="lg:col-span-5 space-y-6">
               <div className="p-8 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 text-center relative group hover:border-kilim-blue/30 transition-colors">
                 <input 
                   type="file" 
                   multiple
+                  accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png"
                   onChange={(e) => {
                     if (e.target.files) {
                       setUploadedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
                     }
                   }}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
                 />
                 <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-sm mb-4 group-hover:scale-110 transition-transform">
                   <Upload className="w-8 h-8 text-kilim-blue" />
@@ -264,7 +279,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                       Tümünü Temizle
                     </button>
                   </div>
-                  <div className="max-height-[200px] overflow-y-auto space-y-2 pr-2">
+                  <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2">
                     {uploadedFiles.map((f, i) => (
                       <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm group">
                         <div className="flex items-center gap-2">
@@ -275,7 +290,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                           onClick={() => setUploadedFiles(prev => prev.filter((_, idx) => idx !== i))} 
                           className="text-slate-400 hover:text-rose-500 p-1 rounded-lg transition-colors"
                         >
-                          <RefreshCw className="w-3 h-3 rotate-45" />
+                          <XCircle className="w-3 h-3" />
                         </button>
                       </div>
                     ))}
@@ -289,7 +304,9 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                   setShowUpload(false);
                 }}
                 disabled={isMaliTabloAnalyzing || uploadedFiles.length === 0}
-                className="w-full py-4 bg-kilim-blue text-white rounded-2xl font-bold hover:bg-kilim-blue/90 transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                className={`w-full py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50 ${
+                  uploadedFiles.length > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse' : 'bg-kilim-blue text-white'
+                }`}
               >
                 {isMaliTabloAnalyzing ? (
                   <>

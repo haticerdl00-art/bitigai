@@ -78,7 +78,7 @@ export const OCRModule = ({ onTransfer, profile }: { onTransfer: (data: any) => 
       } else if (docType === 'metin') {
         prompt = "Bu belgedeki tüm metni en yüksek doğrulukla çıkar. Yazı net değilse bile bağlamdan yola çıkarak eksik kısımları tamamlamaya çalış. Metni yapılandırılmış bir şekilde sun.";
       } else {
-        prompt = "Bu faturadaki Fatura No, Fatura Tarihi, VKN / TC No, Firma Ünvanı, Toplam Tutar, KDV Tutarı, KDV Dahil Toplam ve Fatura Tipi (Alış/Satış) bilgilerini çıkar.";
+        prompt = "Bu faturadaki Fatura No, Fatura Tarihi, VKN / TC No, Firma Ünvanı, Toplam Tutar, KDV Oranı (%), KDV Tutarı, KDV Dahil Toplam ve Fatura Tipi (Alış/Satış) bilgilerini çıkar.";
       }
 
       if (isDeepScan) {
@@ -201,15 +201,19 @@ export const OCRModule = ({ onTransfer, profile }: { onTransfer: (data: any) => 
     }
 
     // Map fields to the format expected by VoucherTransferModule
+    const getFieldValue = (key: string) => result.fields.find(f => f.key === key)?.value || '';
+    const cleanAmount = (val: string) => val.replace(/[^0-9,.]/g, '').replace(',', '.');
+
     const transferData = {
-      faturaNo: result.fields.find(f => f.key === 'Fatura No')?.value || '',
-      faturaTarihi: result.fields.find(f => f.key === 'Fatura Tarihi')?.value || '',
-      vkn: result.fields.find(f => f.key === 'VKN / TC No')?.value || '',
-      cari: result.fields.find(f => f.key === 'Firma Ünvanı')?.value || '',
-      toplamTutar: result.fields.find(f => f.key === 'Toplam Tutar')?.value.replace(/[^0-9,.]/g, '').replace(',', '.') || '',
-      kdv: result.fields.find(f => f.key === 'KDV Tutarı')?.value.replace(/[^0-9,.]/g, '').replace(',', '.') || '',
-      kdvDahilToplam: result.fields.find(f => f.key === 'KDV Dahil Toplam')?.value.replace(/[^0-9,.]/g, '').replace(',', '.') || '',
-      faturaTipi: result.fields.find(f => f.key === 'Fatura Tipi')?.value || 'Alış', // Alış/Satış
+      faturaNo: getFieldValue('Fatura No'),
+      faturaTarihi: getFieldValue('Fatura Tarihi'),
+      vkn: getFieldValue('VKN / TC No'),
+      cari: getFieldValue('Firma Ünvanı'),
+      toplamTutar: cleanAmount(getFieldValue('Toplam Tutar')),
+      kdvOrani: getFieldValue('KDV Oranı (%)').replace('%', '').trim(),
+      kdvTutari: cleanAmount(getFieldValue('KDV Tutarı')),
+      kdvDahilToplam: cleanAmount(getFieldValue('KDV Dahil Toplam')),
+      faturaTipi: getFieldValue('Fatura Tipi') || 'Alış', // Alış/Satış
       kaynakBelgeId: result.sourceId,
       ownerId: auth.currentUser.uid,
       createdAt: serverTimestamp()
