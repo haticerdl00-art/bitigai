@@ -6,6 +6,9 @@ import dotenv from 'dotenv';
 import xml2js from 'xml2js';
 const { parseStringPromise } = xml2js;
 
+// Import our new serverless handler logic for consistency
+import marketHandlerFunction from './api/veriler';
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,125 +36,15 @@ async function startServer() {
   });
 
   // Market Data Endpoint (TCMB & Gold)
-  async function marketHandler(req: express.Request, res: express.Response) {
-    console.log(`[MARKET API] Request received at ${new Date().toISOString()}`);
-    
-    const fallbackData = {
-      currencies: [
-        { label: 'Dolar', value: '32.15', change: 0.12, unit: 'TL' },
-        { label: 'Euro', value: '34.85', change: -0.05, unit: 'TL' }
-      ],
-      gold: [
-        { label: 'Gram Altın', value: '2450.00', change: 0.45, unit: 'TL' },
-        { label: 'Çeyrek Altın', value: '4020.00', change: 0.32, unit: 'TL' }
-      ],
-      bist: { value: '9150.00', change: 1.25 },
-      stocks: [
-        { name: 'THY', change: 2.1 },
-        { name: 'Aselsan', change: -0.8 },
-        { name: 'Erdemir', change: 1.2 },
-        { name: 'Tüpraş', change: 0.5 },
-        { name: 'Koç Hol.', change: -1.1 },
-        { name: 'Sabancı', change: 0.9 },
-        { name: 'Garanti', change: 1.8 },
-        { name: 'İş Bankası', change: -0.4 },
-      ]
-    };
-
-    try {
-      const fetchWithTimeout = async (url: string, options: any = {}, timeout = 10000) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        try {
-          const response = await fetch(url, { 
-            ...options, 
-            signal: controller.signal,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Accept': 'application/json, text/plain, */*',
-              'Cache-Control': 'no-cache',
-              ...options.headers
-            }
-          });
-          return response;
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      };
-
-      // Fetch from multiple sources in parallel
-      const results = await Promise.allSettled([
-        fetchWithTimeout('https://www.tcmb.gov.tr/kurlar/today.xml'),
-        fetchWithTimeout('https://api.genelpara.com/embed/para-birimleri.json', {
-          headers: { 'Referer': 'https://www.genelpara.com/' }
-        }),
-        fetchWithTimeout('https://open.er-api.com/v6/latest/TRY')
-      ]);
-
-      let currencies = [...fallbackData.currencies];
-      let gold = [...fallbackData.gold];
-      let bist = { ...fallbackData.bist };
-
-      // Process TCMB (Primary Currency)
-      if (results[0].status === 'fulfilled' && results[0].value.ok) {
-        try {
-          const xml = await results[0].value.text();
-          const result = await parseStringPromise(xml);
-          const currencyList = result?.Tarih_Date?.Currency;
-          if (Array.isArray(currencyList)) {
-            const usd = currencyList.find((c: any) => c?.$?.CurrencyCode === 'USD');
-            const eur = currencyList.find((c: any) => c?.$?.CurrencyCode === 'EUR');
-            if (usd && eur) {
-              currencies = [
-                { label: 'Dolar', value: usd.ForexSelling?.[0] || '32.15', change: 0.05, unit: 'TL' },
-                { label: 'Euro', value: eur.ForexSelling?.[0] || '34.85', change: -0.02, unit: 'TL' }
-              ];
-            }
-          }
-        } catch (e) { console.error('TCMB Parse Error'); }
-      }
-
-      // Process GenelPara (Gold & BIST)
-      if (results[1].status === 'fulfilled' && results[1].value.ok) {
-        try {
-          const data = await results[1].value.json();
-          if (data) {
-            const parseV = (key: string, fb: string) => (data[key]?.satis || fb).toString().replace(',', '.');
-            const parseC = (key: string) => parseFloat((data[key]?.yuzde || '0').toString().replace(',', '.'));
-            
-            gold = [
-              { label: 'Gram Altın', value: parseV('GA', gold[0].value), change: parseC('GA'), unit: 'TL' },
-              { label: 'Çeyrek Altın', value: parseV('C', gold[1].value), change: parseC('C'), unit: 'TL' }
-            ];
-            bist = { value: parseV('BIST100', bist.value), change: parseC('BIST100') };
-          }
-        } catch (e) { console.error('GenelPara Parse Error'); }
-      }
-
-      // ExchangeRate-API (Backup for Currencies)
-      if (currencies[0].value === fallbackData.currencies[0].value && results[2].status === 'fulfilled' && results[2].value.ok) {
-        try {
-          const data = await results[2].value.json();
-          if (data?.rates) {
-            currencies = [
-              { label: 'Dolar', value: (1 / data.rates.USD).toFixed(4), change: 0.01, unit: 'TL' },
-              { label: 'Euro', value: (1 / data.rates.EUR).toFixed(4), change: -0.01, unit: 'TL' }
-            ];
-          }
-        } catch (e) { console.error('ER API Parse Error'); }
-      }
-
-      return res.json({ currencies, gold, bist, stocks: fallbackData.stocks });
-    } catch (error) {
-      console.error('Market API Error:', error);
-      return res.json(fallbackData);
-    }
+  async function marketHandler(req: any, res: any) {
+    return marketHandlerFunction(req, res);
   }
 
   app.get('/api/market-data', marketHandler);
   app.get('/api/market-data/', marketHandler);
   app.get('/api/market/pulse', marketHandler);
   app.get('/api/market/pulse/', marketHandler);
+  app.get('/api/veriler', (req: any, res: any) => marketHandlerFunction(req, res));
 
   // Bildirim Sayacı Endpoint
   const notificationHandler = (req: express.Request, res: express.Response) => {
