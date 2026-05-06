@@ -35,33 +35,17 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
   const [legislation, setLegislation] = useState<{title: string, date: string, source: string, link?: string, impact?: string}[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'bugun' | 'yaklasan'>('bugun');
-  const [approachingCount, setApproachingCount] = useState(0);
-  const [pendingDocsCount, setPendingDocsCount] = useState(0);
   const [taskCount, setTaskCount] = useState(0);
 
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
       if (!user) {
-        setPendingDocsCount(0);
         setTaskCount(0);
         return;
       }
 
       const userId = user.uid;
       
-      // Fetch pending declarations count for the current user
-      const qDocs = query(
-        collection(db, 'beyanname_tracking'), 
-        where('ownerId', '==', userId)
-      );
-      const unsubscribeDocs = onSnapshot(qDocs, (snapshot) => {
-        // Filter client-side to avoid index requirement
-        const pending = snapshot.docs.filter(doc => doc.data().status !== 'Tamamlandı');
-        setPendingDocsCount(pending.length);
-      }, (error) => {
-        console.error("Error fetching pending docs:", error);
-      });
-
       // Fetch tasks count
       const tasksRef = collection(db, 'users', userId, 'tasks');
       const qTasks = query(tasksRef, where('completed', '==', false));
@@ -72,7 +56,6 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
       });
 
       return () => {
-        unsubscribeDocs();
         unsubscribeTasks();
       };
     });
@@ -155,10 +138,9 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
   };
 
   const realStats = [
-    { id: 'mevzuat', label: "Yeni Mevzuat", deger: legislation.length.toString(), alt: "Bu hafta", renk: "text-rose-500", bg: "bg-rose-50", border: "border-rose-200", icon: Gavel },
-    { id: 'gorev', label: "Bekleyen Görev", deger: taskCount.toString(), alt: "Aktif görevler", renk: "text-amber-500", bg: "bg-amber-50", border: "border-amber-200", icon: ListTodo },
-    { id: 'musteri', label: "Aktif Müşteri", deger: companies.length.toString(), alt: "Toplam firma", renk: "text-kilim-blue", bg: "bg-blue-50", border: "border-blue-200", icon: Building2 },
-    { id: 'beyanname', label: "Bekleyen Evrak", deger: pendingDocsCount.toString(), alt: "Eksik beyannameler", renk: "text-emerald-500", bg: "bg-emerald-50", border: "border-emerald-200", icon: FileCheck },
+    { id: 'mevzuat', label: "Yeni Mevzuat", deger: legislation.length.toString(), alt: "Güncel Değişiklik", renk: "text-rose-500", bg: "bg-rose-50", border: "border-rose-200", icon: Gavel },
+    { id: 'gorev', label: "Bekleyen Görev", deger: taskCount.toString(), alt: "Açık İşlemler", renk: "text-amber-500", bg: "bg-amber-50", border: "border-amber-200", icon: ListTodo },
+    { id: 'musteri', label: "Aktif Müşteri", deger: companies.length.toString(), alt: "Kayıtlı Firmalar", renk: "text-kilim-blue", bg: "bg-blue-50", border: "border-blue-200", icon: Building2 },
   ];
 
   return (
@@ -187,9 +169,9 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
       <MarketPulse />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {realStats.map((stat) => (
-          <div key={stat.id} className={`p-6 bg-white border border-kilim-blue/5 rounded-3xl shadow-sm hover:shadow-md hover:border-kilim-blue/20 transition-all group relative overflow-hidden`}>
+          <div key={stat.id} className={`p-8 bg-white border border-kilim-blue/5 rounded-3xl shadow-sm hover:shadow-md hover:border-kilim-blue/20 transition-all group relative overflow-hidden`}>
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
               <stat.icon className="w-12 h-12" />
             </div>
