@@ -163,20 +163,57 @@ export interface VergiTakipData {
   ownerId: string;
   ay: number; // 1-12
   yil: number;
+  
+  // Mevcut Dönem Borçlar
   kdv2Borc: number;
   kdv1Borc: number;
+  muhtasarBorc?: number;
   stopajBorc: number;
   sgkBorc: number;
-  kvGvBorc: number;
+  kvGvBorc: number; // Geçici Vergi or Kurumlar Vergi
+  damgaVergisi?: number;
+  duzeltmeBorcu?: number;
   digerBorc: number;
-  kdvIadesi: number;
-  ithaldKdv: number;
-  hesaplananKdv: number;
+  
+  // KDV İade Verileri
+  alinabilecekIadeTutarı: number; // Toplam iade hakkı
+  oncekiDonemKalanIade: number; // Geçmişten devreden iade
+  cariDonemIadeHakki: number; // Bu ay oluşan iade
+  kdvIadesi: number; // Eskiden kullanılan alan (uyumluluk için tutulabilir veya alinabilecekIadeTutarı ile eşlenir)
+  
+  // KDV Bilgileri
   indirilecekKdv: number;
+  hesaplananKdv: number;
+  ithaldKdv: number;
+  devredenKdv: number; // Önceki aydan gelen
+  
+  // Matrahlar
   satisFaturaMatrahi: number;
   alisTeVkifatliMatrahi: number;
   alisTevsizMatrahi: number;
-  devredenBorc: number;
-  devredenKdv: number;
+  
+  // Sonraki Dönem Projeksiyonları (Opsiyonel)
+  gelecekKdv1?: number;
+  gelecekKdv2?: number;
+  gelecekMuhtasar?: number;
+  gelecekStopaj?: number;
+  gelecekGeciciVergi?: number;
+  gelecekKurumlarVergisi?: number;
+  gelecekSgk?: number;
+  gelecekDamga?: number;
+  gelecekDuzeltme?: number;
+  gelecekDigerBorclar?: number;
+  gelecekMuhtemelIade?: number;
+
+  // Ayarlar
+  kdvOrani?: number; // Örn: 20
+  tevkifatPay?: number; // Örn: 5
+  tevkifatPayda?: number; // Örn: 10
+  
+  // Devredenler (Hesaplanan)
+  devredenBorc: number; // Ödenemeyen borç toplamı
+  kalanIadeTutari?: number; // Mahsuptan sonra kalan iade
+
   created_at?: any;
+  updated_at?: any;
 }
