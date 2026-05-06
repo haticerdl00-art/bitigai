@@ -179,10 +179,6 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
               <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
               <span className="text-xs font-bold text-rose-700">Takvimde {approachingCountReal} adet beyanname süresi yaklaşıyor</span>
             </div>
-            <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-xs font-bold text-emerald-700">Piyasalar Pozitif seyrediyor</span>
-            </div>
           </div>
         </div>
       </div>
