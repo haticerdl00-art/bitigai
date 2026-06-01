@@ -53,6 +53,7 @@ import { ProfileModule } from './components/ProfileModule';
 import { CashFlowModule } from './components/CashFlowModule';
 import { CompanyInfoModule } from './components/CompanyInfoModule';
 import { CostAnalysisModule } from './components/CostAnalysisModule';
+import { OfisGiderTakip } from './components/OfisGiderTakip';
 import { TasksModule } from './components/TasksModule';
 import { OfficeProductivityModule } from './components/OfficeProductivityModule';
 import { DocumentsModule } from './components/DocumentsModule';
@@ -399,6 +400,7 @@ export default function App() {
     { id: ModuleId.CHAT, title: 'Danışmana Sor', icon: Bot, desc: 'Mevzuat referanslı akıllı danışmanlık asistanı.' },
     { id: ModuleId.MEVZUAT, title: 'Mevzuat Takip', icon: Gavel, desc: 'Mevzuat riskini sıfıra indiren akıllı takip sistemi.' },
     { id: ModuleId.MALIYET_ANALIZI, title: 'Maliyet ve Üretim', icon: Factory, desc: 'Birim maliyet analizi, fire kontrolü ve SMM otomasyonu.' },
+    { id: ModuleId.OFIS_GIDER, title: 'Ofis Gider Takibi', icon: Receipt, desc: 'Ofis gelir-gider dengesi, açık analizi ve bütçe limit hedefleri.' },
     { id: ModuleId.FIRMA_BILGISI, title: 'Firma Bilgileri', icon: Building2, desc: 'Mükellef kimlik kartı ve mali statü yönetimi.' },
     { id: ModuleId.PROFIL, title: 'Profil', icon: User, desc: 'Kullanıcı profil bilgileri ve hesap ayarları.' },
   ];
@@ -537,6 +539,8 @@ export default function App() {
         return <CashFlowModule profile={companyProfile} companies={companies} onSelectCompany={handleSetCompanyProfile} />;
       case ModuleId.MALIYET_ANALIZI:
         return <CostAnalysisModule profile={companyProfile} />;
+      case ModuleId.OFIS_GIDER:
+        return <OfisGiderTakip />;
       case ModuleId.BEYANNAME:
       case ModuleId.CARI_HESAP:
       case ModuleId.PERSONEL_BORDRO:

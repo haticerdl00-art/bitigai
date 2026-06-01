@@ -20,7 +20,8 @@ export enum ModuleId {
   CARI_HESAP = 'cari-hesap',
   PERSONEL_BORDRO = 'personel-bordro',
   CONTENT_CREATOR = 'content-creator',
-  HAP_NOTLAR = 'hap-notlar'
+  HAP_NOTLAR = 'hap-notlar',
+  OFIS_GIDER = 'ofis-gider'
 }
 
 export interface Personnel {
