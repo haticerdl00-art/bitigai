@@ -130,7 +130,7 @@ export interface CompanyDocument {
   uploadDate: string;
   fileUrl: string;
   storagePath?: string;
-  fileType: 'pdf' | 'jpg' | 'png' | 'docx';
+  fileType: 'pdf' | 'jpg' | 'jpeg' | 'png' | 'docx' | 'doc' | 'xlsx' | 'xls' | 'heic' | 'csv' | 'txt' | 'zip' | 'rar';
   status: 'Geçerli' | 'Süresi Dolmuş' | 'Güncellenmeli';
   expiryDate?: string;
 }
