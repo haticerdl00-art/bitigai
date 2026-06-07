@@ -27,7 +27,11 @@ import {
   Calculator,
   Search,
   Building2,
-  Bot
+  Bot,
+  Share2,
+  Mail,
+  FileImage,
+  ArrowRight
 } from 'lucide-react';
 import { 
   XAxis, 
@@ -51,10 +55,12 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import html2canvas from 'html2canvas';
 import { motion, AnimatePresence } from 'motion/react';
+import Markdown from 'react-markdown';
 import { CompanyProfile, MizanData } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { VergiTakipModulu } from './VergiTakipModulu';
+import { InvestmentFundsTracker } from './InvestmentFundsTracker';
 
 import { analyzeFinancialStatements } from '../services/geminiService';
 
@@ -65,7 +71,7 @@ interface CashFlowModuleProps {
 }
 
 export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, companies, onSelectCompany }) => {
-  const [activeTab, setActiveTab] = useState<'kdv-refund' | 'mali-tablo'>('mali-tablo');
+  const [activeTab, setActiveTab] = useState<'kdv-refund' | 'mali-tablo' | 'fon-takip'>('mali-tablo');
   const [showUpload, setShowUpload] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('6ay');
   const [mizanUploaded, setMizanUploaded] = useState(false);
@@ -196,6 +202,120 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
     } finally {
       setIsMaliTabloAnalyzing(false);
     }
+  };
+
+  const exportToWord = () => {
+    if (!maliTabloReport) return;
+    const lines = maliTabloReport.split('\n');
+    const paragraphs = lines.map(line => {
+      const isHeading1 = line.startsWith('# ');
+      const isHeading2 = line.startsWith('## ');
+      const isHeading3 = line.startsWith('### ');
+      const cleanLine = line.replace(/^(#+\s*|\*+\s*|-\s*)/, '');
+      
+      return new Paragraph({
+        children: [
+          new TextRun({
+            text: cleanLine,
+            bold: isHeading1 || isHeading2 || isHeading3 || line.startsWith('**'),
+            size: isHeading1 ? 32 : isHeading2 ? 24 : isHeading3 ? 18 : 12,
+          }),
+        ],
+        spacing: { after: 120 },
+      });
+    });
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: paragraphs,
+      }],
+    });
+
+    Packer.toBlob(doc).then(blob => {
+      saveAs(blob, `Bitig_AI_Mali_Analiz_Raporu_${profile.title.replace(/\s+/g, '_')}.docx`);
+    });
+  };
+
+  const exportToCSV = () => {
+    let csvContent = "\uFEFF"; // Add BOM for Excel Turkish Char Support
+    csvContent += "BİTİG AI MALI ANALİZ RAPORU VE RASYO TABLOLARI\r\n";
+    csvContent += `Firma Ünvanı: ${profile.title}\r\n`;
+    csvContent += `Tarih: ${new Date().toLocaleDateString('tr-TR')}\r\n\r\n`;
+    
+    csvContent += "1. LİKİDİTE RASYOLARI\r\n";
+    csvContent += "Oran Adı,Mevcut Değer,Hedef Değer,Durum\r\n";
+    const liquidity = maliTabloChartData?.liquidity || [
+      { name: "Cari Oran", value: 1.4, target: 2.0 },
+      { name: "Asit Test", value: 0.9, target: 1.0 },
+      { name: "Nakit Oran", value: 0.15, target: 0.2 }
+    ];
+    liquidity.forEach((item: any) => {
+      const status = item.value >= item.target ? "Yeterli" : "Yetersiz / Geliştirilmeli";
+      csvContent += `"${item.name}",${item.value},${item.target},"${status}"\r\n`;
+    });
+
+    csvContent += "\r\n2. GİDER GRUPLARI DAĞILIMI\r\n";
+    csvContent += "Gider Grubu,Oran/Tutar (%)\r\n";
+    const expenses = maliTabloChartData?.expenses || [
+      { name: "Satış Pazarlama", value: 350 },
+      { name: "Genel Yönetim", value: 250 },
+      { name: "Finansman Gideri", value: 450 },
+      { name: "Ar-Ge Gideri", value: 50 }
+    ];
+    expenses.forEach((item: any) => {
+      csvContent += `"${item.name}",${item.value}\r\n`;
+    });
+
+    csvContent += "\r\n3. MALİ YAPI VE BORÇLULUK\r\n";
+    csvContent += "Kaynak Türü,Oran (%)\r\n";
+    const debts = maliTabloChartData?.debtStructure || [
+      { name: "Kısa Vadeli Borçlar", value: 60 },
+      { name: "Uzun Vadeli Borçlar", value: 25 },
+      { name: "Özkaynaklar", value: 15 }
+    ];
+    debts.forEach((item: any) => {
+      csvContent += `"${item.name}",${item.value}%\r\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, `Bitig_AI_Finansal_Rasyolar_${profile.title.replace(/\s+/g, '_')}.csv`);
+  };
+
+  const exportToImage = async () => {
+    const element = document.getElementById('analysis-report-container');
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { 
+        scale: 2, 
+        useCORS: true, 
+        backgroundColor: '#ffffff',
+        onclone: (documentClone) => {
+          const actions = documentClone.querySelector('#export-actions-container');
+          if (actions) actions.remove();
+        }
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const link = document.createElement("a");
+      link.href = imgData;
+      link.download = `Bitig_AI_Mali_Analiz_Rapor_Gorseli_${profile.title.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Görsel dışa aktarım hatası:", err);
+    }
+  };
+
+  const shareWhatsApp = () => {
+    const text = encodeURIComponent(`Değerli Müşterimiz, ${profile.title} firması için hazırladığımız BİTİG AI SMMM Karar Destek ve Mali Analiz Raporu tamamlanmıştır. Rapor detayları ve interaktif grafikleri Bitig SMMM uygulamamıza yüklenmiştir.`);
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  };
+
+  const shareEmail = () => {
+    const subject = encodeURIComponent(`${profile.title} - BİTİG AI SMMM Mali Analiz Raporu`);
+    const body = encodeURIComponent(`Değerli Çalışma Arkadaşımız / Müşterimiz,\n\nFirmamız için hazırlanan BİTİG AI Mali Analiz, Rasyo Analiz ve Mizan Denetim Raporu tamamlanmıştır. Rapor interaktif grafikleri ve kapsamlı içeriğiyle sistemimize yüklenmiştir.\n\nRaporu incelemek ve PDF/Sözleşme çıktılarını almak için lütfen uygulamamızı ziyaret ediniz.\n\nSaygılarımızla,\nBitig AI Müşavir Asistanı`);
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
   };
 
   const renderKdvRefundAnalysis = () => (
@@ -462,23 +582,23 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
             </div>
 
             <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-kilim-blue/10 rounded-xl flex items-center justify-center">
                     <Bot className="w-6 h-6 text-kilim-blue" />
                   </div>
                   <h4 className="font-black text-kilim-blue-dark m-0 uppercase tracking-tight">Yapay Zeka Analiz Raporu</h4>
                 </div>
-                <div className="flex items-center gap-2">
+                
+                <div className="flex flex-wrap items-center gap-2" id="export-actions-container">
                   <button 
                     onClick={async (e) => {
                       const btn = e.currentTarget;
                       const originalText = btn.innerHTML;
                       btn.disabled = true;
-                      btn.innerHTML = '<span class="animate-spin">⌛</span> PDF Hazırlanıyor...';
+                      btn.innerHTML = '<span class="animate-spin">⌛</span>';
                       
                       try {
-                        // Capture the main container which holds both charts and the report text
                         const element = document.getElementById('analysis-report-container');
                         if (!element) return;
 
@@ -487,24 +607,17 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                           useCORS: true,
                           backgroundColor: '#ffffff',
                           onclone: (clonedDoc) => {
-                            // Find elements that might be using modern CSS color functions not supported by html2canvas
                             const elements = clonedDoc.getElementsByTagName('*');
                             for (let i = 0; i < elements.length; i++) {
                               const el = elements[i] as HTMLElement;
                               const style = window.getComputedStyle(el);
                               
-                              // Force glass-card to a standard background during PDF export
                               if (el.classList.contains('glass-card')) {
                                 el.style.backdropFilter = 'none';
                                 (el.style as any).webkitBackdropFilter = 'none';
                                 el.style.backgroundColor = '#ffffff';
                               }
-
-                              // Check background and border colors for modern CSS functions
-                              // and force them to simpler formats if needed.
-                              // html2canvas fails specifically on 'oklch' and 'oklab'.
                               
-                              // Re-assigning background color if it's too complex
                               if (style.backgroundColor.includes('oklch') || style.backgroundColor.includes('oklab')) {
                                 el.style.backgroundColor = '#ffffff';
                               }
@@ -549,11 +662,60 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                         btn.innerHTML = originalText;
                       }
                     }}
-                    className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 disabled:opacity-50"
+                    className="flex items-center gap-1 bg-rose-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-700 shadow-md transition-all"
+                    title="Raporu PDF olarak kaydet"
                   >
-                    <Download className="w-3 h-3" />
-                    Tüm Raporu İndir (PDF)
+                    <FileText className="w-3.5 h-3.5" />
+                    PDF
                   </button>
+
+                  <button 
+                    onClick={exportToWord}
+                    className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md transition-all"
+                    title="Word formatında indir"
+                  >
+                    <FileText className="w-3.5 h-3.5 opacity-80" />
+                    Word
+                  </button>
+
+                  <button 
+                    onClick={exportToCSV}
+                    className="flex items-center gap-1 bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-md transition-all"
+                    title="Mali Excel/CSV tablolarını indir"
+                  >
+                    <Calculator className="w-3.5 h-3.5 opacity-80" />
+                    Excel / CSV
+                  </button>
+
+                  <button 
+                    onClick={exportToImage}
+                    className="flex items-center gap-1 bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-700 shadow-md transition-all"
+                    title="PNG Görsel formatta kaydet"
+                  >
+                    <FileImage className="w-3.5 h-3.5" />
+                    PNG / Görsel
+                  </button>
+
+                  <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+                  <button 
+                    onClick={shareWhatsApp}
+                    className="flex items-center gap-1 bg-[#25D366] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#20ba59] shadow-md transition-all"
+                    title="WhatsApp ile paylaş"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    Müşteriye Gönder
+                  </button>
+
+                  <button 
+                    onClick={shareEmail}
+                    className="flex items-center gap-1 bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-850 shadow-md transition-all"
+                    title="Eposta olarak gönder"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    E-Posta
+                  </button>
+
                   <button 
                     onClick={() => {
                       setMaliTabloReport(null);
@@ -561,15 +723,16 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
                       setUploadedFiles([]);
                       setShowUpload(true);
                     }} 
-                    className="flex items-center gap-2 px-3 py-1.5 bg-kilim-red/10 text-kilim-red rounded-lg text-xs font-bold hover:bg-kilim-red/20 transition-all"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                    title="Yeni Analiz Başlat"
                   >
-                    <RefreshCw className="w-3 h-3" />
-                    Yeni Analiz Başlat
+                    <RefreshCw className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
-              <div className="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                {maliTabloReport}
+              
+              <div className="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                <Markdown>{maliTabloReport}</Markdown>
               </div>
             </div>
           </motion.div>
@@ -635,7 +798,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 p-1.5 bg-slate-100 rounded-2xl w-fit shadow-inner">
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-100 rounded-2xl w-fit shadow-inner">
         <button 
           onClick={() => setActiveTab('mali-tablo')}
           className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
@@ -657,6 +820,18 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
           KDV İade Durumu Analizi
           <span className="w-2 h-2 bg-kilim-green rounded-full animate-pulse"></span>
         </button>
+        <button 
+          onClick={() => setActiveTab('fon-takip')}
+          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+            activeTab === 'fon-takip' 
+              ? 'bg-white text-kilim-blue shadow-sm' 
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+          id="investment-funds-direct-tab"
+        >
+          💰 Yatırım Fonları & Menkul Kıymet Takibi
+          <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+        </button>
       </div>
 
       <AnimatePresence mode="wait">
@@ -668,6 +843,7 @@ export const CashFlowModule: React.FC<CashFlowModuleProps> = ({ profile, compani
           transition={{ duration: 0.2 }}
         >
           {activeTab === 'kdv-refund' ? renderKdvRefundAnalysis() : 
+           activeTab === 'fon-takip' ? <InvestmentFundsTracker /> :
            renderMaliTabloAnalizi()}
         </motion.div>
       </AnimatePresence>

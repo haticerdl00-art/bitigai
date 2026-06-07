@@ -215,6 +215,10 @@ export interface VergiTakipData {
   devredenBorc: number; // Ödenemeyen borç toplamı
   kalanIadeTutari?: number; // Mahsuptan sonra kalan iade
 
+  // İade Yöntemi ve Türü Belirleme
+  iadeAlimTipi?: string; // 'Mahsuben' | 'Nakden'
+  iadeTuru?: string; // 'KDV İadesi' | 'Stopaj İadesi' | 'Gelir/Kurumlar Vergisi İadesi' | 'Yıllık Gelir Vergisi İadesi' | 'İthalat / İhracat KDV İadesi' | 'Diğer İadeler'
+
   created_at?: any;
   updated_at?: any;
 }

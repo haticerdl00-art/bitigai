@@ -52,6 +52,7 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
   const [activeSubTab, setActiveSubTab] = useState<'current' | 'future' | 'settings'>('current');
 
   // Initial Form State
+  // Initial Form State
   const initialFormData: FormDataFields = {
     kdv2Borc: 0,
     kdv1Borc: 0,
@@ -88,7 +89,9 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
     tevkifatPay: 5,
     tevkifatPayda: 10,
     devredenBorc: 0,
-    kalanIadeTutari: 0
+    kalanIadeTutari: 0,
+    iadeAlimTipi: 'Mahsuben',
+    iadeTuru: 'KDV İadesi'
   };
 
   const [formData, setFormData] = useState<FormDataFields>(initialFormData);
@@ -161,7 +164,9 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
         tevkifatPay: currentRecord.tevkifatPay || 5,
         tevkifatPayda: currentRecord.tevkifatPayda || 10,
         devredenBorc: currentRecord.devredenBorc || 0,
-        kalanIadeTutari: currentRecord.kalanIadeTutari || 0
+        kalanIadeTutari: currentRecord.kalanIadeTutari || 0,
+        iadeAlimTipi: currentRecord.iadeAlimTipi || 'Mahsuben',
+        iadeTuru: currentRecord.iadeTuru || 'KDV İadesi'
       });
     } else {
       // Find previous month's data for carryover
@@ -183,7 +188,9 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
           tevkifatPayda: prevRecord.tevkifatPayda || 10,
           devredenBorc: prevCalc.mahsupSonrasiKalanBorc,
           devredenKdv: prevCalc.sonrakiAyDevredenKdv,
-          oncekiDonemKalanIade: prevCalc.kalanIade
+          oncekiDonemKalanIade: prevCalc.kalanIade,
+          iadeAlimTipi: prevRecord.iadeAlimTipi || 'Mahsuben',
+          iadeTuru: prevRecord.iadeTuru || 'KDV İadesi'
         });
       } else {
         setFormData(initialFormData);
@@ -248,11 +255,19 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
     const gerekliSatisKdv = gerekliSatisMatrahi * kdvOrani;
     const gerekliSatisFatura = gerekliSatisMatrahi + gerekliSatisKdv;
 
-    // KDV Devri Yeterliliği
+    // KDV Devri Yeterliliği (Faturanın KDV Oranı İçin)
     const kdvDevriYeterliMi = sonrakiAyDevredenKdv >= gerekliSatisKdv;
     const kdvDevriAcigi = Math.max(0, gerekliSatisKdv - sonrakiAyDevredenKdv);
     const tevkifatsizAlisMatrahi = kdvDevriAcigi / kdvOrani;
     const tevkifatsizAlisFaturası = tevkifatsizAlisMatrahi * (1 + kdvOrani);
+
+    // KDV Devrinin Talep Edilmek İstenen İadeyi Karşılaması Kontrolü (İadenin Devre Kıyasla Sınırı)
+    const talepEdilenIade = data.alinabilecekIadeTutarı || 0;
+    const mevcutDevredenKdv = data.devredenKdv || 0;
+    const kdvDevriIadeIcinYeterli = mevcutDevredenKdv >= talepEdilenIade;
+    const kdvDevriIadeAcigi = Math.max(0, talepEdilenIade - mevcutDevredenKdv);
+    const kdvDevriIadeGerekliAlisMatrah = kdvDevriIadeAcigi / kdvOrani;
+    const kdvDevriIadeGerekliAlisFatura = kdvDevriIadeGerekliAlisMatrah * (1 + kdvOrani);
 
     // Gelecek Dönem Analizi
     const gelecekDonemBorclari = (data.gelecekKdv1 || 0) + (data.gelecekKdv2 || 0) + (data.gelecekMuhtasar || 0) + 
@@ -279,6 +294,10 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
       kdvDevriAcigi,
       tevkifatsizAlisMatrahi,
       tevkifatsizAlisFaturası,
+      kdvDevriIadeIcinYeterli,
+      kdvDevriIadeAcigi,
+      kdvDevriIadeGerekliAlisMatrah,
+      kdvDevriIadeGerekliAlisFatura,
       gelecekDonemBorclari,
       gelecekDonemAcik,
       mahsuplar: {
@@ -434,6 +453,50 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
                     <InputGroup label="Geçici / Kurumlar Vergi" value={formData.kvGvBorc} onChange={(v) => handleInputChange('kvGvBorc', v)} />
                     <InputGroup label="Damga Vergisi" value={formData.damgaVergisi || 0} onChange={(v) => handleInputChange('damgaVergisi', v)} />
                     <InputGroup label="Düzeltme / Diğer" value={formData.digerBorc} onChange={(v) => handleInputChange('digerBorc', v)} />
+                  </div>
+                </div>
+
+                <div className="glass-card p-6 bg-white">
+                  <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2 text-kilim-red">
+                    <Calculator className="w-4 h-4" />
+                    İade Alma Yöntemi & Türü
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">İade Alım Tipi</label>
+                      <div className="flex gap-2">
+                        {['Mahsuben', 'Nakden'].map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, iadeAlimTipi: type }))}
+                            className={`flex-1 p-2 rounded-xl text-xs font-bold border transition-all ${
+                              formData.iadeAlimTipi === type
+                                ? 'bg-kilim-blue text-white border-kilim-blue'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Sistem İade Türü</label>
+                      <select 
+                        value={formData.iadeTuru || 'KDV İadesi'}
+                        onChange={(e) => setFormData(prev => ({ ...prev, iadeTuru: e.target.value }))}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-kilim-blue/20"
+                      >
+                        <option value="KDV İadesi">KDV (Katma Değer Vergisi) İadesi</option>
+                        <option value="Stopaj İadesi">Stopaj (Gelir Vergisi Tevkifatı) İadesi</option>
+                        <option value="Gelir/Kurumlar Vergisi İadesi">Geçici/Kurumlar Vergisi İadesi</option>
+                        <option value="Yıllık Gelir Vergisi İadesi">Yıllık Gelir Vergisi İadesi</option>
+                        <option value="İthalat / İhracat KDV İadesi">İhracat / İthalat KDV İadesi</option>
+                        <option value="Diğer İadeler">Diğer İadeler ve Teşvikler</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -610,6 +673,20 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
 
                   <div className="space-y-4">
                     <AnalysisItem 
+                      question="İade talebi için KDV devrimiz yeterli mi?"
+                      answer={outputs.kdvDevriIadeIcinYeterli ? `Evet, KDV devriniz (${formatCurrency(formData.devredenKdv || 0)}) talep edilecek iade tutarını (${formatCurrency(formData.alinabilecekIadeTutarı || 0)}) karşılamakta.` : `Hayır! Devreden KDV (${formatCurrency(formData.devredenKdv || 0)}), talep etmeye çalıştığınız iadeden (${formatCurrency(formData.alinabilecekIadeTutarı || 0)}) daha az! Fark: ${formatCurrency(outputs.kdvDevriIadeAcigi)}`}
+                      status={outputs.kdvDevriIadeIcinYeterli ? 'success' : 'error'}
+                    />
+
+                    {!outputs.kdvDevriIadeIcinYeterli && (
+                      <AnalysisItem 
+                        question="İade talebi için KDV devri eksiğini kapatacak alış nedir?"
+                        answer={`Bu iadeyi talep edebilmek için en az ${formatCurrency(outputs.kdvDevriIadeGerekliAlisFatura)} (%${formData.kdvOrani}) tutarında ek tevkifatsız alış faturası edinmelisiniz.`}
+                        status="warning"
+                      />
+                    )}
+
+                    <AnalysisItem 
                       question="Mevcut KDV devri bu fatura için yeterli mi?"
                       answer={outputs.kdvDevriYeterliMi ? "Evet, KDV devriniz kesilecek fatura için yeterlidir." : `Hayır, ${formatCurrency(outputs.kdvDevriAcigi)} KDV devri eksiğiniz bulunmaktadır.`}
                       status={outputs.kdvDevriYeterliMi ? 'success' : 'error'}
@@ -634,11 +711,11 @@ export const VergiTakipModulu: React.FC<VergiTakipModuluProps> = ({ profile }) =
               <div className="p-6 bg-white/5 rounded-3xl border border-white/10 flex items-start gap-4">
                 <Info className="w-6 h-6 text-kilim-blue-light flex-shrink-0 mt-1" />
                 <div className="space-y-2">
-                  <p className="text-sm font-bold">Stratejik Planlama Notu</p>
+                  <p className="text-sm font-bold">Stratejik Planlama Notu ({formData.iadeAlimTipi} - {formData.iadeTuru})</p>
                   <p className="text-xs text-slate-400 leading-relaxed">
                     {outputs.acik > 0 
-                      ? `${formData.tevkifatPay}/${formData.tevkifatPayda} tevkifat oranı ve %${formData.kdvOrani} KDV ile yaptığımız simülasyona göre, dönemi borçsuz kapatmak için ${formatCurrency(outputs.gerekliSatisFatura)} tutarında fatura planlaması yapmanız önerilir. Eğer KDV devriniz yetmiyorsa, ${formatCurrency(outputs.tevkifatsizAlisFaturası)} tutarında mal/hizmet alımı yaparak devri güçlendirmeniz vergi yükünü minimize edecektir.`
-                      : "Bu dönem mali yapınız dengeli görünmektedir. Mevcut iade haklarınızı kullanarak nakit çıkışı yapmadan borçlarınızı mahsup edebilirsiniz. Gelecek dönem tahminlerinizi girdiğinizde planlamayı bir adım öteye taşıyabiliriz."}
+                      ? `${formData.iadeAlimTipi} olarak talep ettiğiniz ${formData.iadeTuru} işleminde, dönemi borçsuz kapatmak için ${formatCurrency(outputs.gerekliSatisFatura)} tutarında fatura planlaması yapmanız önerilir. Eğer KDV devriniz yetmiyorsa, ${formatCurrency(outputs.tevkifatsizAlisFaturası)} tutarında mal/hizmet alımı yaparak devri güçlendirmeniz vergi yükünü minimize edecektir.`
+                      : `Tebrikler. ${formData.iadeAlimTipi} yöntemiyle yürüttüğünüz ${formData.iadeTuru} süreci çok başarılı. Bu dönem mali yapınız dengeli görünmektedir. Mevcut iade haklarınızı kullanarak nakit çıkışı yapmadan borçlarınızı mahsup edebilirsiniz. Gelecek dönem tahminlerinizi girdiğinizde planlamayı bir adım öteye taşıyabiliriz.`}
                   </p>
                 </div>
               </div>

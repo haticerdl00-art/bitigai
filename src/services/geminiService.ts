@@ -449,53 +449,71 @@ export async function analyzeFinancialStatements(files: { data: string, mimeType
   }));
 
   parts.push({
-    text: `Sen uzman bir mali analiz ve denetim asistanısın. 
-          Sana sunulan mali tabloları (Mizan, Gelir Tablosu, Bilanço vb.) analiz et.
+    text: `Sen uzman bir mali analiz, yeminli mali müşavir düzeyinde denetim ve stratejik yönetim asistanısın. 
+          Sana sunulan mali tabloları (Mizan, Gelir Tablosu, Bilanço vb.) derinlemesine analiz et.
           Firma Profili: ${JSON.stringify(profile)}
           
-          Lütfen aşağıdaki başlıklar altında kapsamlı bir rapor hazırla:
+          Lütfen şu özel ve kapsamlı başlıklar altında son derece etki bırakan, profesyonel bir mali denetim ve stratejik asistan raporu hazırla:
           
-          1. Mizan Teknik Denetim (Hata Masası):
-             - Hesaplar arasındaki tutarsızlıklar.
-             - Ters bakiye veren hesaplar (100, 120, 320 vb.).
-             - Adatlandırma gerektiren durumlar.
-             - Dönem sonu işlemleri öncesi yapılması gereken düzeltmeler.
+          1. 🏢 FİRMANIN YAPISAL BÜYÜKLÜĞÜ, GEÇMİŞ GELİŞİMİ VE GELECEK POTANSİYELİ:
+             - Aktif büyüklüğü, ciro seviyesi, pazar konumu ve reel büyüme trendi analizi.
+             - Bu büyüme sağlıklı mı? Sürdürülebilir mi? Yoksa kontrolsüz bir genişleme mi var?
+             - Firmanın önümüzdeki 12 aylık potansiyeli, darboğazları ve sıçrama noktaları neler?
+             
+          2. 📊 RASYOLAR VE KARŞILAŞTIRMALI DURUM MATRİSİ (MEVCUT VS. OLMASI GEREKEN):
+             - Likidite Oranları (Cari Oran, Asit-Test Oranı, Nakit Oran)
+             - Karlılık Oranları (Brüt Satış Kar Marjı, Faaliyet Kar Marjı, Net Kar Oranı, ROE - Özkaynak Karlılığı, ROA - Aktif Karlılığı)
+             - Mali Yapı ve Borçlanma Oranları (Finansal Kaldıraç Oranı, Özkaynak/Borç Oranı)
+             - Her bir oranı tablo halinde "MEVCUT DURUM - OLMASI GEREKEN İDEAL - DURUM (Yeterli/Yetersiz/Kritik)" şeklinde göster. Sazan/Adat gibi riskleri hesaba kat.
+             
+          3. 🚨 TEŞHİS: FİRMA BATIYOR MU, BÜYÜYOR MU? (FİNANSAL RİSK ANALİZİ):
+             - Altman Z-Skor veya benzeri bir risk yaklaşımıyla firmanın iflas/nakit sıkışıklığı/batma riski var mı, yoksa güçlü bir büyüme evresinde mi net teşhis koy.
+             - "BÜYÜYOR", "STABİL", "KRİTİK RİSK", "BATMA RİSKİ/TEHLİKE" etiketlerinden birini seçerek büyük harflerle gerekçelendir.
+             
+          4. 🎯 STRATEJİK ÖNERİLER VE YOL HARİTASI (NE YAPMALI?):
+             - Sermaye Artışı mı yapmalı, yoksa yabancı kaynak/özkaynak dengesini mi düzenlemeli?
+             - Kaynaklarını artırmak için alternatif finansman modelleri (ortaklık, leasing, fonlama, teşvikler) ne olmalı?
+             
+          5. 🛠️ MİZAN TEKNİK DENETİM (HATA MASASI):
+             - Ters bakiye veren hesaplar (100 Kasa alacak bakiyesi, 120/320 ters bakiye, vb.)
+             - Ortaklardan Alacaklar (131) veya Ortaklara Borçlar (331) hesaplarındaki adatlandırma gereksinimleri ve örtülü kazanç dağıtım riskleri.
+             - Dönem sonu fiili/envanter farkları ve düzeltme kayıtları önerileri.
           
-          2. Mali Tablo & Rasyo Analizi:
-             - Cari Oran, Asit Test Oranı gibi likidite rasyoları.
-             - Karlılık oranları ve sektör karşılaştırması.
-             - Borçlanma yapısı ve finansal kaldıraç.
-          
-          3. Stratejik Yol Haritası:
-             - Finansal yapıyı güçlendirmek için öneriler.
-             - Vergi planlaması fırsatları.
-             - Nakit akışı yönetimi tavsiyeleri.
+          Raporun sonuna mutlaka şu imzayı ekle:
+          ---
+          **BİTİG AI ANALİZİ**  
+          *SMMM Stratejik Karar Destek Raporudur. Yatırım tavsiyesi niteliği taşımayıp mali analiz verilerine dayanmaktadır.*
           
           Yanıtını aşağıdaki JSON formatında döndür:
           {
-            "report": "Markdown formatında rapor metni...",
+            "report": "Markdown formatında, başlıkları kalınlaştırılmış, tablolar ve şık listeler barındıran zengin Türkçe analiz raporu...",
             "chartData": {
               "liquidity": [
-                { "name": "Cari Oran", "value": 1.8, "target": 2.0 },
-                { "name": "Asit Test", "value": 1.2, "target": 1.0 },
-                { "name": "Nakit Oran", "value": 0.4, "target": 0.2 }
+                { "name": "Cari Oran", "value": 1.4, "target": 2.0 },
+                { "name": "Asit Test", "value": 0.9, "target": 1.0 },
+                { "name": "Nakit Oran", "value": 0.15, "target": 0.2 }
               ],
               "expenses": [
-                { "name": "Pazarlama", "value": 400 },
-                { "name": "Yönetim", "value": 300 },
-                { "name": "Finansman", "value": 200 },
-                { "name": "Ar-Ge", "value": 100 }
+                { "name": "Satış Pazarlama", "value": 350 },
+                { "name": "Genel Yönetim", "value": 250 },
+                { "name": "Finansman Gideri", "value": 450 },
+                { "name": "Ar-Ge Gideri", "value": 50 }
               ],
               "profitability": [
-                { "month": "Oca", "kar": 100 },
-                { "month": "Şub", "kar": 120 },
+                { "month": "Oca", "kar": 80 },
+                { "month": "Şub", "kar": 95 },
                 { "month": "Mar", "kar": 110 },
-                { "month": "Nis", "kar": 150 },
-                { "month": "May", "kar": 180 }
+                { "month": "Nis", "kar": 125 },
+                { "month": "May", "kar": 140 }
+              ],
+              "debtStructure": [
+                { "name": "Kısa V. Borçlar", "value": 60 },
+                { "name": "Uzun V. Borçlar", "value": 25 },
+                { "name": "Özkaynaklar", "value": 15 }
               ]
             }
           }
-          Sadece JSON döndür. chartData içindeki değerleri analiz ettiğin mizan ve mali tablolara göre gerçekçi bir şekilde doldur.`
+          Sadece JSON döndür. chartData içindeki değerleri analiz ettiğin mali tablolara göre gerçekçi bir şekilde (örneğin iflas riski olan bir firmada borçları yüksek, karlılığı düşük; büyüyen firmada tam tersi olacak şekilde) hesaplayıp yerleştir.`
   });
 
   const response = await ai.models.generateContent({
