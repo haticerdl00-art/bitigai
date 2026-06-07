@@ -329,36 +329,54 @@ export async function analyzeDocumentForContent(fileData?: string, mimeType?: st
   }
 
   parts.push({
-    text: `Sen profesyonel bir içerik üreticisi ve mali danışman asistanısın. 
-          Aşağıda sana sunulan metni veya belgeyi dikkatle analiz et. 
-          SADECE bu metindeki verilere ve bilgilere dayanarak içerik üret. 
+    text: `Sen profesyonel bir içerik üreticisi, grafik tasarımcı ve mali danışman asistanısın. 
+          Sana sunulan metni veya belgeyi dikkatle analiz et. 
+          SADECE bu metindeki verilere, bilgilere ve gerçek detaylara dayanarak içerik üret. 
           Jenerik veya önceki bilgilerinden bağımsız, sadece bu spesifik içeriğe odaklan.
           
-          Aşağıdaki 3 farklı formatta içerik üret:
+          Metni son derece anlaşılır, ilgi çekici ve sıkıcılıktan uzak bir hale dönüştürmek için aşağıdaki bilgileri yapılandırarak çıkar:
           
-          1. HAP NOT: Metindeki en kritik 3-5 maddeyi (bullet points) çıkar. Her madde kısa, öz ve vurucu olmalı.
-          2. YÖNETİCİ ÖZETİ: Metnin bütününü özetleyen, anlamlı, akıcı ve profesyonel bir paragraf oluştur. Metindeki gerçek verilere odaklan.
-          3. İNFOGRAFİK VERİLERİ: Sosyal medya afişi için metindeki verileri aşağıdaki kategorilere ayırarak özetle:
-             - baslik: Afiş için etkileyici, kısa bir başlık.
-             - kapsam: Metnin neyi kapsadığını anlatan 1-2 kısa madde.
-             - avantajlar: Sağlanan faydalar veya olumlu yönler (2-3 madde).
-             - kritikSinirlar: Dikkat edilmesi gereken rakamlar, tarihler veya yasal sınırlar (2-3 madde).
-             - yapilmasiGerekenler: Atılması gereken somut adımlar (2-3 madde).
+          1. YÖNETİCİ ÖZETİ (ozet): Metnin özünü, amacını ve getirdiği temel yenilikleri/düzenlemeleri anlatan, anlamlı, akıcı, profesyonel bir paragraf.
+          2. HAP NOTLAR (hapNot): Akılda kalıcı en kritik 3-5 madde.
+          3. ÖNEMLİ KAVRAMLAR (onemliKavramlar): Metinde geçen mesleki, ticari ya da teknik 3-5 tane kritik terim/kavram ve onların kısa, anlaşılır açıklamaları.
+          4. TARİHLER VE GEÇERLİLİK (tarihler): Metinde geçen önemli tarihler (yürürlük tarihi, son başvuru, beyan tarihi vb.) ve her bir tarihin neden kritik olduğu ("onem"). Eğer tarih yoksa bu alanı boş bırak.
+          5. KRİTİK ŞARTLAR VE KURALLAR (sartlar): Metinde belirtilen yasal sınırlar, koşullar, muafiyetler veya uyması zorunlu kurallar (örn: %20 oran barajı, 10 gün süre sınırı, ciro rasyoları vb.).
+          6. SÜREÇ VE UYGULAMA AŞAMALARI (surecAşamalari): Eğer metinde bir iş akışı, başvuru süreci veya işlem adımları varsa alpine aşamalarını sırasıyla listele (adım numarası "adim", adım başlığı "baslik", açıklama "aciklama"). Eğer süreç yoksa, bu bilginin hayata geçirilmesi için atılması gereken mantıksal 3 adımlık bir yol haritası kurgula.
+          7. KAZANIMLAR VE FAYDALAR (kazanimlar): Bu belgedeki bilginin uygulanmasıyla elde edilecek somut kazanımlar, teşvikler, tasarruflar veya idari kolaylıklar.
+          8. İNFOGRAFİK TASARIMI (infografik): Sosyal medya afişleri ve infografikler için görselleştirilebilir veriler:
+             - baslik: Afiş için son derece vurucu, kısa, dikkat çekici, havalı bir başlık.
+             - kapsam: Kapsamı anlatan 2-3 kısa madde.
+             - avantajlar: En büyük faydalar (2-3 madde).
+             - kritikSinirlar: Hatırlanması gereken en önemli kurallar/sayılar (2-3 madde).
+             - yapilmasiGerekenler: Hemen atılması gereken pratik adımlar/eylemler (2-3 madde).
+             - gorselTema: Görsel tasarım için en uygun renk ve hava paleti seçimi ('neon' | 'kilim' | 'indigo' | 'smarag' | 'sunset' | 'ocean' değerlerinden biri).
           
-          Yanıtını aşağıdaki JSON formatında döndür:
+          Yanıtını mutlaka aşağıdaki JSON formatında döndür, fazladan açıklama yazma, sadece JSON dönsün:
           {
-            "hapNot": ["madde 1", "madde 2", ...],
             "ozet": "özet metni...",
+            "hapNot": ["madde 1", "madde 2", ...],
+            "onemliKavramlar": [
+              {"kavram": "Kavram/Terim Adı", "aciklama": "Anlaşılır, kısa açıklaması"}
+            ],
+            "tarihler": [
+              {"tarih": "GG.AA.YYYY veya Dönem", "onem": "Tarihin önemi/açıklaması"}
+            ],
+            "sartlar": ["şart 1", "şart 2", ...],
+            "surecAşamalari": [
+              {"adim": 1, "baslik": "Aşama Başlığı", "aciklama": "Aşama detay açıklaması"}
+            ],
+            "kazanimlar": ["kazanım 1", "kazanım 2", ...],
             "infografik": {
-              "baslik": "Afiş Başlığı",
-              "kapsam": ["madde 1", ...],
-              "avantajlar": ["madde 1", ...],
-              "kritikSinirlar": ["madde 1", ...],
-              "yapilmasiGerekenler": ["madde 1", ...]
+              "baslik": "Vurucu Afiş Başlığı",
+              "kapsam": ["kapsam maddesi", ...],
+              "avantajlar": ["avantaj maddesi", ...],
+              "kritikSinirlar": ["kritik kural/rakam", ...],
+              "yapilmasiGerekenler": ["atılacak pratik adım", ...],
+              "gorselTema": "indigo"
             }
           }
           
-          Sadece JSON döndür.`
+          Yalnızca geçerli bir JSON belgesi döndür.`
   });
 
   const response = await ai.models.generateContent({
@@ -380,12 +398,21 @@ export async function analyzeDocumentForContent(fileData?: string, mimeType?: st
     return {
       hapNot: ["Analiz sırasında bir hata oluştu."],
       ozet: "Belge analiz edilemedi.",
+      onemliKavramlar: [{"kavram": "Genel Kapsam", "aciklama": "Belge içeriğinde net bir kavram tespiti yapılamadı."}],
+      tarihler: [],
+      sartlar: ["Veri bulunamadı."],
+      surecAşamalari: [
+        {"adim": 1, "baslik": "İnceleme", "aciklama": "Belge içeriğini tekrar gözden geçirin."},
+        {"adim": 2, "baslik": "Danışma", "aciklama": "Mali müşavirinize danışarak işlem adımlarını belirleyin."}
+      ],
+      kazanimlar: ["Bilgi güvenliği ve güncellik."],
       infografik: { 
-        baslik: "Hata", 
-        kapsam: ["Veri yok"],
-        avantajlar: ["Veri yok"],
-        kritikSinirlar: ["Veri yok"],
-        yapilmasiGerekenler: ["Veri yok"]
+        baslik: "Belge Analiz Özeti", 
+        kapsam: ["Belge içeriği okunamadı"],
+        avantajlar: ["Yeniden yükleme yapabilirsiniz"],
+        kritikSinirlar: ["Dosya biçimini kontrol ediniz"],
+        yapilmasiGerekenler: ["Daha net bir metin kopyalayıp yapıştırınız"],
+        gorselTema: "indigo"
       }
     };
   }
