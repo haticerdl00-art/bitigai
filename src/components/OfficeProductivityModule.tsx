@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { GoogleGenAI, Type } from "@google/genai";
+import { FinancialAnalysis } from "./FinancialAnalysis";
+import { VatRefundAnalysis } from "./VatRefundAnalysis";
+import { InvestmentFundsTracker } from "./InvestmentFundsTracker";
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -979,425 +982,92 @@ function KDVHesap() {
 // 3. FİNANSAL DURUM — Firma Analiz Merkezi
 // ─────────────────────────────────────────────
 function FinansalDurum({ profile }: { profile?: CompanyProfile }) {
-  const [aktifSekme, setAktifSekme] = useState("analiz");
-  const [mizanData, setMizanData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
+  const [activeSegment, setActiveSegment] = useState<"analiz" | "iade" | "fonlar">("analiz");
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+  // Fallback default profile if undefined
+  const defaultProfile: CompanyProfile = {
+    id: "default-id",
+    title: "BİTİG DENEME TEKNOLOJİ LTD",
+    taxOffice: "Marmara Kurumlar V.D.",
+    taxNumber: "1234567890",
+    sgkNumber: "2345678912345678",
+    legalStatus: "LTD",
+    ledgerType: "E-Defter (Bilanço)",
+    naceCodes: ["620101"],
+    startDate: "2020-01-01",
+    beratPreference: "Aylık",
+    isExporter: true,
+    isImporter: false,
+    hasWithholdingSales: true,
+    hasWithholdingPurchases: false,
+    hasRefunds: true,
+    emails: ["info@bitig.ai"],
+    phones: ["+90 212 555 1234"],
+    selectedDeclarations: ["KDV1", "KDV2", "Muhtasar"],
+    hrProfile: {
+      totalWorkers: 10,
+      femaleWorkers: 4,
+      maleWorkers: 6,
+      personnelGroups: {
+        retired: 0,
+        disabled: 0,
+        foreign: 0,
+        apprentice: 1,
+        management: 2
+      }
     }
   };
 
-  const analyzeDocument = async () => {
-    if (!file) return;
-    setIsAnalyzing(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64Data = (reader.result as string).split(',')[1];
-        
-        const prompt = `
-          Bu finansal belgeyi (mizan, bilanço veya gelir tablosu) analiz et. 
-          Lütfen şu bilgileri içeren bir JSON yanıtı dön:
-          1. mizanAccuracy: Mizan doğruluğu ve gücü (0-100)
-          2. actionableSteps: Atılması gereken somut adımlar (liste)
-          3. sectorAnalysis: Sektörel karşılaştırma ve analiz
-          4. weaknesses: Zayıf yönler ve riskler
-          5. strengths: Güçlü yönler
-          6. interpretation: Genel finansal yorum
-          7. refundAssistant: {
-               payableDebts: Mevcut ödenecek borçlar,
-               refundCoverage: İadelerin borçları karşılama oranı,
-               carryOver: Gelecek döneme devreden iade/borç,
-               futureRisks: Gelecek dönem riskleri,
-               strategy: Önerilen strateji
-             }
-          8. invoiceAdvice: {
-               recommendedIssued: Kesilmesi önerilen fatura tutarı,
-               recommendedReceived: Alınması önerilen fatura tutarı,
-               vatStatus: KDV devri ve iade durumu analizi
-             }
-        `;
-
-        const result = await ai.models.generateContent({
-          model: "gemini-3.1-pro-preview",
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType: file.type, data: base64Data } }
-            ]
-          }],
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-
-        const responseText = result.text;
-        if (responseText) {
-          setAnalysisResult(JSON.parse(responseText));
-        }
-        setIsAnalyzing(false);
-      };
-    } catch (error) {
-      console.error("AI Analysis error:", error);
-      setIsAnalyzing(false);
-      alert("Analiz sırasında bir hata oluştu.");
-    }
-  };
-
-  const sekmeler = [
-    { id: "analiz", label: "Belge Analizi & OCR" },
-    { id: "iade", label: "İade Asistanı" },
-    { id: "bilanco", label: "Bilanço" },
-    { id: "gelir", label: "Gelir Tablosu" },
-    { id: "rasyo", label: "Rasyo Analizi" },
-    { id: "kdv", label: "KDV & Denetim" },
-  ];
-
-  // Rasyo hesaplamaları için dummy veriler (Analizden gelmiyorsa)
-  const donenVT = 850000;
-  const kvykT = 420000;
-  const cariOran = donenVT / kvykT;
-  const ozkaynakT = 1200000;
-  const toplamAktif = 2500000;
-  const borcOzkaynak = (toplamAktif - ozkaynakT) / ozkaynakT;
-  const brutKarMarji = 32.5;
-  const netKarMarji = 12.8;
-  const roe = 18.4;
+  const currentProfile = profile || defaultProfile;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="space-y-6">
       
-      {/* Üst Panel: Belge Yükleme */}
-      <div style={{ background: C.kart, borderRadius: 20, padding: 24, border: `1px solid ${C.sinir}`, boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div>
-            <h3 style={{ fontSize: 18, fontWeight: 900, color: C.metin }}>Finansal Analiz & İade Asistanı</h3>
-            <p style={{ fontSize: 12, color: C.ikinci }}>Herhangi bir finansal belgeyi yükleyerek yapay zeka destekli derin analiz alın.</p>
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <input 
-              type="file" 
-              id="fin-upload" 
-              hidden 
-              onChange={handleFileUpload}
-              accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"
-            />
-            <label 
-              htmlFor="fin-upload"
-              style={{ 
-                padding: "10px 20px", background: C.bg, color: C.mavi, borderRadius: 12, 
-                fontSize: 13, fontWeight: 700, cursor: "pointer", border: `1px solid ${C.mavi}30`,
-                display: "flex", alignItems: "center", gap: 8
-              }}
-            >
-              <Upload size={18} /> {file ? file.name : "Dosya Seç"}
-            </label>
-            <button 
-              onClick={analyzeDocument}
-              disabled={isAnalyzing || !file}
-              style={{ 
-                padding: "10px 24px", background: isAnalyzing ? C.ikinci : C.mavi, color: "#FFF", borderRadius: 12, 
-                fontSize: 13, fontWeight: 800, cursor: isAnalyzing ? "not-allowed" : "pointer", border: "none",
-                display: "flex", alignItems: "center", gap: 8, opacity: isAnalyzing ? 0.7 : 1
-              }}
-            >
-              {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />} 
-              {isAnalyzing ? "Analiz Ediliyor..." : "Analiz Et"}
-            </button>
-          </div>
-        </div>
-
-        {/* Sekmeler */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 24, borderBottom: `1px solid ${C.sinir}`, paddingBottom: 12 }}>
-          {sekmeler.map(sekme => (
-            <button
-              key={sekme.id}
-              onClick={() => setAktifSekme(sekme.id)}
-              style={{
-                padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-                background: aktifSekme === sekme.id ? C.mavi : "transparent",
-                color: aktifSekme === sekme.id ? "#FFF" : C.ikinci,
-                border: "none", cursor: "pointer", transition: "all 0.2s"
-              }}
-            >
-              {sekme.label}
-            </button>
-          ))}
-        </div>
-
-        {/* İçerik */}
-        {aktifSekme === "analiz" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            {!analysisResult ? (
-              <div style={{ gridColumn: "span 2", padding: 60, textAlign: "center", background: C.bg + "30", borderRadius: 16, border: `2px dashed ${C.sinir}` }}>
-                <div style={{ fontSize: 40, marginBottom: 16 }}>📄</div>
-                <h4 style={{ fontSize: 16, fontWeight: 800, color: C.metin }}>Analiz Bekleniyor</h4>
-                <p style={{ fontSize: 13, color: C.ikinci, maxWidth: 400, margin: "0 auto" }}>
-                  Lütfen bir mizan veya bilanço dosyası yükleyip "Analiz Et" butonuna basın. 
-                  Yapay zekamız verileri OCR ile okuyup size özel tavsiyeler üretecektir.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <div style={{ background: C.mavi + "08", padding: 20, borderRadius: 16, border: `1px solid ${C.mavi}20` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                      <h5 style={{ fontSize: 14, fontWeight: 800, color: C.mavi }}>Mizan Doğruluğu & Gücü</h5>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: C.mavi }}>%{analysisResult.mizanAccuracy}</div>
-                    </div>
-                    <div style={{ height: 8, background: C.sinir, borderRadius: 10, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${analysisResult.mizanAccuracy}%`, background: C.mavi, borderRadius: 10 }} />
-                    </div>
-                  </div>
-
-                  <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}`, marginTop: 16 }}>
-                    <h5 style={{ fontSize: 13, fontWeight: 800, color: C.metin, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                      <TrendingUp size={16} color={C.yesil} /> Güçlü Yönler
-                    </h5>
-                    <p style={{ fontSize: 13, color: C.ikinci, lineHeight: 1.6 }}>{analysisResult.strengths}</p>
-                  </div>
-
-                  <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}`, marginTop: 16 }}>
-                    <h5 style={{ fontSize: 13, fontWeight: 800, color: C.metin, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                      <AlertTriangle size={16} color={C.kirmizi} /> Riskler & Zayıf Yönler
-                    </h5>
-                    <p style={{ fontSize: 13, color: C.ikinci, lineHeight: 1.6 }}>{analysisResult.weaknesses}</p>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <div style={{ background: C.yesil + "08", padding: 20, borderRadius: 16, border: `1px solid ${C.yesil}20` }}>
-                    <h5 style={{ fontSize: 13, fontWeight: 800, color: C.yesil, marginBottom: 12 }}>Atılması Gereken Somut Adımlar</h5>
-                    <ul style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-                      {analysisResult.actionableSteps.map((step: string, idx: number) => (
-                        <li key={idx} style={{ fontSize: 12, color: C.metin, marginBottom: 6 }}>{step}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div style={{ background: "#FFF", padding: 20, borderRadius: 16, border: `1px solid ${C.sinir}`, marginTop: 16 }}>
-                    <h5 style={{ fontSize: 13, fontWeight: 800, color: C.metin, marginBottom: 12 }}>Sektörel Analiz & Yorum</h5>
-                    <p style={{ fontSize: 13, color: C.ikinci, lineHeight: 1.6 }}>{analysisResult.sectorAnalysis}</p>
-                    <div style={{ marginTop: 12, padding: 12, background: C.bg, borderRadius: 10, fontSize: 12, color: C.metin, fontStyle: "italic" }}>
-                      "{analysisResult.interpretation}"
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* İade Asistanı */}
-        {aktifSekme === "iade" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            {!analysisResult ? (
-              <div style={{ gridColumn: "span 2", padding: 60, textAlign: "center" }}>
-                <p style={{ color: C.ucuncu }}>Lütfen önce belge analizi yapın.</p>
-              </div>
-            ) : (
-              <>
-                <div style={{ background: C.mor + "08", padding: 24, borderRadius: 20, border: `1px solid ${C.mor}20` }}>
-                  <h5 style={{ fontSize: 15, fontWeight: 900, color: C.mor, marginBottom: 20 }}>İade & Borç Dengesi</h5>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 13, color: C.ikinci }}>Mevcut Ödenecek Borçlar</span>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: C.kirmizi }}>{analysisResult.refundAssistant.payableDebts}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 13, color: C.ikinci }}>İade Karşılama Oranı</span>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: C.yesil }}>{analysisResult.refundAssistant.refundCoverage}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 13, color: C.ikinci }}>Devreden Bakiye</span>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: C.mavi }}>{analysisResult.refundAssistant.carryOver}</span>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 24, padding: 16, background: "#FFF", borderRadius: 12, border: `1px solid ${C.mor}30` }}>
-                    <h6 style={{ fontSize: 12, fontWeight: 800, color: C.mor, marginBottom: 8 }}>Strateji Önerisi:</h6>
-                    <p style={{ fontSize: 12, color: C.metin, lineHeight: 1.5 }}>{analysisResult.refundAssistant.strategy}</p>
-                  </div>
-                </div>
-
-                <div style={{ background: C.mavi + "08", padding: 24, borderRadius: 20, border: `1px solid ${C.mavi}20` }}>
-                  <h5 style={{ fontSize: 15, fontWeight: 900, color: C.mavi, marginBottom: 20 }}>Fatura & KDV Planlama</h5>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-                    <div style={{ background: "#FFF", padding: 16, borderRadius: 16, textAlign: "center" }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase" }}>Önerilen Satış</div>
-                      <div style={{ fontSize: 16, fontWeight: 900, color: C.mavi }}>{analysisResult.invoiceAdvice.recommendedIssued}</div>
-                    </div>
-                    <div style={{ background: "#FFF", padding: 16, borderRadius: 16, textAlign: "center" }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: C.ucuncu, textTransform: "uppercase" }}>Önerilen Alış</div>
-                      <div style={{ fontSize: 16, fontWeight: 900, color: C.yesil }}>{analysisResult.invoiceAdvice.recommendedReceived}</div>
-                    </div>
-                  </div>
-                  <div style={{ padding: 16, background: "#FFF", borderRadius: 12, border: `1px solid ${C.mavi}30` }}>
-                    <h6 style={{ fontSize: 12, fontWeight: 800, color: C.mavi, marginBottom: 8 }}>KDV & Devir Analizi:</h6>
-                    <p style={{ fontSize: 12, color: C.metin, lineHeight: 1.5 }}>{analysisResult.invoiceAdvice.vatStatus}</p>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Eski Bilanço/Gelir Tablosu Görünümleri (Opsiyonel) */}
-        {(aktifSekme === "bilanco" || aktifSekme === "gelir" || aktifSekme === "rasyo" || aktifSekme === "kdv") && (
-          <div style={{ marginTop: 20, opacity: 0.6 }}>
-            <p style={{ fontSize: 12, textAlign: "center", color: C.ucuncu }}>Klasik tablo görünümü (Analiz verisiyle senkronize edilecektir)</p>
-          </div>
-        )}
+      {/* Upper Segment Navigation Tab Menu */}
+      <div className="flex flex-col sm:flex-row gap-3 p-2 bg-slate-100 rounded-[1.75rem] border border-slate-200">
+        <button
+          onClick={() => setActiveSegment("analiz")}
+          className={`flex-1 py-3.5 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            activeSegment === "analiz"
+              ? "bg-slate-900 text-white shadow-md shadow-slate-900/10"
+              : "text-slate-500 hover:text-slate-850"
+          }`}
+        >
+          📈 FİNANSAL STRATEJİ & RASYOLAR
+        </button>
+        <button
+          onClick={() => setActiveSegment("iade")}
+          className={`flex-1 py-3.5 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            activeSegment === "iade"
+              ? "bg-slate-900 text-white shadow-md shadow-slate-900/10"
+              : "text-slate-500 hover:text-slate-850"
+          }`}
+        >
+          🧾 KDV/STOPAJ İADE VE MAHSUP
+        </button>
+        <button
+          onClick={() => setActiveSegment("fonlar")}
+          className={`flex-1 py-3.5 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            activeSegment === "fonlar"
+              ? "bg-slate-900 text-white shadow-md shadow-slate-900/10"
+              : "text-slate-500 hover:text-slate-850"
+          }`}
+        >
+          💰 MENKUL KIYMET & FON TAKİBİ
+        </button>
       </div>
 
-      {/* Bilanço */}
-      {aktifSekme === "bilanco" && (
-        <div style={{ background: C.kart, borderRadius: 14, border: `1px solid ${C.sinir}`, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px", padding: "8px 16px", background: C.koyu }}>
-            {["Kalem", "Cari Dönem", "Önceki Dönem"].map(h => <span key={h} style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>{h}</span>)}
-          </div>
-          {[
-            { ad: "Dönen Varlıklar", cari: 850000, onceki: 720000, vurgula: true },
-            { ad: "Kasa ve Banka", cari: 258000, onceki: 180000, vurgula: false },
-            { ad: "Ticari Alacaklar", cari: 342000, onceki: 290000, vurgula: false },
-            { ad: "Stoklar", cari: 180000, onceki: 210000, vurgula: false },
-            { ad: "Duran Varlıklar", cari: 1650000, onceki: 1580000, vurgula: true },
-            { ad: "Maddi Duran Varlıklar", cari: 1420000, onceki: 1380000, vurgula: false },
-            { ad: "TOPLAM AKTİF", cari: 2500000, onceki: 2300000, vurgula: true, ana: true },
-            { ad: "Kısa Vadeli Borçlar", cari: 420000, onceki: 380000, vurgula: true },
-            { ad: "Uzun Vadeli Borçlar", cari: 880000, onceki: 920000, vurgula: true },
-            { ad: "Özkaynaklar", cari: 1200000, onceki: 1000000, vurgula: true },
-            { ad: "TOPLAM PASİF", cari: 2500000, onceki: 2300000, vurgula: true, ana: true },
-          ].map((r, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px", padding: "9px 16px", borderBottom: `1px solid ${C.sinir}`, background: r.ana ? C.mavi + "08" : r.vurgula ? C.bg : C.kart }}>
-              <span style={{ fontSize: 13, fontWeight: r.vurgula ? 800 : 500, color: r.ana ? C.mavi : r.vurgula ? C.metin : C.ikinci, paddingLeft: r.vurgula ? 0 : 12 }}>{r.ad}</span>
-              <span style={{ fontSize: 13, fontWeight: r.vurgula ? 800 : 600, color: C.metin, textAlign: "right" }}>{para(r.cari)}</span>
-              <span style={{ fontSize: 12, color: C.ucuncu, textAlign: "right" }}>{para(r.onceki)}</span>
-            </div>
-          ))}
-        </div>
+      {/* Render selected submodule */}
+      {activeSegment === "analiz" && (
+        <FinancialAnalysis profile={currentProfile} />
+      )}
+      {activeSegment === "iade" && (
+        <VatRefundAnalysis profile={currentProfile} />
+      )}
+      {activeSegment === "fonlar" && (
+        <InvestmentFundsTracker />
       )}
 
-      {/* Gelir Tablosu */}
-      {aktifSekme === "gelir" && (
-        <div style={{ background: C.kart, borderRadius: 14, border: `1px solid ${C.sinir}`, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px 80px", padding: "8px 16px", background: C.koyu }}>
-            {["Kalem", "Cari Dönem", "Önceki Dönem", "Değişim"].map(h => <span key={h} style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>{h}</span>)}
-          </div>
-          {[
-            { ad: "Net Satışlar", cari: 725000, onceki: 633500, vurgula: false },
-            { ad: "Satılan Mal Maliyeti (−)", cari: -460000, onceki: -420000, vurgula: false },
-            { ad: "BRÜT KÂR", cari: 265000, onceki: 213500, vurgula: true },
-            { ad: "Faaliyet Giderleri (−)", cari: -125000, onceki: -111000, vurgula: false },
-            { ad: "FAALİYET KÂRI", cari: 140000, onceki: 102500, vurgula: true },
-            { ad: "Finansman Giderleri (−)", cari: -28000, onceki: -24000, vurgula: false },
-            { ad: "Diğer Gelirler", cari: 12000, onceki: 8000, vurgula: false },
-            { ad: "VERGİ ÖNCESİ KÂR", cari: 125000, onceki: 86500, vurgula: true },
-            { ad: "Kurumlar Vergisi (−)", cari: -31250, onceki: -21625, vurgula: false },
-            { ad: "NET KÂR", cari: 93750, onceki: 64875, vurgula: true },
-          ].map((r, i) => {
-            const deg = r.onceki ? ((Math.abs(r.cari) - Math.abs(r.onceki)) / Math.abs(r.onceki) * 100) : 0;
-            return (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px 80px", padding: "9px 16px", borderBottom: `1px solid ${C.sinir}`, background: r.vurgula ? C.basari + "08" : i % 2 === 0 ? C.kart : C.bg, borderLeft: r.vurgula ? `3px solid ${C.basari}` : "3px solid transparent" }}>
-                <span style={{ fontSize: 13, fontWeight: r.vurgula ? 800 : 500, color: r.vurgula ? C.basari : C.ikinci }}>{r.ad}</span>
-                <span style={{ fontSize: 13, fontWeight: r.vurgula ? 800 : 600, color: r.cari >= 0 ? C.basari : C.kritik, textAlign: "right" }}>{para(Math.abs(r.cari))}</span>
-                <span style={{ fontSize: 12, color: C.ucuncu, textAlign: "right" }}>{para(Math.abs(r.onceki))}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: deg >= 0 ? C.basari : C.kritik, textAlign: "right" }}>{deg >= 0 ? "+" : ""}{deg.toFixed(1)}%</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Rasyo Analizi */}
-      {aktifSekme === "rasyo" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {[
-            {
-              grup: "Likidite Oranları", renk: C.bilgi,
-              oranlar: [
-                { ad: "Cari Oran", deger: cariOran.toFixed(2), hedef: "> 1.5", uygun: cariOran >= 1.5, aciklama: "Dönen varlıkların kısa vadeli borçlara oranı." },
-                { ad: "Asit-Test", deger: ((donenVT - 180000) / kvykT).toFixed(2), hedef: "> 1.0", uygun: ((donenVT - 180000) / kvykT) >= 1, aciklama: "Stoklar hariç kısa vadeli likidite." },
-                { ad: "Nakit Oranı", deger: (258000 / kvykT).toFixed(2), hedef: "> 0.5", uygun: (258000 / kvykT) >= 0.5, aciklama: "Sadece nakit ile kısa vadeli ödeme gücü." },
-              ]
-            },
-            {
-              grup: "Mali Yapı Oranları", renk: C.mor,
-              oranlar: [
-                { ad: "Borç/Özkaynak", deger: borcOzkaynak.toFixed(2), hedef: "< 1.5", uygun: borcOzkaynak < 1.5, aciklama: "Toplam borcun özkaynaklara oranı." },
-                { ad: "Özkaynak Oranı", deger: yuzde((ozkaynakT / toplamAktif) * 100), hedef: "> %40", uygun: (ozkaynakT / toplamAktif) >= 0.4, aciklama: "Varlıkların özkaynak ile finansman oranı." },
-              ]
-            },
-            {
-              grup: "Kârlılık Oranları", renk: C.basari,
-              oranlar: [
-                { ad: "Brüt Kâr Marjı", deger: yuzde(brutKarMarji), hedef: "> %25", uygun: brutKarMarji >= 25, aciklama: "Satışlardan elde edilen brüt kâr oranı." },
-                { ad: "Net Kâr Marjı", deger: yuzde(netKarMarji), hedef: "> %10", uygun: netKarMarji >= 10, aciklama: "Net kârın net satışlara oranı." },
-                { ad: "ROE", deger: yuzde(roe), hedef: "> %15", uygun: roe >= 15, aciklama: "Özkaynak kârlılığı." },
-              ]
-            },
-          ].map((g, gi) => (
-            <div key={gi}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: g.renk, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${g.renk}` }}>{g.grup}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-                {g.oranlar.map((r, i) => (
-                  <div key={i} style={{ background: (r.uygun ? C.basari : C.kritik) + "08", border: `1px solid ${(r.uygun ? C.basari : C.kritik)}20`, borderRadius: 12, padding: "14px 16px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.ikinci }}>{r.ad}</div>
-                      <Badge label={r.uygun ? "İYİ" : "RİSK"} renk={r.uygun ? C.basari : C.kritik} />
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: r.uygun ? C.basari : C.kritik, marginBottom: 4 }}>{r.deger}</div>
-                    <div style={{ fontSize: 11, color: C.ucuncu, marginBottom: 4 }}>Hedef: {r.hedef}</div>
-                    <div style={{ fontSize: 12, color: C.ikinci }}>{r.aciklama}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* KDV & Teknik Denetim */}
-      {aktifSekme === "kdv" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            {[
-              { label: "İndirilecek KDV (190)", deger: para(148500), renk: C.bilgi },
-              { label: "Hesaplanan KDV (391)", deger: para(92300), renk: C.metin },
-              { label: "İade Potansiyeli", deger: para(56200), renk: C.mor },
-            ].map((k, i) => (
-              <div key={i} style={{ background: C.kart, borderRadius: 12, padding: "14px", border: `1px solid ${C.sinir}`, textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: C.ucuncu, fontWeight: 700, textTransform: "uppercase" }}>{k.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: k.renk, marginTop: 4 }}>{k.deger}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ background: C.kart, borderRadius: 14, border: `1px solid ${C.sinir}`, overflow: "hidden" }}>
-            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.sinir}`, fontSize: 13, fontWeight: 700, color: C.uyari }}>⚠️ Dikkat Gerektiren Hesaplar</div>
-            {[
-              { kod: "120", ad: "Alıcılar", sorun: "Ortalama tahsilat 68 gün — sektör ort. 45 gün", tutar: para(342000), renk: C.uyari },
-              { kod: "320", ad: "Satıcılar", sorun: "Bakiye 90 günü aşıyor — ödeme planı önerilir", tutar: para(215000), renk: C.uyari },
-              { kod: "100", ad: "Kasa", sorun: "Yüksek nakit tutulumu — verimlilik riski", tutar: para(12400), renk: C.bilgi },
-            ].map((u, i) => (
-              <div key={i} style={{ padding: "12px 16px", borderBottom: i < 2 ? `1px solid ${C.sinir}` : "none", display: "flex", alignItems: "center", gap: 12, borderLeft: `4px solid ${u.renk}` }}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, background: u.renk + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: u.renk, flexShrink: 0 }}>{u.kod}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.metin }}>{u.ad}</div>
-                  <div style={{ fontSize: 12, color: C.ikinci }}>{u.sorun}</div>
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 800, color: C.metin }}>{u.tutar}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
