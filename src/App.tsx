@@ -61,6 +61,7 @@ import { OCRModule } from './components/OCRModule';
 import { ContentCreatorModule } from './components/ContentCreatorModule';
 import { HapNotlarModule } from './components/HapNotlarModule';
 import { FloatingChat } from './components/FloatingChat';
+import { AracKdvTakipModule } from './components/AracKdvTakipModule';
 import { NotificationManager } from './components/NotificationManager';
 import { NotificationToast } from './components/NotificationToast';
 import { fetchLatestLegislation } from './services/geminiService';
@@ -401,6 +402,7 @@ export default function App() {
     { id: ModuleId.MEVZUAT, title: 'Mevzuat Takip', icon: Gavel, desc: 'Mevzuat riskini sıfıra indiren akıllı takip sistemi.' },
     { id: ModuleId.MALIYET_ANALIZI, title: 'Maliyet ve Üretim', icon: Factory, desc: 'Birim maliyet analizi, fire kontrolü ve SMM otomasyonu.' },
     { id: ModuleId.OFIS_GIDER, title: 'Ofis Gider Takibi', icon: Receipt, desc: 'Ofis gelir-gider dengesi, açık analizi ve bütçe limit hedefleri.' },
+    { id: ModuleId.ARAC_KDV_TAKIP, title: '2. El Araç & KDV', icon: FileSpreadsheet, desc: 'Noter alım satım işlemleri ve kâr üzerinden KDV / Özel Matrah takibi.' },
     { id: ModuleId.FIRMA_BILGISI, title: 'Firma Bilgileri', icon: Building2, desc: 'Mükellef kimlik kartı ve mali statü yönetimi.' },
     { id: ModuleId.PROFIL, title: 'Profil', icon: User, desc: 'Kullanıcı profil bilgileri ve hesap ayarları.' },
   ];
@@ -541,6 +543,8 @@ export default function App() {
         return <CostAnalysisModule profile={companyProfile} />;
       case ModuleId.OFIS_GIDER:
         return <OfisGiderTakip />;
+      case ModuleId.ARAC_KDV_TAKIP:
+        return <AracKdvTakipModule profile={companyProfile} />;
       case ModuleId.BEYANNAME:
       case ModuleId.CARI_HESAP:
       case ModuleId.PERSONEL_BORDRO:

@@ -21,7 +21,8 @@ export enum ModuleId {
   PERSONEL_BORDRO = 'personel-bordro',
   CONTENT_CREATOR = 'content-creator',
   HAP_NOTLAR = 'hap-notlar',
-  OFIS_GIDER = 'ofis-gider'
+  OFIS_GIDER = 'ofis-gider',
+  ARAC_KDV_TAKIP = 'arac-kdv-takip'
 }
 
 export interface Personnel {
@@ -221,4 +222,37 @@ export interface VergiTakipData {
 
   created_at?: any;
   updated_at?: any;
+}
+
+export interface VehicleRecord {
+  id: string;
+  companyId: string;
+  plaka: string;
+  eskiPlaka: string;
+  plakaDegistiMi: boolean;
+  alisNoter: string;
+  alisTarihi: string;
+  alisBelgeTuru: 'Gider Pusulası' | 'Fatura' | 'Diğer';
+  alisBelgeNo: string;
+  alisTutari: number;
+  satisNoter: string;
+  satisTarihi: string;
+  satisBelgeNo: string;
+  satisTutari: number;
+  faturaTuru: 'kar-10' | 'kar-20' | 'tam-10' | 'tam-20' | 'muaf';
+  not: string;
+  satildi: boolean;
+  giderPusulasiDuzenlendi: boolean;
+  faturaKesildi: boolean;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface MonthlyReconciliation {
+  id: string; // "companyId_YYYY-MM"
+  companyId: string;
+  period: string; // "YYYY-MM"
+  zirveAylikToplam: number;
+  beyannameAylikToplam: number;
+  not?: string;
 }
