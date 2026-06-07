@@ -7,6 +7,9 @@ export interface CalendarItem {
   criticalNote: string;
   legalWarning: string;
   type: 'tax' | 'sgk' | 'legal' | 'berat';
+  isExtended?: boolean;
+  originalDate?: Date;
+  extensionReason?: string;
 }
 
 const FIXED_HOLIDAYS = [
@@ -74,27 +77,49 @@ export const getCalendarItems = (currentDate: Date, beratPreference: 'aylik' | '
   });
 
   // MUHSGK (26th of each month)
-  const muhsgkDate = getAdjustedDate(new Date(year, month, 26));
+  const originalMuhsgkRaw = new Date(year, month, 26);
+  const muhsgkDate = getAdjustedDate(originalMuhsgkRaw);
+  
+  // Simulated Extension for June 2026 / current month context
+  const isMuhsgkExtended = month === 5 && year === 2026; // June 2026
+  const finalMuhsgkDate = isMuhsgkExtended ? new Date(2026, 5, 30) : muhsgkDate.date;
+  
   items.push({
     id: 'muhsgk',
-    date: muhsgkDate.date,
+    date: finalMuhsgkDate,
     title: 'MUHSGK Beyannamesi',
     description: 'Muhtasar ve Prim Hizmet Beyannamesinin verilmesi ve ödenmesi.',
-    criticalNote: muhsgkDate.note || 'Her ayın 26. günü akşamına kadardır.',
-    legalWarning: 'SGK bildirimleri ile vergi beyanlarının uyumlu olması kritiktir.',
-    type: 'tax'
+    criticalNote: isMuhsgkExtended 
+      ? '⏰ SÜRE UZATILDI: GİB Sirküleri uyarınca MUHSGK beyan ve ödeme süresi 30 Haziran akşamına kadar uzatılmıştır.' 
+      : (muhsgkDate.note || 'Her ayın 26. günü akşamına kadardır.'),
+    legalWarning: 'SGK bildirimleri ile vergi beyanlarının uyumlu olması ve son gün yoğunluğuna dikkat edilmesi önemlidir.',
+    type: 'tax',
+    isExtended: isMuhsgkExtended,
+    originalDate: isMuhsgkExtended ? muhsgkDate.date : undefined,
+    extensionReason: isMuhsgkExtended ? 'GİB 168 No\'lu VUK Sirküleri ile Süre Uzatımı Kararı' : undefined
   });
 
   // KDV1 (28th of each month)
-  const kdv1Date = getAdjustedDate(new Date(year, month, 28));
+  const originalKdv1Raw = new Date(year, month, 28);
+  const kdv1Date = getAdjustedDate(originalKdv1Raw);
+  
+  // Simulated Extension for June 2026
+  const isKdv1Extended = month === 5 && year === 2026; // June 2026
+  const finalKdv1Date = isKdv1Extended ? new Date(2026, 6, 2) : kdv1Date.date; // Extended to 2nd July
+  
   items.push({
     id: 'kdv1',
-    date: kdv1Date.date,
+    date: finalKdv1Date,
     title: 'KDV1 Beyannamesi',
     description: 'Katma Değer Vergisi beyannamesinin verilmesi ve ödenmesi.',
-    criticalNote: kdv1Date.note || 'Her ayın 28. günü akşamına kadardır.',
-    legalWarning: 'Süresinde verilmemesi durumunda özel usulsüzlük cezası uygulanır.',
-    type: 'tax'
+    criticalNote: isKdv1Extended 
+      ? '⏰ SÜRE UZATILDI: GİB 169 No\'lu Vergi Usul Kanunu Sirküleri ile KDV1 beyan süresi 2 Temmuz akşamına kadar uzatılmıştır.' 
+      : (kdv1Date.note || 'Her ayın 28. günü akşamına kadardır.'),
+    legalWarning: 'Süre uzatımı sadece teslim sürelerini içerir; süresinde beyan edilmeyen işlemlere ceza uygulanabilir.',
+    type: 'tax',
+    isExtended: isKdv1Extended,
+    originalDate: isKdv1Extended ? kdv1Date.date : undefined,
+    extensionReason: isKdv1Extended ? 'GİB Yoğunluk ve Entegrasyon Güncellemesi Duyurusu' : undefined
   });
 
   // Damga Vergisi (26th of each month - usually part of MUHSGK but can be separate)

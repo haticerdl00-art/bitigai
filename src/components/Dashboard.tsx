@@ -21,6 +21,8 @@ import { fetchLatestLegislation } from '../services/geminiService';
 import { UserProfile, ModuleId, CompanyProfile } from '../types';
 import { TasksModule } from './TasksModule';
 import { MarketPulse } from './MarketPulse';
+import { NewsModule } from './NewsModule';
+import { AgendaModule } from './AgendaModule';
 import { getCalendarItems } from '../utils/calendarUtils';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -168,6 +170,9 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
       {/* Market Pulse Section */}
       <MarketPulse />
 
+      {/* News Section */}
+      <NewsModule />
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {realStats.map((stat) => (
@@ -289,6 +294,9 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
           </div>
         </div>
       </div>
+
+      {/* Agenda Module */}
+      <AgendaModule />
 
     </div>
   );

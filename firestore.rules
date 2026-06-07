@@ -201,6 +201,17 @@ service cloud.firestore {
         allow update: if isAuthenticated() && request.auth.uid == userId && isValidTask(request.resource.data);
         allow delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       }
+
+      match /agenda/{agendaId} {
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow create: if isAuthenticated() && request.auth.uid == userId;
+        allow update: if isAuthenticated() && request.auth.uid == userId;
+        allow delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      }
+
+      match /office_exp_entries/{entryId} {
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      }
     }
 
     match /cari_transactions/{transactionId} {
@@ -262,6 +273,10 @@ service cloud.firestore {
       }
 
       match /mizan/{mizanId} {
+        allow read, write: if isCompanyOwner(companyId);
+      }
+
+      match /vouchers/{voucherId} {
         allow read, write: if isCompanyOwner(companyId);
       }
     }

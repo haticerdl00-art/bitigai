@@ -85,6 +85,20 @@
       },
       "required": ["text", "completed"]
     },
+    "Agenda": {
+      "title": "Agenda",
+      "description": "Kullanıcı ajanda notları.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "category": { "type": "string", "enum": ["İş", "Kişisel", "Mükellef", "Maliye", "Genel"] },
+        "completed": { "type": "boolean" },
+        "date": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["text", "category"]
+    },
     "BeyannameTracking": {
       "title": "BeyannameTracking",
       "description": "Beyanname takip bilgileri.",
@@ -159,6 +173,10 @@
     "/users/{userId}/tasks/{taskId}": {
       "schema": "Task",
       "description": "Kullanıcı görevleri"
+    },
+    "/users/{userId}/agenda/{agendaId}": {
+      "schema": "Agenda",
+      "description": "Kullanıcı ajanda notları"
     },
     "/cari_transactions/{transactionId}": {
       "schema": "CariTransaction",
