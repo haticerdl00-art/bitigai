@@ -50,6 +50,7 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
   const [documents, setDocuments] = useState<CompanyDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; currentName: string } | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
@@ -174,77 +175,123 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
     });
   };
 
-  // Main file processing logic
-  const handleFileSelected = async (file: File) => {
+  // Main file processing logic for multiple files
+  const handleMultipleFilesSelected = async (files: File[]) => {
     if (!selectedCompany || !auth.currentUser) return;
 
     try {
       setUploading(true);
       setNotification(null);
-      const ext = (file.name.split('.').pop()?.toLowerCase() as any) || 'pdf';
-      
-      let downloadUrl = '#';
-      let storagePath = `documents/${auth.currentUser.uid}/${selectedCompany.id}/${Date.now()}_${file.name}`;
 
-      // Try uploading to Firebase Storage first (Standard cloud approach)
-      try {
-        const uploadPromise = uploadFile(storagePath, file);
-        const timeoutPromise = new Promise<string>((_, reject) => 
-          setTimeout(() => reject(new Error('Storage bağlantı zaman aşımı')), 2000)
-        );
-        downloadUrl = await Promise.race([uploadPromise, timeoutPromise]);
-      } catch (storageError: any) {
-        console.warn('Firebase Storage is unprovisioned, falling back to secure Database attachment:', storageError);
-        // Fallback: Check sizes since Firestore doc size limit is strict 1MB
-        storagePath = ''; // Clear storagePath to indicate database inline representation
-        
-        if (file.type.startsWith('image/')) {
-          // Compress immediately
-          downloadUrl = await compressImage(file);
-        } else {
-          // For PDF, Word, Excel, the file size must be small enough to avoid exceeding Firestore limits
-          if (file.size > 920 * 1024) { // ~920 KB max to prevent breaking Firestore limits
-            throw new Error(`"Firebase Storage" aktif edilmemiş. Bu sebeple 900 KB'den büyük dokümanlar yüklenemez. Lütfen daha düşük boyutlu bir PDF/Excel seçin veya resim dosyalarınızı küçültüp yüklemeyi deneyin.`);
+      let successCount = 0;
+      let failMessages: string[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress({
+          current: i + 1,
+          total: files.length,
+          currentName: file.name
+        });
+
+        try {
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+          const isImage = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif', 'dcim'].includes(ext);
+
+          let downloadUrl = '#';
+          let storagePath = `documents/${auth.currentUser.uid}/${selectedCompany.id}/${Date.now()}_${file.name}`;
+
+          // Try uploading to Firebase Storage first (Standard cloud approach with rapid timeout)
+          let storageUploadSuccess = false;
+          try {
+            const uploadPromise = uploadFile(storagePath, file);
+            const timeoutPromise = new Promise<string>((_, reject) => 
+              setTimeout(() => reject(new Error('Storage bağlantı zaman aşımı')), 2000)
+            );
+            downloadUrl = await Promise.race([uploadPromise, timeoutPromise]);
+            storageUploadSuccess = true;
+          } catch (storageError: any) {
+            console.warn('Firebase Storage is unprovisioned, falling back to secure Database attachment:', storageError);
+            storagePath = ''; // Clear storagePath to indicate database inline representation
           }
-          downloadUrl = await readFileAsBase64(file);
+
+          if (!storageUploadSuccess) {
+            // Compress image or read non-image file
+            if (isImage) {
+              // Try compression, fallback to raw base64 if HEIC or other error occurs
+              try {
+                downloadUrl = await compressImage(file);
+              } catch (imageErr) {
+                console.warn('Image compression failed, falling back to raw Base64:', imageErr);
+                if (file.size > 920 * 1024) {
+                  throw new Error(`"${file.name}" görseli sıkıştırılamadı ve 900 KB limitini aşıyor.`);
+                }
+                downloadUrl = await readFileAsBase64(file);
+              }
+            } else {
+              // For PDF, Word, Excel, the file size must be small enough to avoid exceeding Firestore limits
+              if (file.size > 920 * 1024) { // ~920 KB max to prevent breaking Firestore limits
+                throw new Error(`"Firebase Storage" aktif edilmemiş. Bu sebeple 900 KB'den büyük "${file.name}" belgesi yüklenemez. Lütfen daha düşük boyutlu bir PDF/Excel seçin.`);
+              }
+              downloadUrl = await readFileAsBase64(file);
+            }
+          }
+
+          const expiry = uploadExpiryDate || undefined;
+          const calculatedStatus = expiry && new Date(expiry) < new Date() ? 'Süresi Dolmuş' : 'Geçerli';
+
+          const newDocMetadata = {
+            companyId: selectedCompany.id,
+            ownerId: auth.currentUser.uid,
+            title: file.name,
+            type: selectedUploadType,
+            uploadDate: new Date().toISOString().split('T')[0], // Reliable immediate-display local format compliant with schema requirements
+            fileUrl: downloadUrl,
+            storagePath: storagePath || null,
+            fileType: ext,
+            status: calculatedStatus,
+            expiryDate: expiry || null,
+            createdAt: serverTimestamp()
+          };
+
+          await addDoc(collection(db, 'documents'), newDocMetadata);
+          successCount++;
+        } catch (fileError: any) {
+          console.error(`Error uploading file ${file.name}:`, fileError);
+          failMessages.push(`${file.name}: ${fileError.message || 'Yükleme başarısız'}`);
         }
       }
 
-      const expiry = uploadExpiryDate || undefined;
-      const calculatedStatus = expiry && new Date(expiry) < new Date() ? 'Süresi Dolmuş' : 'Geçerli';
-
-      const newDocMetadata = {
-        companyId: selectedCompany.id,
-        ownerId: auth.currentUser.uid,
-        title: file.name,
-        type: selectedUploadType,
-        uploadDate: serverTimestamp(),
-        fileUrl: downloadUrl,
-        storagePath: storagePath || null,
-        fileType: ext,
-        status: calculatedStatus,
-        expiryDate: expiry || null,
-        createdAt: serverTimestamp()
-      };
-
-      await addDoc(collection(db, 'documents'), newDocMetadata);
-      setNotification({ type: 'success', message: `"${file.name}" belgesi başarıyla kütüphaneye eklendi.` });
-      setUploading(false);
-      setUploadExpiryDate('');
-    } catch (error: any) {
-      console.error('Document upload error:', error);
-      setNotification({ 
-        type: 'error', 
-        message: error.message || 'Belge yüklenirken bir sorun çıktı. Lütfen dosya boyutunu veya türünü kontrol edin.' 
+      if (failMessages.length === 0) {
+        if (files.length === 1) {
+          setNotification({ type: 'success', message: `"${files[0].name}" belgesi başarıyla kütüphaneye eklendi.` });
+        } else {
+          setNotification({ type: 'success', message: `${successCount} adet belgenin tümü başarıyla kütüphaneye eklendi.` });
+        }
+        setUploadExpiryDate('');
+      } else {
+        const successMessage = successCount > 0 ? `${successCount} adet belge başarıyla yüklendi. ` : 'Belgeler yüklenemedi. ';
+        setNotification({
+          type: 'error',
+          message: `${successMessage}Hata detayları: ` + failMessages.join(', ')
+        });
+      }
+    } catch (globalError: any) {
+      console.error('System error during multi upload:', globalError);
+      setNotification({
+        type: 'error',
+        message: 'Yükleme başlatılırken sistemsel bir hata oluştu: ' + globalError.message
       });
+    } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
   const handleUploadInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      handleFileSelected(file);
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      handleMultipleFilesSelected(Array.from(files));
     }
     // Reset file input back to empty
     event.target.value = '';
@@ -264,8 +311,8 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelected(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleMultipleFilesSelected(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -455,18 +502,32 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
               className="hidden"
               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.heic,.csv,.txt,.zip,.rar" 
               onChange={handleUploadInputChange}
+              multiple
               disabled={uploading || !selectedCompany}
             />
             <label htmlFor="drag-file-uploader" className="w-full h-full flex flex-col items-center justify-center cursor-pointer">
               <div className="w-12 h-12 bg-slate-50 group-hover:bg-slate-100 rounded-full flex items-center justify-center mb-3">
                 {uploading ? (
-                  <RefreshCw className="w-6 h-6 text-kilim-blue animate-spin" />
+                  <RefreshCw className="w-6 h-6 text-emerald-600 animate-spin" />
                 ) : (
                   <Upload className="w-6 h-6 text-slate-400" />
                 )}
               </div>
               <p className="text-xs font-bold text-slate-700">
-                {uploading ? 'Yarıda kesmeyin, karşıya yükleniyor...' : 'Sürükleyin veya Dosya Seçin'}
+                {uploading ? (
+                  uploadProgress ? (
+                    <span className="flex flex-col gap-1 items-center">
+                      <span className="text-emerald-700">{`Yarıda kesmeyin, karşıya yükleniyor... (${uploadProgress.current}/${uploadProgress.total})`}</span>
+                      <span className="text-[10px] font-medium text-slate-500 max-w-[280px] truncate">
+                        {uploadProgress.currentName}
+                      </span>
+                    </span>
+                  ) : (
+                    'Yarıda kesmeyin, karşıya yükleniyor...'
+                  )
+                ) : (
+                  'Sürükleyin veya Dosya Seçin (Çoklu Seçim Desteklenir)'
+                )}
               </p>
               <p className="text-[10px] text-slate-400 max-w-sm mt-1.5 leading-relaxed">
                 Desteklenen formatlar: PDF, Word, Excel, PNG, JPG, JPEG, HEIC, ZIP, RAR, TXT, CSV. (Maksimum 900KB)
