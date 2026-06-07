@@ -14,10 +14,12 @@ import {
   Trash2,
   UserPlus,
   UserMinus,
-  MessageCircle
+  MessageCircle,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompanyProfile, Personnel } from '../types';
+import { ZirveIntegration } from './ZirveIntegration';
 
 interface CompanyInfoModuleProps {
   profile: CompanyProfile;
@@ -31,6 +33,7 @@ interface CompanyInfoModuleProps {
 export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, companies, onUpdate, onAdd, onSelect, onDelete }) => {
   const [formData, setFormData] = useState<CompanyProfile>(profile);
   const [isSaved, setIsSaved] = useState(false);
+  const [showZirveIntegration, setShowZirveIntegration] = useState(false);
 
   // Update form data when profile changes (e.g. when selecting a different company)
   React.useEffect(() => {
@@ -199,6 +202,14 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
         <div className="flex items-center gap-3">
           <button 
             type="button"
+            onClick={() => setShowZirveIntegration(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-650 hover:to-emerald-700 text-white rounded-xl font-bold transition-all shadow-md shadow-emerald-500/15"
+          >
+            <RefreshCw className="w-4 h-4 animate-spin-slow" />
+            ⚡ Zirve Entegrasyonu
+          </button>
+          <button 
+            type="button"
             onClick={handleAddNew}
             className="flex items-center gap-2 px-4 py-2.5 bg-white text-kilim-blue border border-kilim-blue rounded-xl font-bold hover:bg-slate-50 transition-all shadow-sm"
           >
@@ -215,18 +226,28 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
         </div>
       </header>
 
-      {isSaved && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-2"
-        >
-          <ShieldCheck className="w-5 h-5" />
-          Firma bilgileri başarıyla güncellendi ve LocalStorage'a kaydedildi. Yapay zeka artık bu verileri analizlerinde kullanacak.
-        </motion.div>
-      )}
+      {showZirveIntegration ? (
+        <ZirveIntegration 
+          companies={companies}
+          currentCompany={profile}
+          onAddCompany={onAdd}
+          onUpdateCompany={onUpdate}
+          onClose={() => setShowZirveIntegration(false)}
+        />
+      ) : (
+        <>
+          {isSaved && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-2"
+            >
+              <ShieldCheck className="w-5 h-5" />
+              Firma bilgileri başarıyla güncellendi ve LocalStorage'a kaydedildi. Yapay zeka artık bu verileri analizlerinde kullanacak.
+            </motion.div>
+          )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Company List Sidebar */}
         <div className="lg:col-span-1 space-y-4">
           <div className="glass-card p-4 border-kilim-blue-light/20">
@@ -789,6 +810,8 @@ export const CompanyInfoModule: React.FC<CompanyInfoModuleProps> = ({ profile, c
               </form>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };
