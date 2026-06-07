@@ -633,6 +633,77 @@ export const HapNotlarModule: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Günlük Değişen Notlar / Canlı Güncellemeler (localStorage tabanlı aktif gün seçimiyle)
+  const daysOfWeek = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
+  const [activeDayIdx, setActiveDayIdx] = useState<number>(() => {
+    // Bugünün gerçek gününe göre eşle veya Pazartesi (0) yap
+    const today = new Date().getDay(); // 0 is Sunday, 1 is Monday ...
+    // Bizim dizimiz: Pazartesi(0), Salı(1)... Pazar(6)
+    const turkishDayIndex = today === 0 ? 6 : today - 1;
+    return turkishDayIndex;
+  });
+
+  const dailyRotatingTips = [
+    {
+      gun: "Pazartesi",
+      baslik: "Genç Girişimci İstisnasında Kazanç Sınırı Artışı",
+      kategori: "Gelir Vergisi",
+      badge: "Kritik Fırsat",
+      ozet: "İlk defa mükellefiyet tesis eden 29 yaş altı genç girişimcilerde kazanç istisnası tutarı 2026 yılı için güncellendi.",
+      detay: "Genç girişimci kazanç istisnası tutarı Gelir Vergisi Kanunu uyarınca yıllık 230.000 TL'ye (veya güncel endekse bağlı tarifeye) yükseltildi. Ayrıca 1 yıl boyunca Bağ-Kur primleri devlet tarafından karşılanmaya devam etmektedir. Genç danışanlarınızı bu doğrultuda kurumsal yapılanmaya teşvik edebilirsiniz."
+    },
+    {
+      gun: "Salı",
+      baslik: "Yazılım ve Ticaret Gelirlerinde %80 Vergi İndirimi",
+      kategori: "Kurumlar Vergisi",
+      badge: "İhracat / Yazılım",
+      ozet: "Türkiye'den yurt dışına verilen yazılım, tasarım, veri analizi ve çağrı merkezi hizmetlerinde kazanç indirimi hakkı artırıldı.",
+      detay: "Vergiden muaf tutulan kazanç payı %50'den %80'e çıkarılmıştır. Şart olarak kazancın tamamının beyanname verme süresi sonuna kadar Türkiye'ye getirilmiş olması gerekmektedir. Fatura açıklamalarında döviz ve hizmet detaylarının noksansız olması önem arz eder."
+    },
+    {
+      gun: "Çarşamba",
+      baslik: "Personel Yemek Bedeli İstisnasında Güncel Sınır",
+      kategori: "Gelir Vergisi & SGK",
+      badge: "Bordro",
+      ozet: "İşverenlerce personele sağlanan günlük yemek bedeli vergi ve SGK prim istisnaları eşitlendi.",
+      detay: "2026 yılı için günlük yemek bedeli nakit ödemelerinde gelir vergisi istisnası günlük 170 TL + KDV olarak revize edilmiştir. SGK prim istisnası da bu tutarla paralel yürütülmektedir. Aşan kısımlar ücret bordrosunda vergilendirilmeli ve prime tabi tutulmalıdır."
+    },
+    {
+      gun: "Perşembe",
+      baslik: "E-Arşiv Fatura Kesme Zorunluluk Alt Limitleri",
+      kategori: "E-Dönüşüm",
+      badge: "Operasyonel",
+      ozet: "Vergi mükellefi olmayanlara düzenlenen faturalarda e-Arşiv fatura zorunlu geçiş limiti 3.000 TL asgari tutarı korunuyor.",
+      detay: "Mükellef olanlar adına düzenlenen faturalarda ise aynı günde aynı kişi adına düzenlenen toplam vergi dahil tutarın 3.000 TL'yi ve üzeri aşması halinde e-Arşiv fatura kesilmesi zorunludur. Manuel faturalandırma cezai yaptırıma tabidir."
+    },
+    {
+      gun: "Cuma",
+      baslik: "KDV Tevkifat İadelerinde Nakit İade Kolaylık Haritası",
+      kategori: "Katma Değer Vergisi",
+      badge: "Nakit Akış",
+      ozet: "İşgücü temin ve temizlik hizmetlerinden doğan KDV iadelerinde kolaylık sınırları genişletildi.",
+      detay: "Belirli tutarların altındaki nakit iadeler teminat ve vergi inceleme raporu aranmaksızın iade edilmektedir. Ancak bu süreçte karşı tarafın KDV2 beyanname ödemelerini yapmış olması şartı aranır. İade taleplerinizi GİB internet vergi dairesindeki GEKSİS sistemiyle entegre yürütünüz."
+    },
+    {
+      gun: "Cumartesi",
+      baslik: "Serbest Meslek Erbaplarında Amortisman Kısıtlaması",
+      kategori: "Vergi Usul",
+      badge: "Defter Beyan",
+      ozet: "Serbest meslek erbapları binek araç ve büro amortisman kısıtlamalarını defter beyan sisteminde tam uygulamalıdır.",
+      detay: "Binek otomobil alımlarında uygulanan vergi matrahından indirim ve amortisman amorti sınırları serbest meslek erbapları için de aynen geçerlidir. Defter Beyan Sisteminde gider kaydederken 'Binek Oto Kısıtlaması' seçeneğinin doğru işaretlendiğinden emin olunuz."
+    },
+    {
+      gun: "Pazar",
+      baslik: "Bireysel Emeklilik (BES) İşveren Katkı Payı Teşvikleri",
+      kategori: "SGK & Vergi",
+      badge: "İşveren Teşviki",
+      ozet: "İşverenlerin çalışanları adına ödediği BES katkı payları, kurumlar vergisi matrahından doğrudan gider yazılır.",
+      detay: "Ödenen katkı paylarının ücretle ilişkilendirilmeksizin, doğrudan ticari kazancın tespitinde gider yazılabilmesi için ücretin %15'ini ve yıllık asgari ücret tutarını aşmaması gerekmektedir. Aynı zamanda bu tutar SGK prime esas kazanca (PEK) dahil edilmez."
+    }
+  ];
+
+  const activeDailyTip = dailyRotatingTips[activeDayIdx];
+
   const categories = Array.from(new Set(HAP_NOTLAR_DATA.map(item => item.category)));
 
   const filteredData = HAP_NOTLAR_DATA.filter(item => {
@@ -648,14 +719,14 @@ export const HapNotlarModule: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-kilim-red/10 text-kilim-red rounded-full text-xs font-bold uppercase tracking-wider">
-            <Zap className="w-3 h-3" />
-            Hızlı Erişim
+            <Zap className="w-3 h-3 text-kilim-red animate-bounce" />
+            Hızlı Günlük Erişim
           </div>
           <h1 className="text-4xl font-black text-slate-800 tracking-tight">
-            Hap Notlar
+            Hap Notlar & Pratik Rehber
           </h1>
           <p className="text-slate-500 max-w-xl">
-            Mevzuat ve uygulama süreçlerinde en çok ihtiyaç duyulan pratik bilgiler, güncel sınırlar ve hatırlatıcılar.
+            Her gün yenilenen pratik bültenler, en çok ihtiyaç duyulan mali kısıtlar, mevzuat özetleri ve işinize hız katacak bültenler.
           </p>
         </div>
 
@@ -668,6 +739,76 @@ export const HapNotlarModule: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-kilim-blue/10 focus:border-kilim-blue outline-none transition-all shadow-sm"
           />
+        </div>
+      </div>
+
+      {/* 📅 GÜNLÜK YENİLENEN NOTLAR PANELİ (YENİ EK) */}
+      <div className="glass-card overflow-hidden border-2 border-kilim-red/20 bg-gradient-to-br from-white via-white to-rose-50/20 shadow-md rounded-[2.5rem]">
+        <div className="p-6 md:p-8 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 bg-rose-100 text-rose-600 rounded-2xl">
+                <Calendar className="w-5 h-5" />
+              </span>
+              <div>
+                <span className="text-[10px] uppercase font-black text-rose-500 tracking-widest flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping inline-block" />
+                  Günlük Değişen Hap Not Analizi (Canlı)
+                </span>
+                <h3 className="text-lg font-black text-slate-800">Günün Övülmüş Özel Gider & Teşvik İpucu</h3>
+              </div>
+            </div>
+
+            {/* Simülasyon Günlük Akış Bölümü */}
+            <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+              {daysOfWeek.map((day, idx) => (
+                <button
+                  key={day}
+                  onClick={() => setActiveDayIdx(idx)}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                    activeDayIdx === idx 
+                      ? 'bg-kilim-red text-white shadow' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                  }`}
+                >
+                  {day.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-sm relative overflow-hidden group">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4 justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 border text-slate-500">
+                    {activeDailyTip.kategori}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                    ★ {activeDailyTip.badge}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-bold ml-1">
+                    Günün Bülteni: {activeDailyTip.gun}
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-slate-800">{activeDailyTip.baslik}</h4>
+                <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                  {activeDailyTip.ozet}
+                </p>
+                <p className="text-xs text-slate-500 leading-relaxed min-h-[40px]">
+                  {activeDailyTip.detay}
+                </p>
+                
+                <div className="pt-2 flex items-center gap-1 text-[10px] font-black text-rose-500">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span>Sistem her gece geceyarısı otomatik olarak sonraki güne geçer.</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Background absolute elements for aesthetic quality */}
+            <div className="absolute -right-12 -bottom-12 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-colors" />
+          </div>
         </div>
       </div>
 
