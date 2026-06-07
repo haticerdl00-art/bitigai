@@ -188,7 +188,11 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ companies }) =
 
       // Try uploading to Firebase Storage first (Standard cloud approach)
       try {
-        downloadUrl = await uploadFile(storagePath, file);
+        const uploadPromise = uploadFile(storagePath, file);
+        const timeoutPromise = new Promise<string>((_, reject) => 
+          setTimeout(() => reject(new Error('Storage bağlantı zaman aşımı')), 2000)
+        );
+        downloadUrl = await Promise.race([uploadPromise, timeoutPromise]);
       } catch (storageError: any) {
         console.warn('Firebase Storage is unprovisioned, falling back to secure Database attachment:', storageError);
         // Fallback: Check sizes since Firestore doc size limit is strict 1MB
