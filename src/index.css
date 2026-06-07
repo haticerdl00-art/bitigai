@@ -135,14 +135,53 @@
   @apply bg-kilim-blue/10 text-kilim-blue border-r-4 border-kilim-blue;
 }
 
+/* Geliştirilmiş, Görünür ve Kolay Kullanımlı Kaydırma Çubuğu (Scrollbar) Tasarımı */
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: #faf6f0; /* --color-kilim-bg */
+  border-left: 1px solid #ddd0c0; /* --color-kilim-border */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #94a3b8; /* Slate-400 */
+  border: 2.5px solid #faf6f0;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1B4F8A; /* --color-kilim-blue */
+}
+
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 11px; /* Kolayca görülebilmesi ve tıklanabilmesi için 11 piksele genişletildi */
+  height: 11px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background: rgba(107, 87, 68, 0.06); /* Kilim Second renginin şeffaf haliyle arka plan kontrastı */
+  border-left: 1px solid rgba(221, 208, 192, 0.4);
+  border-radius: 9999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+  background: rgba(27, 79, 138, 0.35); /* Belirgin Kilim Blue rengimiz */
+  border: 2.5px solid transparent; /* İçi dolgulu ve şık bir görünüm sağlar */
+  background-clip: padding-box;
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(27, 79, 138, 0.85); /* Tutup kaydırırken veya üzerine gelindiğinde tam opak Kilim Blue */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Firefox için modern ve belirgin kaydırma çubuğu ayarı */
+* {
+  scrollbar-width: auto;
+  scrollbar-color: #1B4F8A rgba(107, 87, 68, 0.06);
 }
