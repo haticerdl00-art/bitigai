@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Globe, 
   MapPin, 
@@ -10,9 +10,11 @@ import {
   Layers,
   Sparkles,
   Calendar,
-  Building2
+  Building2,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { fetchLatestNews } from '../services/geminiService';
 
 interface NewsItem {
   id: string;
@@ -164,9 +166,36 @@ export const NewsModule = () => {
   const [selectedScope, setSelectedScope] = useState<'all' | 'dunya' | 'turkiye' | 'kayseri'>('all');
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'ekonomi' | 'siyasi' | 'kultur' | 'edebiyat'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [newsList, setNewsList] = useState<NewsItem[]>(PRESET_NEWS);
+  const [loading, setLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
+  const loadNews = async (force = false) => {
+    setLoading(true);
+    try {
+      const data = await fetchLatestNews(force);
+      if (data && data.length > 0) {
+        setNewsList(data);
+        const saved = localStorage.getItem('daily_news');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const dateObj = new Date(parsed.timestamp);
+          setLastUpdated(dateObj.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+        }
+      }
+    } catch (error) {
+      console.error("Gündem haberleri yüklenemedi:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadNews();
+  }, []);
 
   const filteredNews = useMemo(() => {
-    return PRESET_NEWS.filter(item => {
+    return newsList.filter(item => {
       const matchesScope = selectedScope === 'all' || item.scope === selectedScope;
       const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
       
@@ -179,7 +208,7 @@ export const NewsModule = () => {
 
       return matchesScope && matchesCategory && matchesSearch;
     });
-  }, [selectedScope, selectedCategory, searchQuery]);
+  }, [newsList, selectedScope, selectedCategory, searchQuery]);
 
   const scopeTabs: { id: 'all' | 'dunya' | 'turkiye' | 'kayseri'; label: string; icon: any }[] = [
     { id: 'all', label: 'TÜMÜ', icon: Layers },
@@ -233,12 +262,34 @@ export const NewsModule = () => {
           </p>
         </div>
 
-        {/* Location Indicator Banner */}
-        <div className="px-4 py-2 bg-gradient-to-r from-kilim-blue/5 to-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-emerald-600 animate-bounce" />
-          <div className="text-left">
-            <p className="text-[9px] font-semibold text-slate-400 uppercase leading-none">Aktif Konum</p>
-            <p className="text-xs font-extrabold text-[#1e3a8a] leading-tight">Kayseri, Türkiye</p>
+        {/* Location and Refresh Controls */}
+        <div className="flex items-center gap-3 self-end md:self-auto">
+          {/* Refresh button with status */}
+          <div className="flex flex-col items-end text-right">
+            <span className="text-[9px] font-bold text-slate-400 uppercase">GÜNCELLEME</span>
+            <span className="text-[10px] font-extrabold text-slate-600">
+              {lastUpdated ? `${lastUpdated}` : 'GÜNLÜK AKIŞ'}
+            </span>
+          </div>
+          
+          <button
+            onClick={() => loadNews(true)}
+            disabled={loading}
+            className={`p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:bg-slate-100 transition-all text-slate-600 hover:text-[#1e3a8a] ${
+              loading ? 'cursor-not-allowed opacity-60' : ''
+            }`}
+            title="Haberleri Canlı Yenile"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#1e3a8a]' : ''}`} />
+          </button>
+
+          {/* Location Indicator Banner */}
+          <div className="px-4 py-2 bg-gradient-to-r from-kilim-blue/5 to-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-emerald-600 animate-bounce" />
+            <div className="text-left">
+              <p className="text-[9px] font-semibold text-slate-400 uppercase leading-none">Aktif Konum</p>
+              <p className="text-xs font-extrabold text-[#1e3a8a] leading-tight">Kayseri, Türkiye</p>
+            </div>
           </div>
         </div>
       </div>
