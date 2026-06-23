@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { GoogleGenAI, Type } from "@google/genai";
 import { FinancialAnalysis } from "./FinancialAnalysis";
 import { VatRefundAnalysis } from "./VatRefundAnalysis";
 import { InvestmentFundsTracker } from "./InvestmentFundsTracker";

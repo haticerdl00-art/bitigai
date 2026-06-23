@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
-import { GoogleGenAI } from "@google/genai";
+import { processProductivityAnalysis } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
 import { CompanyProfile } from '../types';
 
@@ -107,77 +107,16 @@ export const ProductivityModule = ({ profile }: ProductivityModuleProps) => {
     
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const model = "gemini-3.1-pro-preview";
-      
-      const parts: any[] = [];
-      
-      // Add text instructions based on user request
-      parts.push({
-        text: `
-          SİSTEM ROLÜ:
-          Sen; Türkiye mevzuatına (VUK, SGK, TTK) üst düzeyde hakim, titiz bir Denetçi ve vizyoner bir Finansal Danışman olan "Danışman" isimli yapay zekasın. Görevin, yüklenen mizanları "Ofis Verimlilik" kapsamında analiz ederek hem müşavirin hatasını önlemek hem de müşteriye finansal değer sunmaktır.
-
-          📂 1. VERİ KAYNAĞI VE BAĞLAM (Context)
-          Analizlerini yaparken şu firma bilgilerini temel al:
-          - Firma Ünvanı: ${profile.title}
-          - Vergi Dairesi/No: ${profile.taxOffice} / ${profile.taxNumber}
-          - SGK No: ${profile.sgkNumber}
-          - Hukuki Statü: ${profile.legalStatus}
-          - Defter Türü: ${profile.ledgerType}
-          - NACE Kodları: ${profile.naceCodes?.join(', ') || '—'}
-          - İşçi Sayısı: ${profile.hrProfile.totalWorkers}
-
-          🛠️ 2. ANALİZ TALİMATLARI (Mizan & Denetim Merkezi)
-          Kullanıcı mizanı yüklediğinde, tek bir işlemle aşağıdaki iki raporu eş zamanlı olarak üret:
-
-          A. Teknik Denetim (Müşavir İçin - Hata Önleme)
-          - Mantıksal Kontroller: 100, 102, 120, 320 gibi temel hesaplarda "Ters Bakiye" kontrolü yap.
-          - Vergi Riski Analizi: Kasa (100) ve Ortaklar (131/331) hesaplarındaki yüksek bakiyeleri, firmanın statüsüne (LTD/AŞ) göre adatlandırma riski açısından sorgula.
-          - Bilanço Dengesi: Amortisman, reeskont ve gelecek aylara ait giderler gibi unutulabilecek dönem sonu işlemlerindeki eksikleri raporla.
-          - Operasyonel Uyarılar: 361 borç bakiyesi (teşvik riski), kapanmamış avanslar ve hatalı hesap kodlarını tespit et.
-
-          B. Finansal Analiz (Müşteri İçin - Değer Katma)
-          - Gelir Tablosu Analizi: 600-699 hesap grubunu kullanarak; Brüt Satış Kârı, Faaliyet Kârı ve Net Kâr marjlarını hesapla.
-          - Finansal Rasyolar: Cari Oranı (Dönen Varlıklar / KV Borçlar) ölçerek likidite durumunu (Güçlü/Zayıf) yorumla.
-          - Trend Analizi: Satışların, cironun ve genel yönetim giderlerinin değişimini yorumla.
-
-          📊 3. ÇIKTI VE GÖRÜNÜM STANDARDI
-          Cevabını MUTLAKA şu iki ana başlık altında ver:
-          [BÖLÜM A] MÜŞAVİR NOTU (Hata Masası)
-          [BÖLÜM B] MÜŞTERİ SUNUMU (Yönetici Paneli)
-
-          Bölüm A'da şu sembolleri kullan:
-          🚩 KRİTİK: Ters bakiyeler ve mevzuat hataları.
-          ⚠️ RİSK: Vergi ve ceza riski barındıran durumlar.
-
-          Bölüm B'de şu sembolleri kullan:
-          📈 DURUM: Kâr marjları ve genel finansal sağlık.
-          💡 ÖNERİ: Ciro artışı ve maliyet kontrolü tavsiyeleri.
-        `
-      });
-
-      // Add file data
-      uploadedFiles.forEach(file => {
+      const filesToSend = uploadedFiles.map(file => {
         if (file.type === 'excel') {
           const summary = (file.data as any[]).slice(0, 200).map(row => row.join(' | ')).join('\n');
-          parts.push({ text: `Dosya: ${file.name} (Mizan İçeriği):\n${summary}` });
-        } else if (file.type === 'image' || file.type === 'pdf') {
-          parts.push({
-            inlineData: {
-              data: file.data,
-              mimeType: file.mimeType
-            }
-          });
+          return { name: file.name, type: 'excel', data: summary };
+        } else {
+          return { name: file.name, type: file.type, data: file.data, mimeType: file.mimeType };
         }
       });
 
-      const result = await ai.models.generateContent({
-        model: model,
-        contents: [{ parts: parts }],
-      });
-
-      const fullText = result.text || "";
+      const fullText = await processProductivityAnalysis(profile, filesToSend);
       
       // Split the response into Section A and Section B
       const parts_split = fullText.split(/\[BÖLÜM B\]/i);

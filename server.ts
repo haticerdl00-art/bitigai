@@ -9,6 +9,22 @@ const { parseStringPromise } = xml2js;
 // Import our new serverless handler logic for consistency
 import marketHandlerFunction from './api/market-data';
 
+// Import our secure server-side Gemini service handlers
+import {
+  askCopilotStream,
+  askCopilot,
+  fetchLatestLegislation,
+  fetchLatestNews,
+  fetchSGKParameters,
+  generateIncentiveReport,
+  analyzeLegislation,
+  analyzeDocumentForContent,
+  analyzeVoucher,
+  analyzeFinancialStatements,
+  analyzeKdvRefundPotential,
+  processProductivityAnalysis
+} from './server/gemini';
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -99,6 +115,139 @@ async function startServer() {
   app.post('/api/fis/create', (req, res) => {
     console.log('Fiş oluşturuluyor:', req.body);
     res.json({ success: true, fisId: 'FIS-' + Math.floor(Math.random() * 10000) });
+  });
+
+  // --- GEMINI PROXY ENDPOINTS (Server-Side Secure Calls) ---
+  app.post('/api/gemini/copilot-stream', async (req, res) => {
+    try {
+      const { prompt, history, companies } = req.body;
+      const stream = await askCopilotStream(prompt, history, companies);
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      
+      for await (const chunk of stream) {
+        const text = chunk.text;
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } catch (err: any) {
+      console.error('[SERVER] Error in copilot-stream:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Copilot stream error', details: err.message });
+      } else {
+        res.end();
+      }
+    }
+  });
+
+  app.post('/api/gemini/copilot', async (req, res, next) => {
+    try {
+      const { prompt, history } = req.body;
+      const reply = await askCopilot(prompt, history);
+      res.json({ reply });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.get('/api/gemini/legislation', async (req, res, next) => {
+    try {
+      const data = await fetchLatestLegislation();
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.all('/api/gemini/news', async (req, res, next) => {
+    try {
+      const force = req.body?.force || req.query?.force === 'true';
+      const data = await fetchLatestNews(force);
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.get('/api/gemini/sgk-params', async (req, res, next) => {
+    try {
+      const data = await fetchSGKParameters();
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/gemini/incentive-report', async (req, res, next) => {
+    try {
+      const { profile, parameters } = req.body;
+      const data = await generateIncentiveReport(profile, parameters);
+      res.json({ report: data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/gemini/legislation-analyze', async (req, res, next) => {
+    try {
+      const { text } = req.body;
+      const data = await analyzeLegislation(text);
+      res.json({ report: data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/gemini/document-analyze', async (req, res, next) => {
+    try {
+      const { fileData, mimeType, rawText, profile } = req.body;
+      const data = await analyzeDocumentForContent(fileData, mimeType, rawText, profile);
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/gemini/voucher-analyze', async (req, res, next) => {
+    try {
+      const { fileData, mimeType, docType, isDeepScan } = req.body;
+      const data = await analyzeVoucher(fileData, mimeType, docType, isDeepScan);
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/gemini/financial-analyze', async (req, res, next) => {
+    try {
+      const { files, profile } = req.body;
+      const data = await analyzeFinancialStatements(files, profile);
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/gemini/kdv-refund-potential', async (req, res, next) => {
+    try {
+      const { mizanData, manualData, profile } = req.body;
+      const data = await analyzeKdvRefundPotential(mizanData, manualData, profile);
+      res.json({ report: data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/gemini/productivity-analyze', async (req, res, next) => {
+    try {
+      const { profile, files } = req.body;
+      const reportText = await processProductivityAnalysis(profile, files);
+      res.json({ report: reportText });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // JSON 404 for /api

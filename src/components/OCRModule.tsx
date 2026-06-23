@@ -12,7 +12,7 @@ import {
   Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { analyzeVoucher } from '../services/geminiService';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { 
   collection, 
@@ -70,61 +70,8 @@ export const OCRModule = ({ onTransfer, profile }: { onTransfer: (data: any) => 
       });
 
       const base64Data = await base64Promise;
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      let prompt = "";
-      if (docType === 'mizan') {
-        prompt = "Bu mizan belgesindeki hesap kodlarını ve bakiyelerini çıkar. Özellikle 100, 102, 120, 320, 131, 331 kodlu hesapları bul.";
-      } else if (docType === 'metin') {
-        prompt = "Bu belgedeki tüm metni en yüksek doğrulukla çıkar. Yazı net değilse bile bağlamdan yola çıkarak eksik kısımları tamamlamaya çalış. Metni yapılandırılmış bir şekilde sun.";
-      } else {
-        prompt = "Bu faturadaki Fatura No, Fatura Tarihi, VKN / TC No, Firma Ünvanı, Toplam Tutar, KDV Oranı (%), KDV Tutarı, KDV Dahil Toplam ve Fatura Tipi (Alış/Satış) bilgilerini çıkar.";
-      }
+      const data = await analyzeVoucher(base64Data, file.type, docType, isDeepScan);
 
-      if (isDeepScan) {
-        prompt += " Bu bir DERİN TARAMA (Deep Scan) isteğidir. Belge kalitesi düşük olabilir, lütfen her karakteri titizlikle incele ve en küçük ayrıntıları bile yakalamaya çalış.";
-      }
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: file.type,
-                  data: base64Data
-                }
-              }
-            ]
-          }
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              fields: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    key: { type: Type.STRING },
-                    value: { type: Type.STRING },
-                    confidence: { type: Type.NUMBER }
-                  },
-                  required: ["key", "value", "confidence"]
-                }
-              },
-              rawText: { type: Type.STRING }
-            },
-            required: ["fields", "rawText"]
-          }
-        }
-      });
-
-      const data = JSON.parse(response.text || '{}');
       setResult({
         ...data,
         sourceId: `gen-${Date.now()}`
