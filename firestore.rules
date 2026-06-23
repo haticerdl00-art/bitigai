@@ -279,6 +279,14 @@ service cloud.firestore {
       match /vouchers/{voucherId} {
         allow read, write: if isCompanyOwner(companyId);
       }
+
+      match /vehicles/{vehicleId} {
+        allow read, write: if isCompanyOwner(companyId);
+      }
+
+      match /reconciliations/{reconciliationId} {
+        allow read, write: if isCompanyOwner(companyId);
+      }
     }
 
     // Default deny

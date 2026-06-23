@@ -159,6 +159,48 @@
         "created_at": { "type": "string", "format": "date-time" }
       },
       "required": ["firma_id", "ay", "yil"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "2. El Araç Alım Satım ve KDV özel matrah takip kayıtları.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "plaka": { "type": "string" },
+        "plakaDegistiMi": { "type": "boolean" },
+        "eskiPlaka": { "type": "string" },
+        "alisNoter": { "type": "string" },
+        "alisTarihi": { "type": "string", "format": "date" },
+        "alisBelgeTuru": { "type": "string" },
+        "alisBelgeNo": { "type": "string" },
+        "alisTutari": { "type": "number" },
+        "giderPusulasiDuzenlendi": { "type": "boolean" },
+        "satildi": { "type": "boolean" },
+        "satisNoter": { "type": "string" },
+        "satisTarihi": { "type": "string", "format": "date" },
+        "faturaTuru": { "type": "string" },
+        "satisBelgeNo": { "type": "string" },
+        "satisTutari": { "type": "number" },
+        "faturaKesildi": { "type": "boolean" },
+        "not": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["plaka", "alisTutari"]
+    },
+    "MonthlyReconciliation": {
+      "title": "MonthlyReconciliation",
+      "description": "Aylık Zirve ve Beyanname mutabakat karşılaştırma verileri.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyId": { "type": "string" },
+        "period": { "type": "string" },
+        "zirveAylikToplam": { "type": "number" },
+        "beyannameAylikToplam": { "type": "number" },
+        "not": { "type": "string" }
+      },
+      "required": ["companyId", "period", "zirveAylikToplam", "beyannameAylikToplam"]
     }
   },
   "firestore": {
@@ -201,6 +243,14 @@
     "/companies/{companyId}/messages/{messageId}": {
       "schema": "Message",
       "description": "Firmaya ait mesaj geçmişi"
+    },
+    "/companies/{companyId}/vehicles/{vehicleId}": {
+      "schema": "Vehicle",
+      "description": "Firmaya ait 2. el araç alım satım ve KDV özel matrah takip kayıtları"
+    },
+    "/companies/{companyId}/reconciliations/{reconciliationId}": {
+      "schema": "MonthlyReconciliation",
+      "description": "Firmaya ait KDV ve mali mutabakat/takip kayıtları"
     }
   }
 }

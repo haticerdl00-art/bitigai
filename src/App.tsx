@@ -156,6 +156,25 @@ const DEFAULT_COMPANY: CompanyProfile = {
   }
 };
 
+const defaultModules = [
+  { id: ModuleId.DASHBOARD, title: 'Panel', icon: LayoutDashboard, desc: 'Genel durum ve akıllı mali takvim özeti.' },
+  { id: ModuleId.BEYANNAME, title: 'Beyanname Takibi', icon: FileCheck, desc: 'Tüm firmaların beyanname süreçlerinin matris görünümü ile takibi.' },
+  { id: ModuleId.PERSONEL_BORDRO, title: 'Personel & Bordro', icon: Users, desc: 'Maaş hesaplama, SGK maliyeti ve izin takibi.' },
+  { id: ModuleId.NAKIT_AKIS, title: 'Finansal Durum', icon: Wallet, desc: 'Mizan analizi, mali tablo analizleri ve KDV İade & GEKSİS analizleri.' },
+  { id: ModuleId.CARI_HESAP, title: 'Cari & Tahsilat', icon: TrendingUp, desc: 'Müşteri bakiyeleri, gecikmiş alacaklar ve ödeme girişi.' },
+  { id: ModuleId.OCR, title: 'Veri Girişi & OCR', icon: ScanLine, desc: 'Evraklardan otomatik veri çıkarma ve fiş aktarım sistemi.' },
+  { id: ModuleId.CONTENT_CREATOR, title: 'İçerik Üretici', icon: Share2, desc: 'Analizlerden sosyal medya ve yönetici özeti oluşturma.' },
+  { id: ModuleId.HAP_NOTLAR, title: 'Hap Notlar', icon: Zap, desc: 'Mevzuat ve uygulama süreçlerinde pratik bilgiler.' },
+  { id: ModuleId.BELGELER, title: 'Belge & Evrak', icon: FileText, desc: 'Firmalara ait resmi belgelerin takibi ve paylaşımı.' },
+  { id: ModuleId.CHAT, title: 'Danışmana Sor', icon: Bot, desc: 'Mevzuat referanslı akıllı danışmanlık asistanı.' },
+  { id: ModuleId.MEVZUAT, title: 'Mevzuat Takip', icon: Gavel, desc: 'Mevzuat riskini sıfıra indiren akıllı takip sistemi.' },
+  { id: ModuleId.MALIYET_ANALIZI, title: 'Maliyet ve Üretim', icon: Factory, desc: 'Birim maliyet analizi, fire kontrolü ve SMM otomasyonu.' },
+  { id: ModuleId.OFIS_GIDER, title: 'Ofis Gider Takibi', icon: Receipt, desc: 'Ofis gelir-gider dengesi, açık analizi ve bütçe limit hedefleri.' },
+  { id: ModuleId.ARAC_KDV_TAKIP, title: '2. El Araç & KDV', icon: FileSpreadsheet, desc: 'Noter alım satım işlemleri ve kâr üzerinden KDV / Özel Matrah takibi.' },
+  { id: ModuleId.FIRMA_BILGISI, title: 'Firma Bilgileri', icon: Building2, desc: 'Mükellef kimlik kartı ve mali statü yönetimi.' },
+  { id: ModuleId.PROFIL, title: 'Profil', icon: User, desc: 'Kullanıcı profil bilgileri ve hesap ayarları.' },
+];
+
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -387,25 +406,6 @@ export default function App() {
       clearInterval(interval);
     };
   }, [isAuthenticated]);
-
-  const defaultModules = [
-    { id: ModuleId.DASHBOARD, title: 'Panel', icon: LayoutDashboard, desc: 'Genel durum ve akıllı mali takvim özeti.' },
-    { id: ModuleId.BEYANNAME, title: 'Beyanname Takibi', icon: FileCheck, desc: 'Tüm firmaların beyanname süreçlerinin matris görünümü ile takibi.' },
-    { id: ModuleId.PERSONEL_BORDRO, title: 'Personel & Bordro', icon: Users, desc: 'Maaş hesaplama, SGK maliyeti ve izin takibi.' },
-    { id: ModuleId.NAKIT_AKIS, title: 'Finansal Durum', icon: Wallet, desc: 'Mizan analizi, mali tablo analizleri ve KDV İade & GEKSİS analizleri.' },
-    { id: ModuleId.CARI_HESAP, title: 'Cari & Tahsilat', icon: TrendingUp, desc: 'Müşteri bakiyeleri, gecikmiş alacaklar ve ödeme girişi.' },
-    { id: ModuleId.OCR, title: 'Veri Girişi & OCR', icon: ScanLine, desc: 'Evraklardan otomatik veri çıkarma ve fiş aktarım sistemi.' },
-    { id: ModuleId.CONTENT_CREATOR, title: 'İçerik Üretici', icon: Share2, desc: 'Analizlerden sosyal medya ve yönetici özeti oluşturma.' },
-    { id: ModuleId.HAP_NOTLAR, title: 'Hap Notlar', icon: Zap, desc: 'Mevzuat ve uygulama süreçlerinde pratik bilgiler.' },
-    { id: ModuleId.BELGELER, title: 'Belge & Evrak', icon: FileText, desc: 'Firmalara ait resmi belgelerin takibi ve paylaşımı.' },
-    { id: ModuleId.CHAT, title: 'Danışmana Sor', icon: Bot, desc: 'Mevzuat referanslı akıllı danışmanlık asistanı.' },
-    { id: ModuleId.MEVZUAT, title: 'Mevzuat Takip', icon: Gavel, desc: 'Mevzuat riskini sıfıra indiren akıllı takip sistemi.' },
-    { id: ModuleId.MALIYET_ANALIZI, title: 'Maliyet ve Üretim', icon: Factory, desc: 'Birim maliyet analizi, fire kontrolü ve SMM otomasyonu.' },
-    { id: ModuleId.OFIS_GIDER, title: 'Ofis Gider Takibi', icon: Receipt, desc: 'Ofis gelir-gider dengesi, açık analizi ve bütçe limit hedefleri.' },
-    { id: ModuleId.ARAC_KDV_TAKIP, title: '2. El Araç & KDV', icon: FileSpreadsheet, desc: 'Noter alım satım işlemleri ve kâr üzerinden KDV / Özel Matrah takibi.' },
-    { id: ModuleId.FIRMA_BILGISI, title: 'Firma Bilgileri', icon: Building2, desc: 'Mükellef kimlik kartı ve mali statü yönetimi.' },
-    { id: ModuleId.PROFIL, title: 'Profil', icon: User, desc: 'Kullanıcı profil bilgileri ve hesap ayarları.' },
-  ];
 
   const [sidebarModules, setSidebarModules] = useState<typeof defaultModules>(defaultModules);
 

@@ -18,8 +18,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { fetchLatestLegislation } from '../services/geminiService';
-import { UserProfile, ModuleId, CompanyProfile } from '../types';
-import { TasksModule } from './TasksModule';
+import { UserProfile, CompanyProfile } from '../types';
 import { MarketPulse } from './MarketPulse';
 import { NewsModule } from './NewsModule';
 import { AgendaModule } from './AgendaModule';
@@ -199,7 +198,7 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Deadlines Section */}
-        <div className="lg:col-span-6 space-y-6">
+        <div className="lg:col-span-12 space-y-6">
           <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -277,20 +276,6 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
                 ))
               )}
             </div>
-          </div>
-        </div>
-
-        {/* Right Column */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* Tasks Module */}
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="font-bold text-kilim-blue-dark text-sm flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-kilim-blue" />
-                Günlük Görevler
-              </h3>
-            </div>
-            <TasksModule />
           </div>
         </div>
       </div>
