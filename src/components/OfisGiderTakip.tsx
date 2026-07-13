@@ -55,20 +55,24 @@ interface OfficeExpenseEntry {
 
 const GIDER_KATS = [
   'Kira',
+  'İşyeri Aidatı',
+  'Oda Aidatı',
   'Elektrik',
   'Doğalgaz',
   'Su',
-  'Aidat',
-  'Maaş',
-  'Gıda',
-  'Kırtasiye',
-  'Telefon',
   'İnternet',
-  'Vergi / SGK',
-  'Muhasebe yazılımı',
-  'Bakım / Onarım',
+  'Telefon',
+  'Maaş',
+  'Market',
+  'Yemek',
+  'Vergi',
+  'SGK',
+  'Sarf Malzeme',
+  'Kırtasiye',
+  'Yazılım',
+  'Bakım Onarım',
   'Ulaşım',
-  'Diğer gider'
+  'Diğer'
 ];
 
 const GELIR_KATS = [
@@ -1129,7 +1133,7 @@ export const OfisGiderTakip: React.FC = () => {
                   </div>
 
                   <div className="space-y-4">
-                    {GIDER_KATS.slice(0, 8).map(katName => {
+                    {GIDER_KATS.map(katName => {
                       const limitVal = budgets[katName] || 0;
                       // Current month actual gasto
                       const cur = new Date().toISOString().substring(0, 7);
