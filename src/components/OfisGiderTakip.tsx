@@ -107,6 +107,17 @@ export const OfisGiderTakip: React.FC = () => {
   // Summary and analytics selected month
   const [selectedMonth, setSelectedMonth] = useState<string>('');
 
+  // New Analysis States
+  const [analizTipi, setAnalizTipi] = useState<'aylik' | 'yillik' | 'ozel'>('aylik');
+  const [analizYil, setAnalizYil] = useState<string>(new Date().getFullYear().toString());
+  const [analizBaslangic, setAnalizBaslangic] = useState<string>(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [analizBitis, setAnalizBitis] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [seciliKategoriler, setSeciliKategoriler] = useState<string[]>([...GIDER_KATS, ...GELIR_KATS]);
+
   // Update default category when type transitions
   useEffect(() => {
     setKat(tur === 'gider' ? GIDER_KATS[0] : GELIR_KATS[0]);
@@ -228,14 +239,42 @@ export const OfisGiderTakip: React.FC = () => {
     };
   }, [entries]);
 
-  // Selected Month Summary stats
-  const selectedMonthStats = React.useMemo(() => {
-    const list = entries.filter(e => getMonthYearString(e.tarih) === selectedMonth);
-    const gelir = list.filter(e => e.tur === 'gelir').reduce((sum, e) => sum + e.tutar, 0);
-    const gider = list.filter(e => e.tur === 'gider').reduce((sum, e) => sum + e.tutar, 0);
-    
+  // Extract unique years list
+  const uniqueYears = React.useMemo(() => {
+    const years = [...new Set(entries.map(e => e.tarih.substring(0, 4)))];
+    const curYear = new Date().getFullYear().toString();
+    if (!years.includes(curYear)) {
+      years.push(curYear);
+    }
+    return years.sort().reverse();
+  }, [entries]);
+
+  // Dynamic Analyzed Entries based on Period & Selected Categories
+  const analizEdilenKayitlar = React.useMemo(() => {
+    return entries.filter(e => {
+      // 1. Category Filter
+      if (!seciliKategoriler.includes(e.kat)) return false;
+
+      // 2. Period Filter
+      if (analizTipi === 'aylik') {
+        return getMonthYearString(e.tarih) === selectedMonth;
+      } else if (analizTipi === 'yillik') {
+        return e.tarih.startsWith(analizYil);
+      } else if (analizTipi === 'ozel') {
+        return e.tarih >= analizBaslangic && e.tarih <= analizBitis;
+      }
+      return true;
+    });
+  }, [entries, analizTipi, selectedMonth, analizYil, analizBaslangic, analizBitis, seciliKategoriler]);
+
+  // Dynamic Analyzed Stats
+  const analizStats = React.useMemo(() => {
+    const gelir = analizEdilenKayitlar.filter(e => e.tur === 'gelir').reduce((sum, e) => sum + e.tutar, 0);
+    const gider = analizEdilenKayitlar.filter(e => e.tur === 'gider').reduce((sum, e) => sum + e.tutar, 0);
+    const net = gelir - gider;
+
     const categoryTotals: Record<string, { total: number; type: 'gelir' | 'gider' }> = {};
-    list.forEach(e => {
+    analizEdilenKayitlar.forEach(e => {
       if (!categoryTotals[e.kat]) {
         categoryTotals[e.kat] = { total: 0, type: e.tur };
       }
@@ -255,33 +294,221 @@ export const OfisGiderTakip: React.FC = () => {
     return {
       gelir,
       gider,
-      net: gelir - gider,
+      net,
       sortedExpenses,
       sortedIncomes
     };
-  }, [entries, selectedMonth]);
+  }, [analizEdilenKayitlar]);
 
-  // Calculate trends for the last 6 months
-  const chartData = React.useMemo(() => {
-    const today = new Date();
-    const months: string[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  // Dynamic Analyzed Chart Data
+  const analizChartData = React.useMemo(() => {
+    if (analizTipi === 'yillik') {
+      const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+      const mLabels = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+      return months.map((m, idx) => {
+        const prefix = `${analizYil}-${m}`;
+        const list = analizEdilenKayitlar.filter(e => e.tarih.startsWith(prefix));
+        const Gelir = list.filter(e => e.tur === 'gelir').reduce((sum, e) => sum + e.tutar, 0);
+        const Gider = list.filter(e => e.tur === 'gider').reduce((sum, e) => sum + e.tutar, 0);
+        return {
+          name: mLabels[idx],
+          Gelir,
+          Gider,
+          Net: Gelir - Gider
+        };
+      });
+    } else if (analizTipi === 'aylik') {
+      const weeks = [
+        { name: '1. Hafta (1-7)', start: 1, end: 7 },
+        { name: '2. Hafta (8-14)', start: 8, end: 14 },
+        { name: '3. Hafta (15-21)', start: 15, end: 21 },
+        { name: '4. Hafta (22+)', start: 22, end: 31 }
+      ];
+      return weeks.map(w => {
+        const list = analizEdilenKayitlar.filter(e => {
+          const entryMonth = getMonthYearString(e.tarih);
+          if (entryMonth !== selectedMonth) return false;
+          const dayNum = parseInt(e.tarih.split('-')[2], 10) || 1;
+          return dayNum >= w.start && dayNum <= w.end;
+        });
+        const Gelir = list.filter(e => e.tur === 'gelir').reduce((sum, e) => sum + e.tutar, 0);
+        const Gider = list.filter(e => e.tur === 'gider').reduce((sum, e) => sum + e.tutar, 0);
+        return {
+          name: w.name,
+          Gelir,
+          Gider,
+          Net: Gelir - Gider
+        };
+      });
+    } else {
+      const startMonth = analizBaslangic.substring(0, 7);
+      const endMonth = analizBitis.substring(0, 7);
+      if (startMonth === endMonth) {
+        const weeks = [
+          { name: '1. Hafta (1-7)', start: 1, end: 7 },
+          { name: '2. Hafta (8-14)', start: 8, end: 14 },
+          { name: '3. Hafta (15-21)', start: 15, end: 21 },
+          { name: '4. Hafta (22+)', start: 22, end: 31 }
+        ];
+        return weeks.map(w => {
+          const list = analizEdilenKayitlar.filter(e => {
+            const dayNum = parseInt(e.tarih.split('-')[2], 10) || 1;
+            return dayNum >= w.start && dayNum <= w.end;
+          });
+          const Gelir = list.filter(e => e.tur === 'gelir').reduce((sum, e) => sum + e.tutar, 0);
+          const Gider = list.filter(e => e.tur === 'gider').reduce((sum, e) => sum + e.tutar, 0);
+          return {
+            name: w.name,
+            Gelir,
+            Gider,
+            Net: Gelir - Gider
+          };
+        });
+      } else {
+        const monthsInPeriod: string[] = [];
+        const cur = new Date(analizBaslangic);
+        const end = new Date(analizBitis);
+        while (cur <= end) {
+          const my = cur.toISOString().substring(0, 7);
+          if (!monthsInPeriod.includes(my)) {
+            monthsInPeriod.push(my);
+          }
+          cur.setMonth(cur.getMonth() + 1);
+        }
+        return monthsInPeriod.map(m => {
+          const list = analizEdilenKayitlar.filter(e => getMonthYearString(e.tarih) === m);
+          const Gelir = list.filter(e => e.tur === 'gelir').reduce((sum, e) => sum + e.tutar, 0);
+          const Gider = list.filter(e => e.tur === 'gider').reduce((sum, e) => sum + e.tutar, 0);
+          return {
+            name: getMonthLabel(m),
+            Gelir,
+            Gider,
+            Net: Gelir - Gider
+          };
+        });
+      }
+    }
+  }, [analizTipi, analizYil, selectedMonth, analizBaslangic, analizBitis, analizEdilenKayitlar]);
+
+  // Dynamic Rule-Based Recommendations based on selection
+  const zekiOneriler = React.useMemo(() => {
+    const list: { title: string; desc: string; type: 'warning' | 'tip' | 'info' | 'success'; potentialSavings?: number }[] = [];
+
+    const totalGelir = analizStats.gelir;
+    const totalGider = analizStats.gider;
+    const netKar = totalGelir - totalGider;
+    const karOrani = totalGelir > 0 ? (netKar / totalGelir) * 100 : 0;
+
+    if (totalGelir === 0 && totalGider === 0) {
+      list.push({
+        title: "Analiz Verisi Yok",
+        desc: "Seçilen tarih aralığında ve kategorilerde henüz herhangi bir gelir/gider hareketi bulunamadı.",
+        type: 'info'
+      });
+      return list;
     }
 
-    return months.map(m => {
-      const list = entries.filter(e => getMonthYearString(e.tarih) === m);
-      const Gelir = list.filter(e => e.tur === 'gelir').reduce((sum, e) => sum + e.tutar, 0);
-      const Gider = list.filter(e => e.tur === 'gider').reduce((sum, e) => sum + e.tutar, 0);
-      return {
-        name: getMonthLabel(m).replace(' ' + today.getFullYear(), ''),
-        Gelir,
-        Gider,
-        Net: Gelir - Gider
-      };
+    if (netKar < 0) {
+      list.push({
+        title: "Mali Denge Uyarısı: Dönem Net Zararı",
+        desc: `Seçilen kapsamda ofisiniz ${formatPara(Math.abs(netKar))} tutarında zarar etmiştir. Gelir kalemlerini artırıcı önlemler alınmalı veya gider kalemleri optimize edilmelidir.`,
+        type: 'warning'
+      });
+    } else if (karOrani < 20) {
+      list.push({
+        title: "Düşük Karlılık Seviyesi",
+        desc: `Ofis net kâr oranınız %${karOrani.toFixed(1)} düzeyinde seyrediyor. Verimli bir mali yapı için kâr marjının en az %35 hedefine yaklaştırılması gerekir.`,
+        type: 'warning'
+      });
+    } else {
+      list.push({
+        title: "Güçlü Finansal Sürdürülebilirlik",
+        desc: `Tebrikler! Seçilen kapsamda %${karOrani.toFixed(1)} kâr marjı ile çok sağlıklı ve sürdürülebilir bir ofis bütçesi yönetiyorsunuz.`,
+        type: 'success'
+      });
+    }
+
+    // Category specific savings dynamically
+    analizStats.sortedExpenses.forEach(({ category, value }) => {
+      if (category === 'Kira' && value > 0) {
+        list.push({
+          title: "Kira Maliyeti Optimizasyonu",
+          desc: "Kira gideri en yüksek harcama gruplarından biridir. Stopaj indirimleri, paylaşımlı ofis entegrasyonları veya yıllık peşin ödeme protokolleri ile %10 maliyet tasarrufu hedeflenebilir.",
+          type: 'tip',
+          potentialSavings: value * 0.10
+        });
+      }
+      else if ((category === 'Elektrik' || category === 'Doğalgaz' || category === 'Su') && value > 0) {
+        list.push({
+          title: `${category} Giderlerinde Yeşil Ofis Dönüşümü`,
+          desc: "Akıllı ısıtma sistemleri, LED dönüşümleri ve çalışma saatleri dışındaki otomatik priz kilitleri faturaları doğrudan %15 hafifletecektir.",
+          type: 'tip',
+          potentialSavings: value * 0.15
+        });
+      }
+      else if ((category === 'Market' || category === 'Yemek') && value > 0) {
+        list.push({
+          title: `Yemek / İaşe Harcamalarında Vergi Muafiyetleri`,
+          desc: "Personel yemek giderlerinde Sodexo/Multinet gibi kupon sağlayıcıların yasal gelir vergisi ve SGK istisna sınırlarından tam olarak yararlandığınızdan emin olun. Bu bütçede %12 oranında vergi tasarrufu sağlayabilirsiniz.",
+          type: 'tip',
+          potentialSavings: value * 0.12
+        });
+      }
+      else if ((category === 'Kırtasiye' || category === 'Sarf Malzeme') && value > 0) {
+        list.push({
+          title: "Dijital Ofis & Kağıtsız Arşiv Dönüşümü",
+          desc: "Kırtasiye ve sarf malzemelerinde toplu alım anlaşmaları yapın veya tamamen e-arşiv, dijital imza ve OCR tabanlı iş akışlarına geçerek masrafları %30 düşürün.",
+          type: 'tip',
+          potentialSavings: value * 0.30
+        });
+      }
+      else if (category === 'Yazılım' && value > 0) {
+        list.push({
+          title: "Yazılım Lisans ve Paket Denetimi",
+          desc: "Aktif olarak kullanılmayan yedek bulut, bülten abonelikleri ve mükerrer program lisanslarını sonlandırın. Yıllık abonelik taahhütleri ile %20 peşin alım indirimi yakalayabilirsiniz.",
+          type: 'tip',
+          potentialSavings: value * 0.20
+        });
+      }
+      else if (category === 'Ulaşım' && value > 0) {
+        list.push({
+          title: "Ulaşım ve Kurye Bütçesi Kontrolü",
+          desc: "Fiziki evrak gönderimleri yerine KEP ve e-Tebligat sistemlerinin aktif kullanımı, müşteri ziyaretlerinde ise online görüşmelerin artırılması ulaşım bütçesini %25 oranında optimize eder.",
+          type: 'tip',
+          potentialSavings: value * 0.25
+        });
+      }
+      else if ((category === 'Vergi' || category === 'SGK') && value > 0) {
+        list.push({
+          title: "SGK / Vergi Teşvik Kanalları",
+          desc: "Ofis personelleri için %5'lik düzenli ödeme teşviki ve ilave istihdam teşviklerinin tam uygulandığından emin olun. Bu durum vergi ve SGK yükünüzü %8 azaltabilir.",
+          type: 'tip',
+          potentialSavings: value * 0.08
+        });
+      }
+      else if (category === 'Maaş' && value > 0) {
+        list.push({
+          title: "Personel ve İstihdam Teşvik Modelleri",
+          desc: "İŞKUR İşbaşı Eğitim Programları ve üniversite stajyer işbirlikleri kapsamında ek personel maliyetlerini devlet destekleri ile optimize edin.",
+          type: 'info'
+        });
+      }
     });
-  }, [entries]);
+
+    if (analizStats.sortedIncomes.length > 0) {
+      list.push({
+        title: "Gelir Artırıcı Katma Değer Hizmetler",
+        desc: `En önemli ciro kaynağınız olan ${analizStats.sortedIncomes[0].category} kapsamında müşterilerinize özel ek mali kontrol raporlamaları veya vergi check-up paketleri sunarak tahsilat tutarlarınızı %15 büyütebilirsiniz.`,
+        type: 'success'
+      });
+    }
+
+    return list;
+  }, [analizStats, formatPara]);
+
+  // Compatibility mappings
+  const selectedMonthStats = analizStats;
+  const chartData = analizChartData;
 
   // Handle add record
   const handleAddEntry = async (e: React.FormEvent) => {
@@ -846,47 +1073,222 @@ export const OfisGiderTakip: React.FC = () => {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                {/* Month Picker for Summary */}
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-kilim-blue" />
-                    <span className="text-sm font-extrabold text-slate-700">Analiz Dönemi Seçin:</span>
+                {/* Advanced Parameter Controls */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-6 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-5 h-5 text-kilim-blue" />
+                      <h3 className="font-extrabold text-slate-800 text-sm">Gelişmiş Analiz ve Optimizasyon Parametreleri</h3>
+                    </div>
+                    <span className="text-[10px] font-black uppercase text-kilim-blue bg-kilim-blue/10 px-3 py-1 rounded-full w-max">
+                      Seçili Kalem & Tarih Analizi
+                    </span>
                   </div>
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
-                  >
-                    {uniqueMonths.map(m => (
-                      <option key={m} value={m}>{getMonthLabel(m)}</option>
-                    ))}
-                  </select>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Period Type Selection */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">1. Analiz Zaman Dilimi</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAnalizTipi('aylik')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            analizTipi === 'aylik'
+                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          Aylık
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnalizTipi('yillik')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            analizTipi === 'yillik'
+                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          Yıllık
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnalizTipi('ozel')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            analizTipi === 'ozel'
+                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          Tarih Arası
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Period selection inputs */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">2. Dönem Seçimi</label>
+                      {analizTipi === 'aylik' && (
+                        <select
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
+                        >
+                          {uniqueMonths.map(m => (
+                            <option key={m} value={m}>{getMonthLabel(m)}</option>
+                          ))}
+                        </select>
+                      )}
+                      {analizTipi === 'yillik' && (
+                        <select
+                          value={analizYil}
+                          onChange={(e) => setAnalizYil(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
+                        >
+                          {uniqueYears.map(y => (
+                            <option key={y} value={y}>{y} Yılı</option>
+                          ))}
+                        </select>
+                      )}
+                      {analizTipi === 'ozel' && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="date"
+                            value={analizBaslangic}
+                            onChange={(e) => setAnalizBaslangic(e.target.value)}
+                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
+                          />
+                          <input
+                            type="date"
+                            value={analizBitis}
+                            onChange={(e) => setAnalizBitis(e.target.value)}
+                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fast category helpers */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">3. Kalem Filtre İşlemleri</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSeciliKategoriler([...GIDER_KATS, ...GELIR_KATS])}
+                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-slate-600 transition-all"
+                        >
+                          Tümünü Seç
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSeciliKategoriler([])}
+                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-rose-600 transition-all"
+                        >
+                          Temizle
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Category select checklist with grouped badges */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        Analiz Edilecek Özel Kalemler (Gider / Gelir)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Gelir Kalemleri Checklist */}
+                      <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider block">Gelir Kalemleri</span>
+                        <div className="flex flex-wrap gap-2">
+                          {GELIR_KATS.map(katName => {
+                            const isSelected = seciliKategoriler.includes(katName);
+                            return (
+                              <button
+                                type="button"
+                                key={katName}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
+                                  } else {
+                                    setSeciliKategoriler([...seciliKategoriler, katName]);
+                                  }
+                                }}
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
+                                  isSelected
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs'
+                                    : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                {katName}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Gider Kalemleri Checklist */}
+                      <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider block">Gider Kalemleri</span>
+                        <div className="flex flex-wrap gap-2">
+                          {GIDER_KATS.map(katName => {
+                            const isSelected = seciliKategoriler.includes(katName);
+                            return (
+                              <button
+                                type="button"
+                                key={katName}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
+                                  } else {
+                                    setSeciliKategoriler([...seciliKategoriler, katName]);
+                                  }
+                                }}
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
+                                  isSelected
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-xs'
+                                    : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-rose-500' : 'bg-slate-300'}`} />
+                                {katName}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Grid stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Toplam Ofis Geliri</p>
-                    <p className="text-xl font-black text-emerald-600">{formatPara(selectedMonthStats.gelir)}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Seçili Kapsam Geliri</p>
+                    <p className="text-xl font-black text-emerald-600">{formatPara(analizStats.gelir)}</p>
                   </div>
 
                   <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Toplam Ofis Gideri</p>
-                    <p className="text-xl font-black text-rose-600">{formatPara(selectedMonthStats.gider)}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Seçili Kapsam Gideri</p>
+                    <p className="text-xl font-black text-rose-600">{formatPara(analizStats.gider)}</p>
                   </div>
 
                   <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ofis Net Kar / Zarar</p>
-                    <p className={`text-xl font-black ${selectedMonthStats.net >= 0 ? 'text-blue-600' : 'text-rose-500'}`}>
-                      {selectedMonthStats.net >= 0 ? '+' : ''}{formatPara(selectedMonthStats.net)}
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Kapsam Net Kar / Zarar</p>
+                    <p className={`text-xl font-black ${analizStats.net >= 0 ? 'text-blue-600' : 'text-rose-500'}`}>
+                      {analizStats.net >= 0 ? '+' : ''}{formatPara(analizStats.net)}
                     </p>
                   </div>
 
                   <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ofis Kar Oranı</p>
-                    <p className={`text-xl font-black ${selectedMonthStats.net >= 0 ? 'text-blue-600' : 'text-rose-500'}`}>
-                      {selectedMonthStats.gelir > 0 
-                        ? `${((selectedMonthStats.net / selectedMonthStats.gelir) * 100).toFixed(1)}%` 
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ofis Kar Marjı</p>
+                    <p className={`text-xl font-black ${analizStats.net >= 0 ? 'text-blue-600' : 'text-rose-500'}`}>
+                      {analizStats.gelir > 0 
+                        ? `${((analizStats.net / analizStats.gelir) * 100).toFixed(1)}%` 
                         : '—'
                       }
                     </p>
@@ -897,13 +1299,15 @@ export const OfisGiderTakip: React.FC = () => {
                 <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h3 className="font-extrabold text-slate-800 flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-kilim-blue" />
-                    Son 6 Aylık Finansal Ofis Trendi
+                    {analizTipi === 'aylik' && "Seçilen Ayın Haftalık Finansal Dağılımı"}
+                    {analizTipi === 'yillik' && "Seçilen Yılın Aylık Finansal Trendi"}
+                    {analizTipi === 'ozel' && "Belirli Tarih Aralığı Finansal Dağılımı"}
                   </h3>
 
                   <div className="w-full h-80 pt-4">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
-                        data={chartData}
+                        data={analizChartData}
                         margin={{ top: 20, right: 10, left: 0, bottom: 0 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -927,15 +1331,15 @@ export const OfisGiderTakip: React.FC = () => {
                   <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 font-black text-rose-600">
                       <TrendingDown className="w-4 h-4" />
-                      Giderlerin Kategori Dağılımı
+                      Giderlerin Kategori Dağılımı (Kapsam)
                     </h3>
 
-                    {selectedMonthStats.sortedExpenses.length === 0 ? (
-                      <p className="text-xs text-slate-400 font-medium italic py-8 text-center">Bu ay kaydedilmiş bir gider bulunmuyor.</p>
+                    {analizStats.sortedExpenses.length === 0 ? (
+                      <p className="text-xs text-slate-400 font-medium italic py-8 text-center">Bu kriterlerde gider kaydı bulunmuyor.</p>
                     ) : (
                       <div className="space-y-4">
-                        {selectedMonthStats.sortedExpenses.map(({ category, value }) => {
-                          const pct = selectedMonthStats.gider > 0 ? (value / selectedMonthStats.gider) * 100 : 0;
+                        {analizStats.sortedExpenses.map(({ category, value }) => {
+                          const pct = analizStats.gider > 0 ? (value / analizStats.gider) * 100 : 0;
                           return (
                             <div key={category} className="space-y-1">
                               <div className="flex items-center justify-between text-xs font-semibold">
@@ -958,15 +1362,15 @@ export const OfisGiderTakip: React.FC = () => {
                   <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 font-black text-emerald-600">
                       <TrendingUp className="w-4 h-4" />
-                      Gelirlerin Kategori Dağılımı
+                      Gelirlerin Kategori Dağılımı (Kapsam)
                     </h3>
 
-                    {selectedMonthStats.sortedIncomes.length === 0 ? (
-                      <p className="text-xs text-slate-400 font-medium italic py-8 text-center">Bu ay kaydedilmiş bir gelir bulunmuyor.</p>
+                    {analizStats.sortedIncomes.length === 0 ? (
+                      <p className="text-xs text-slate-400 font-medium italic py-8 text-center">Bu kriterlerde gelir kaydı bulunmuyor.</p>
                     ) : (
                       <div className="space-y-4">
-                        {selectedMonthStats.sortedIncomes.map(({ category, value }) => {
-                          const pct = selectedMonthStats.gelir > 0 ? (value / selectedMonthStats.gelir) * 100 : 0;
+                        {analizStats.sortedIncomes.map(({ category, value }) => {
+                          const pct = analizStats.gelir > 0 ? (value / analizStats.gelir) * 100 : 0;
                           return (
                             <div key={category} className="space-y-1">
                               <div className="flex items-center justify-between text-xs font-semibold">
@@ -997,6 +1401,198 @@ export const OfisGiderTakip: React.FC = () => {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
+                {/* Advanced Parameter Controls copied for consistency */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-6 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-5 h-5 text-kilim-blue" />
+                      <h3 className="font-extrabold text-slate-800 text-sm">Gelişmiş Analiz ve Optimizasyon Parametreleri</h3>
+                    </div>
+                    <span className="text-[10px] font-black uppercase text-kilim-blue bg-kilim-blue/10 px-3 py-1 rounded-full w-max">
+                      Seçili Kalem & Tarih Analizi
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Period Type Selection */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">1. Analiz Zaman Dilimi</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAnalizTipi('aylik')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            analizTipi === 'aylik'
+                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          Aylık
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnalizTipi('yillik')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            analizTipi === 'yillik'
+                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          Yıllık
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnalizTipi('ozel')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            analizTipi === 'ozel'
+                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          Tarih Arası
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Period selection inputs */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">2. Dönem Seçimi</label>
+                      {analizTipi === 'aylik' && (
+                        <select
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
+                        >
+                          {uniqueMonths.map(m => (
+                            <option key={m} value={m}>{getMonthLabel(m)}</option>
+                          ))}
+                        </select>
+                      )}
+                      {analizTipi === 'yillik' && (
+                        <select
+                          value={analizYil}
+                          onChange={(e) => setAnalizYil(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
+                        >
+                          {uniqueYears.map(y => (
+                            <option key={y} value={y}>{y} Yılı</option>
+                          ))}
+                        </select>
+                      )}
+                      {analizTipi === 'ozel' && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="date"
+                            value={analizBaslangic}
+                            onChange={(e) => setAnalizBaslangic(e.target.value)}
+                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
+                          />
+                          <input
+                            type="date"
+                            value={analizBitis}
+                            onChange={(e) => setAnalizBitis(e.target.value)}
+                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fast category helpers */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">3. Kalem Filtre İşlemleri</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSeciliKategoriler([...GIDER_KATS, ...GELIR_KATS])}
+                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-slate-600 transition-all"
+                        >
+                          Tümünü Seç
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSeciliKategoriler([])}
+                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-rose-600 transition-all"
+                        >
+                          Temizle
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Category select checklist with grouped badges */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        Analiz Edilecek Özel Kalemler (Gider / Gelir)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Gelir Kalemleri Checklist */}
+                      <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider block">Gelir Kalemleri</span>
+                        <div className="flex flex-wrap gap-2">
+                          {GELIR_KATS.map(katName => {
+                            const isSelected = seciliKategoriler.includes(katName);
+                            return (
+                              <button
+                                type="button"
+                                key={katName}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
+                                  } else {
+                                    setSeciliKategoriler([...seciliKategoriler, katName]);
+                                  }
+                                }}
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
+                                  isSelected
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs'
+                                    : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                {katName}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Gider Kalemleri Checklist */}
+                      <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider block">Gider Kalemleri</span>
+                        <div className="flex flex-wrap gap-2">
+                          {GIDER_KATS.map(katName => {
+                            const isSelected = seciliKategoriler.includes(katName);
+                            return (
+                              <button
+                                type="button"
+                                key={katName}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
+                                  } else {
+                                    setSeciliKategoriler([...seciliKategoriler, katName]);
+                                  }
+                                }}
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
+                                  isSelected
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-xs'
+                                    : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-rose-500' : 'bg-slate-300'}`} />
+                                {katName}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* AI / Consultant Decision Support Analizi */}
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-8 opacity-5">
@@ -1008,46 +1604,58 @@ export const OfisGiderTakip: React.FC = () => {
                       <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10">
                         <Coins className="w-6 h-6 text-emerald-400" />
                       </div>
-                      <h2 className="text-lg sm:text-xl font-black tracking-tight text-white">Akıllı Finansal Karar Desteği</h2>
+                      <div>
+                        <h2 className="text-lg sm:text-xl font-black tracking-tight text-white">Akıllı Finansal Karar Desteği</h2>
+                        <p className="text-[11px] text-slate-400 font-medium">Seçili filtre kapsamı temel alınarak oluşturulan zeki mali analiz tablosu</p>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {/* Deficiency evaluation */}
-                      <div className="space-y-6">
+                      {/* Left: Financial evaluation */}
+                      <div className="space-y-6 border-r border-slate-800/80 pr-0 md:pr-8">
                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                          <span className="w-2 h-2 bg-kilim-red rounded-full" />
-                          Mevcut Açık ve Risk Analizi
+                          <span className="w-2 h-2 bg-kilim-blue rounded-full" />
+                          Kapsam Performans Özeti
                         </h4>
 
-                        <div className="space-y-4">
+                        <div className="space-y-5">
                           <div className="space-y-1.5">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Bu Ayki Açık Tutarı</span>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Kapsam Dönem Dengesi</span>
                             <div className="flex items-center gap-2">
-                              {currentMonthStats.net >= 0 ? (
-                                <p className="text-sm font-semibold text-emerald-400 flex items-center gap-1">
-                                  <CheckCircle2 className="w-4 h-4" />
-                                  Açık bulunmuyor, ofis bu ay karda!
+                              {analizStats.net >= 0 ? (
+                                <p className="text-lg font-black text-emerald-400 flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-5 h-5" />
+                                  Kâr Durumu: {formatPara(analizStats.net)}
                                 </p>
                               ) : (
-                                <p className="text-xl font-black text-rose-400">
-                                  {formatPara(Math.abs(currentMonthStats.net))}
+                                <p className="text-lg font-black text-rose-400 flex items-center gap-1.5">
+                                  <AlertCircle className="w-5 h-5" />
+                                  Bütçe Açığı: {formatPara(Math.abs(analizStats.net))}
                                 </p>
                               )}
                             </div>
                           </div>
 
-                          <div className="space-y-1.5">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Sürdürülebilirlik Puanı</span>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                              <span>Sürdürülebilirlik Endeksi</span>
+                              <span className="text-white">
+                                {analizStats.gelir > 0 
+                                  ? `${Math.max(0, Math.min(100, Math.round(70 + (analizStats.net / analizStats.gelir) * 30)))}%` 
+                                  : '0%'
+                                }
+                              </span>
+                            </div>
                             <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden">
                               <div 
                                 className={`h-full rounded-full transition-all duration-300 ${
-                                  currentMonthStats.net >= 0 ? 'bg-emerald-500' : 'bg-amber-500'
+                                  analizStats.net >= 0 ? 'bg-emerald-500' : 'bg-amber-500'
                                 }`}
                                 style={{ 
                                   width: `${
-                                    currentMonthStats.net >= 0 
-                                      ? Math.min(100, 75 + (currentMonthStats.net / (currentMonthStats.gelir || 1)) * 25) 
-                                      : Math.max(20, 100 - (Math.abs(currentMonthStats.net) / (currentMonthStats.gider || 1)) * 100)
+                                    analizStats.gelir > 0
+                                      ? Math.max(10, Math.min(100, Math.round(70 + (analizStats.net / analizStats.gelir) * 30)))
+                                      : 10
                                   }%` 
                                 }}
                               />
@@ -1056,26 +1664,26 @@ export const OfisGiderTakip: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Strategic Recommendations to close the gap */}
+                      {/* Right: Strategic Recommendations to close the gap */}
                       <div className="space-y-6">
                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                           <span className="w-2 h-2 bg-emerald-400 rounded-full" />
-                          Açık Nasıl Kapatılır / Kar Nasıl Artırılır?
+                          Doğrudan Stratejik Aksiyonlar
                         </h4>
 
                         <div className="space-y-3 pl-1">
                           <div className="flex items-start gap-2.5 text-xs">
                             <ChevronRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                             <p className="text-slate-300 leading-relaxed font-medium">
-                              <span className="text-white font-bold">Upsell / Ek Hizmet Modeli:</span> Mevcut müşterilere standard muhasebenin yanı sıra vergi risk analizi, SGK teşvik danışmanlığı veya GEKSİS raporlaması teklif edin.
+                              <span className="text-white font-bold">Upsell / Katma Değerli Danışmanlık:</span> Müşterilerinize sadece rutin beyanname vermenin ötesinde, mevzuat ve teşvik bülteni gibi butik danışmanlık paketleri sunun.
                             </p>
                           </div>
                           
-                          {selectedMonthStats.sortedExpenses.length > 0 && (
+                          {analizStats.sortedExpenses.length > 0 && (
                             <div className="flex items-start gap-2.5 text-xs">
                               <ChevronRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                               <p className="text-slate-300 leading-relaxed font-medium">
-                                <span className="text-white font-bold">Odaklı Gider Tasarrufu:</span> En büyük gider kaleminiz olan <span className="text-rose-400 font-bold">{selectedMonthStats.sortedExpenses[0].category}</span> harcamasını %12 oranında düşürün. Bu durum bütçede anında <span className="text-emerald-400 font-bold">{formatPara(selectedMonthStats.sortedExpenses[0].value * 0.12)}</span> doğrudan tasarruf sağlayacaktır.
+                                <span className="text-white font-bold">Surgical Gider Tasarrufu:</span> Kapsamda en çok harcama yapılan <span className="text-rose-400 font-bold">{analizStats.sortedExpenses[0].category}</span> kalemini %12 oranında optimize ederseniz bütçenizde anında <span className="text-emerald-400 font-bold">{formatPara(analizStats.sortedExpenses[0].value * 0.12)}</span> doğrudan tasarruf alanı açılır.
                               </p>
                             </div>
                           )}
@@ -1083,7 +1691,7 @@ export const OfisGiderTakip: React.FC = () => {
                           <div className="flex items-start gap-2.5 text-xs">
                             <ChevronRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                             <p className="text-slate-300 leading-relaxed font-medium">
-                              <span className="text-white font-bold">Nakit Döngüsü Hızlandırma:</span> Cari tahsilatları gecikmeye düşmeden takip edin. Her ayın ilk haftası düzenli limit hatırlatmaları nakit dengesini %30 iyileştirir.
+                              <span className="text-white font-bold">Nakit Akışı Otomasyonu:</span> Tahsilat gecikmelerini önlemek adına banka entegrasyonu ve otomatik mail/sms limit hatırlatmalarını devreye alın.
                             </p>
                           </div>
                         </div>
@@ -1092,94 +1700,50 @@ export const OfisGiderTakip: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Practical savings advice card */}
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4">
-                  <h3 className="font-black text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-                    <Info className="w-4 h-4 text-emerald-600" />
-                    Muhasebe Ofisi Tasarruf Tavsiyeleri
-                  </h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 bg-slate-50 rounded-2xl space-y-1">
-                      <p className="text-xs font-bold text-slate-700">Yazılım Lisansları Optimizasyonu</p>
-                      <p className="text-xs text-slate-400 leading-relaxed font-medium">Muhasebe bülten ve yazılım paket lisanslarını yıllık taahhütlerle peşin ödeme yöntemiyle %20 daha avantajlı satın alabilirsiniz.</p>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 rounded-2xl space-y-1">
-                      <p className="text-xs font-bold text-slate-700">Akıllı Enerji Tüketimi</p>
-                      <p className="text-xs text-slate-400 leading-relaxed font-medium">Isınma, klima ve aydınlatma giderleri için termostat kullanımı ve mesai dışı otomatik kapanma ile faturaları %15 hafifletin.</p>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 rounded-2xl space-y-1">
-                      <p className="text-xs font-bold text-slate-700">Kırtasiye ve Dijitalleşme</p>
-                      <p className="text-xs text-slate-400 leading-relaxed font-medium">Müşterilerden gelen kağıt evrakları OCR kullanarak dijitale aktarın. Kağıt ve kartuş sarfiyatını minimize edin.</p>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 rounded-2xl space-y-1">
-                      <p className="text-xs font-bold text-slate-700">Kira ve Hizmet Müzakeresi</p>
-                      <p className="text-xs text-slate-400 leading-relaxed font-medium">Uzun dönemli kontratlar veya ortak ofis çözümleri ile kira maliyetlerini optimize edin.</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Category Budgets Limitation Settings */}
+                {/* Intelligent Dynamic Optimization Suggestions */}
                 <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                   <div>
                     <h3 className="font-black text-slate-800 flex items-center gap-2">
-                      <Target className="w-5 h-5 text-kilim-blue" />
-                      Gider Limit Hedefleri
+                      <Lightbulb className="w-5 h-5 text-amber-500" />
+                      Yapay Zeka Destekli Optimizasyon Önerileri
                     </h3>
-                    <p className="text-xs text-slate-400 mt-1">Kategori bazlı aylık bütçe/limit hedefleri belirleyerek harcamalarınızı limit sınırları içerisinde tutun.</p>
+                    <p className="text-xs text-slate-400 mt-1">Seçtiğiniz bütçe kalemleri ve tarih performansına göre hesaplanan akıllı tasarruf ve mali gelişim yönergeleri.</p>
                   </div>
 
-                  <div className="space-y-4">
-                    {GIDER_KATS.map(katName => {
-                      const limitVal = budgets[katName] || 0;
-                      // Current month actual gasto
-                      const cur = new Date().toISOString().substring(0, 7);
-                      const actualGasto = entries
-                        .filter(e => getMonthYearString(e.tarih) === cur && e.tur === 'gider' && e.kat === katName)
-                        .reduce((sum, e) => sum + e.tutar, 0);
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {zekiOneriler.map((oneri, index) => {
+                      const colorClass = 
+                        oneri.type === 'warning' 
+                          ? 'border-rose-100 bg-rose-50/50 text-rose-800' 
+                          : oneri.type === 'success'
+                          ? 'border-emerald-100 bg-emerald-50/50 text-emerald-800'
+                          : oneri.type === 'tip'
+                          ? 'border-amber-100 bg-amber-50/50 text-amber-800'
+                          : 'border-slate-100 bg-slate-50 text-slate-800';
 
-                      const pct = limitVal > 0 ? (actualGasto / limitVal) * 100 : 0;
-                      const barColorClass = pct > 100 ? 'bg-rose-500' : pct > 80 ? 'bg-amber-500' : 'bg-emerald-500';
-                      const textColorClass = pct > 100 ? 'text-rose-600' : pct > 80 ? 'text-amber-600' : 'text-emerald-600';
+                      const iconColor = 
+                        oneri.type === 'warning' 
+                          ? 'text-rose-500' 
+                          : oneri.type === 'success'
+                          ? 'text-emerald-500'
+                          : oneri.type === 'tip'
+                          ? 'text-amber-500'
+                          : 'text-slate-500';
 
                       return (
-                        <div key={katName} className="p-4 rounded-2xl bg-slate-50 border border-slate-100/50 space-y-3">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                            <span className="font-extrabold text-slate-700 sm:w-32">{katName}</span>
-                            
+                        <div key={index} className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 ${colorClass}`}>
+                          <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-slate-400 font-bold">Harç Limit:</span>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  value={limitVal || ''}
-                                  placeholder="Sınır Belirle (₺)"
-                                  onChange={(e) => handleUpdateBudget(katName, e.target.value)}
-                                  className="w-32 pl-3 pr-6 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-kilim-blue"
-                                />
-                                <span className="absolute right-2 top-1.5 text-[10px] font-bold text-slate-400">₺</span>
-                              </div>
+                              <span className="w-2 h-2 rounded-full bg-current" />
+                              <h4 className="text-xs font-black tracking-tight">{oneri.title}</h4>
                             </div>
-
-                            <div className="flex items-center gap-3">
-                              <span className="text-slate-500 font-bold">Gerçekleşen: {formatPara(actualGasto)}</span>
-                              {limitVal > 0 && (
-                                <span className={`font-black uppercase text-[10px] px-2 py-0.5 rounded-full border ${barColorClass}/10 ${textColorClass}`}>
-                                  {pct.toFixed(0)}%
-                                </span>
-                              )}
-                            </div>
+                            <p className="text-xs text-slate-600 leading-relaxed font-medium">{oneri.desc}</p>
                           </div>
 
-                          {limitVal > 0 && (
-                            <div className="w-full h-2 bg-slate-200/80 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-300 ${barColorClass}`}
-                                style={{ width: `${Math.min(100, pct)}%` }}
-                              />
+                          {oneri.potentialSavings && oneri.potentialSavings > 0 && (
+                            <div className="pt-2 border-t border-dashed border-current/10 flex items-center justify-between text-xs font-black">
+                              <span>Hedeflenen Potansiyel Tasarruf:</span>
+                              <span className={iconColor}>{formatPara(oneri.potentialSavings)}</span>
                             </div>
                           )}
                         </div>
