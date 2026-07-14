@@ -156,7 +156,6 @@ const DEFAULT_COMPANY: CompanyProfile = {
 
 const defaultModules = [
   { id: ModuleId.DASHBOARD, title: 'Panel', icon: LayoutDashboard, desc: 'Genel durum ve akıllı mali takvim özeti.' },
-  { id: ModuleId.BEYANNAME, title: 'Beyanname Takibi', icon: FileCheck, desc: 'Tüm firmaların beyanname süreçlerinin matris görünümü ile takibi.' },
   { id: ModuleId.PERSONEL_BORDRO, title: 'Personel & Bordro', icon: Users, desc: 'Maaş hesaplama, SGK maliyeti ve izin takibi.' },
   { id: ModuleId.NAKIT_AKIS, title: 'Finansal Durum', icon: Wallet, desc: 'Mizan analizi, mali tablo analizleri ve KDV İade & GEKSİS analizleri.' },
   { id: ModuleId.CARI_HESAP, title: 'Cari & Tahsilat', icon: TrendingUp, desc: 'Müşteri bakiyeleri, gecikmiş alacaklar ve ödeme girişi.' },
@@ -534,7 +533,6 @@ export default function App() {
         return <OfisGiderTakip />;
       case ModuleId.ARAC_KDV_TAKIP:
         return <AracKdvTakipModule profile={companyProfile} />;
-      case ModuleId.BEYANNAME:
       case ModuleId.CARI_HESAP:
       case ModuleId.PERSONEL_BORDRO:
       case ModuleId.HESAPLAMALAR:
