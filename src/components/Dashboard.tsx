@@ -20,7 +20,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { fetchLatestLegislation } from '../services/geminiService';
 import { UserProfile, CompanyProfile } from '../types';
 import { MarketPulse } from './MarketPulse';
-import { NewsModule } from './NewsModule';
 import { AgendaModule } from './AgendaModule';
 import { getCalendarItems } from '../utils/calendarUtils';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
@@ -168,9 +167,6 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
 
       {/* Market Pulse Section */}
       <MarketPulse />
-
-      {/* News Section */}
-      <NewsModule />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
