@@ -16,9 +16,12 @@ import {
   Layers,
   Sparkles,
   RefreshCw,
-  Info
+  Info,
+  Upload,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import * as XLSX from 'xlsx';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { 
   collection, 
@@ -230,6 +233,13 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
   const [manualZirve, setManualZirve] = useState<string>('');
   const [manualBeyan, setManualBeyan] = useState<string>('');
 
+  // Excel Import States
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [excelError, setExcelError] = useState<string | null>(null);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [parsedVehicles, setParsedVehicles] = useState<Omit<VehicleRecord, 'id'>[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
   useEffect(() => {
     if (!profile.id) return;
     setLoading(true);
@@ -302,6 +312,178 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
       alert('Şablon veri yüklenirken hata oluştu: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const wsData = [
+      {
+        "Plaka": "38 ABC 123",
+        "Eski Plaka": "",
+        "Plaka Değişti Mi?": "Hayır",
+        "Alış Noter": "KAYSERİ 10.NOTERLİĞİ",
+        "Alış Tarihi": "2026-01-15",
+        "Alış Belge Türü": "Gider Pusulası",
+        "Alış Belge No": "1234",
+        "Alış Tutarı": 450000,
+        "Satış Noter": "KAYSERİ 12.NOTERLİĞİ",
+        "Satış Tarihi": "2026-02-10",
+        "Satış Belge No": "FT2026000000001",
+        "Satış Tutarı": 490000,
+        "Fatura Türü": "kar-10",
+        "Satıldı Mı?": "Evet",
+        "Gider Pusulası Düzenlendi Mi?": "Evet",
+        "Fatura Kesildi Mi?": "Evet",
+        "Not": "Örnek araç kaydı"
+      },
+      {
+        "Plaka": "38 XYZ 999",
+        "Eski Plaka": "34 XYZ 12",
+        "Plaka Değişti Mi?": "Evet",
+        "Alış Noter": "ANKARA 4. NOTERLİĞİ",
+        "Alış Tarihi": "2026-03-01",
+        "Alış Belge Türü": "Fatura",
+        "Alış Belge No": "FT101",
+        "Alış Tutarı": 600000,
+        "Satış Noter": "",
+        "Satış Tarihi": "",
+        "Satış Belge No": "",
+        "Satış Tutarı": 0,
+        "Fatura Türü": "kar-20",
+        "Satıldı Mı?": "Hayır",
+        "Gider Pusulası Düzenlendi Mi?": "Hayır",
+        "Fatura Kesildi Mi?": "Hayır",
+        "Not": "Stoktaki plaka değişmiş araç"
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Araç Listesi");
+    XLSX.writeFile(wb, "Arac_Alim_Satim_Sablon.xlsx");
+  };
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelFile(file);
+    setExcelError(null);
+    setParsedVehicles([]);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        if (data.length === 0) {
+          setExcelError("Excel dosyasında veri bulunamadı.");
+          return;
+        }
+
+        const parseDate = (val: any) => {
+          if (!val) return '';
+          if (val instanceof Date) {
+            return val.toISOString().split('T')[0];
+          }
+          const str = String(val).trim();
+          if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
+          
+          // Check for Excel serial dates (numbers)
+          if (/^\d+$/.test(str)) {
+            const serial = parseInt(str, 10);
+            const date = new Date((serial - 25569) * 86400 * 1000);
+            if (!isNaN(date.getTime())) {
+              return date.toISOString().split('T')[0];
+            }
+          }
+
+          const parts = str.split(/[./-]/);
+          if (parts.length === 3) {
+            if (parts[0].length === 2 && parts[2].length === 4) {
+              return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+          }
+          return str;
+        };
+
+        const parseBool = (val: any) => {
+          if (val === undefined || val === null) return false;
+          if (typeof val === 'boolean') return val;
+          const s = String(val).trim().toLowerCase();
+          return s === 'evet' || s === 'yes' || s === 'true' || s === '1' || s === 'aktif';
+        };
+
+        const parseNumber = (val: any) => {
+          if (!val) return 0;
+          if (typeof val === 'number') return val;
+          const num = parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+          return isNaN(num) ? 0 : num;
+        };
+
+        const mappedList = data.map((row: any) => {
+          const plaka = String(row['Plaka'] || row['plaka'] || row['PLAKA'] || '').trim().toUpperCase();
+          if (!plaka) return null;
+
+          return {
+            companyId: profile.id,
+            plaka,
+            eskiPlaka: String(row['Eski Plaka'] || row['eskiPlaka'] || row['ESKİ PLAKA'] || '').trim().toUpperCase(),
+            plakaDegistiMi: parseBool(row['Plaka Değişti Mi?'] || row['plakaDegistiMi'] || row['PLAKA DEĞİŞTİ Mİ?']),
+            alisNoter: String(row['Alış Noter'] || row['alisNoter'] || row['ALIŞ NOTER'] || '').trim(),
+            alisTarihi: parseDate(row['Alış Tarihi'] || row['alisTarihi'] || row['ALIŞ TARİHİ']),
+            alisBelgeTuru: String(row['Alış Belge Türü'] || row['alisBelgeTuru'] || row['ALIŞ BELGE TÜRÜ'] || 'Gider Pusulası').trim(),
+            alisBelgeNo: String(row['Alış Belge No'] || row['alisBelgeNo'] || row['ALIŞ BELGE NO'] || '').trim(),
+            alisTutari: parseNumber(row['Alış Tutarı'] || row['alisTutari'] || row['ALIŞ TUTARI']),
+            satisNoter: String(row['Satış Noter'] || row['satisNoter'] || row['SATIŞ NOTER'] || '').trim(),
+            satisTarihi: parseDate(row['Satış Tarihi'] || row['satisTarihi'] || row['SATIŞ TARİHİ']),
+            satisBelgeNo: String(row['Satış Belge No'] || row['satisBelgeNo'] || row['SATIŞ BELGE NO'] || '').trim(),
+            satisTutari: parseNumber(row['Satış Tutarı'] || row['satisTutari'] || row['SATIŞ TUTARI']),
+            faturaTuru: String(row['Fatura Türü'] || row['faturaTuru'] || row['FATURA TÜRÜ'] || 'kar-10').trim().toLowerCase(),
+            not: String(row['Not'] || row['not'] || row['NOT'] || '').trim(),
+            satildi: parseBool(row['Satıldı Mı?'] || row['satildi'] || row['SATIŞ DURUMU'] || row['Satıldı'] || row['SATILDI Mİ?']),
+            giderPusulasiDuzenlendi: parseBool(row['Gider Pusulası Düzenlendi Mi?'] || row['giderPusulasiDuzenlendi'] || row['GİDER PUSULASI DÜZENLENDİ Mİ?']),
+            faturaKesildi: parseBool(row['Fatura Kesildi Mi?'] || row['faturaKesildi'] || row['FATURA KESİLDİ Mİ?']),
+          };
+        }).filter((v): v is Omit<VehicleRecord, 'id'> => v !== null);
+
+        if (mappedList.length === 0) {
+          setExcelError("Hiçbir geçerli araç kaydı bulunamadı. Lütfen plaka sütununun dolu olduğundan emin olun.");
+        } else {
+          setParsedVehicles(mappedList);
+        }
+      } catch (err: any) {
+        setExcelError("Dosya işlenirken bir hata oluştu: " + err.message);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleSaveExcelData = async () => {
+    if (!profile.id || parsedVehicles.length === 0) return;
+    try {
+      setIsUploading(true);
+      const batch = writeBatch(db);
+
+      for (const vehicle of parsedVehicles) {
+        const docRef = doc(collection(db, 'companies', profile.id, 'vehicles'));
+        batch.set(docRef, {
+          ...vehicle,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      await batch.commit();
+      setIsExcelModalOpen(false);
+      setExcelFile(null);
+      setParsedVehicles([]);
+      setExcelError(null);
+    } catch (err: any) {
+      setExcelError("Kayıtlar veritabanına kaydedilirken hata oluştu: " + err.message);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -619,10 +801,21 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
               <Plus className="w-4 h-4" /> Manuel Ekle
             </button>
             <button 
-              onClick={loadDemoData}
+              onClick={() => {
+                setExcelFile(null);
+                setParsedVehicles([]);
+                setExcelError(null);
+                setIsExcelModalOpen(true);
+              }}
               className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-500 transition-all flex items-center gap-1.5"
             >
-              <Sparkles className="w-4 h-4" /> Excel Örneğini Yükle
+              <Upload className="w-4 h-4" /> Excel'den Yükle
+            </button>
+            <button 
+              onClick={loadDemoData}
+              className="px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl hover:bg-amber-400 transition-all flex items-center gap-1.5"
+            >
+              <Sparkles className="w-4 h-4" /> Hazır Örneği Yükle
             </button>
           </div>
         </div>
@@ -736,33 +929,46 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
                     </select>
                   </div>
 
-                  <button 
-                    onClick={() => {
-                      setCurrentRecord({
-                        plaka: '',
-                        eskiPlaka: '',
-                        plakaDegistiMi: false,
-                        alisNoter: '',
-                        alisTarihi: new Date().toISOString().split('T')[0],
-                        alisBelgeTuru: 'Gider Pusulası',
-                        alisBelgeNo: '',
-                        alisTutari: 0,
-                        satisNoter: '',
-                        satisTarihi: '',
-                        satisBelgeNo: '',
-                        satisTutari: 0,
-                        faturaTuru: 'kar-10',
-                        not: '',
-                        satildi: false,
-                        giderPusulasiDuzenlendi: false,
-                        faturaKesildi: false
-                      });
-                      setIsModalOpen(true);
-                    }}
-                    className="px-4 py-2 bg-[#1e3a8a] text-white text-xs font-bold rounded-xl hover:bg-opacity-90 transition-all flex items-center gap-1.5 mt-3 self-end"
-                  >
-                    <Plus className="w-4 h-4" /> Yeni Araç Ekle
-                  </button>
+                  <div className="flex gap-2 mt-3 self-end">
+                    <button 
+                      onClick={() => {
+                        setExcelFile(null);
+                        setParsedVehicles([]);
+                        setExcelError(null);
+                        setIsExcelModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-500 transition-all flex items-center gap-1.5"
+                    >
+                      <Upload className="w-4 h-4" /> Excel'den Yükle
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setCurrentRecord({
+                          plaka: '',
+                          eskiPlaka: '',
+                          plakaDegistiMi: false,
+                          alisNoter: '',
+                          alisTarihi: new Date().toISOString().split('T')[0],
+                          alisBelgeTuru: 'Gider Pusulası',
+                          alisBelgeNo: '',
+                          alisTutari: 0,
+                          satisNoter: '',
+                          satisTarihi: '',
+                          satisBelgeNo: '',
+                          satisTutari: 0,
+                          faturaTuru: 'kar-10',
+                          not: '',
+                          satildi: false,
+                          giderPusulasiDuzenlendi: false,
+                          faturaKesildi: false
+                        });
+                        setIsModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-[#1e3a8a] text-white text-xs font-bold rounded-xl hover:bg-opacity-90 transition-all flex items-center gap-1.5"
+                    >
+                      <Plus className="w-4 h-4" /> Yeni Araç Ekle
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1491,6 +1697,167 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Excel Bulk Import */}
+      <AnimatePresence>
+        {isExcelModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-[#1e3a8a] text-base flex items-center gap-2">
+                    <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                    Excel ile Toplu Araç Yükle
+                  </h3>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mt-0.5">
+                    İkinci el araç envanterinizi Excel şablonu ile tek seferde toplu yükleyin
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsExcelModalOpen(false)}
+                  className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                {/* Information Alert & Download Template */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-2.5">
+                    <Info className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-bold text-emerald-950">Excel Dosya Formatı Hakkında</h4>
+                      <p className="text-[10px] text-emerald-800 mt-0.5">
+                        Lütfen yüklemek istediğiniz excel dosyasının sistemle uyumlu olabilmesi için örnek şablonu indirin ve sütun başlıklarını değiştirmeden verilerinizi doldurun.
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={downloadTemplate}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-auto flex-shrink-0 shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Şablonu İndir
+                  </button>
+                </div>
+
+                {/* Upload File Selector Area */}
+                <div className="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center bg-slate-50/50 hover:bg-slate-50 transition-colors relative">
+                  <input 
+                    type="file" 
+                    accept=".xlsx, .xls"
+                    onChange={handleExcelUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="space-y-2">
+                    <Upload className="w-8 h-8 text-slate-400 mx-auto" />
+                    <div className="text-xs font-bold text-slate-700">
+                      {excelFile ? excelFile.name : "Excel dosyanızı seçin veya buraya sürükleyin"}
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Sadece .xlsx ve .xls formatlarındaki Excel tabloları desteklenmektedir.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Error Box */}
+                {excelError && (
+                  <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>{excelError}</span>
+                  </div>
+                )}
+
+                {/* Preview Parsed Data */}
+                {parsedVehicles.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b pb-1.5">
+                      <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        DOSYADA BULUNAN ARAÇLAR ({parsedVehicles.length} ADET)
+                      </h4>
+                      <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                        Başarılı Çözümlendi
+                      </span>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[220px] overflow-y-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-400 font-bold uppercase tracking-wider sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2">SIRA</th>
+                            <th className="px-4 py-2">PLAKA</th>
+                            <th className="px-4 py-2">ALIŞ TARİHİ</th>
+                            <th className="px-4 py-2 text-right">ALIŞ TUTARI</th>
+                            <th className="px-4 py-2 text-center">SATILDI MI?</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium text-slate-600 bg-white">
+                          {parsedVehicles.slice(0, 10).map((v, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
+                              <td className="px-4 py-2.5 font-bold text-slate-900">{v.plaka}</td>
+                              <td className="px-4 py-2.5">{v.alisTarihi ? new Date(v.alisTarihi).toLocaleDateString('tr-TR') : '-'}</td>
+                              <td className="px-4 py-2.5 text-right font-semibold">{formatMoney(v.alisTutari)}</td>
+                              <td className="px-4 py-2.5 text-center">
+                                {v.satildi ? (
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-100">Evet</span>
+                                ) : (
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">Hayır</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {parsedVehicles.length > 10 && (
+                      <p className="text-[10px] text-slate-400 italic text-center">
+                        Toplam {parsedVehicles.length} satırdan ilk 10 satır gösterilmektedir.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsExcelModalOpen(false)}
+                  className="px-5 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-300 transition-colors"
+                >
+                  İptal
+                </button>
+                <button 
+                  type="button"
+                  disabled={parsedVehicles.length === 0 || isUploading}
+                  onClick={handleSaveExcelData}
+                  className="px-6 py-2.5 bg-emerald-600 disabled:bg-slate-300 text-white text-xs font-bold rounded-xl hover:bg-emerald-500 transition-colors shadow-md flex items-center gap-1.5"
+                >
+                  {isUploading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Yükleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Sisteme Aktar ({parsedVehicles.length} Araç)
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
