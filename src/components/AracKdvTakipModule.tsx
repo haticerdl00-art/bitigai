@@ -239,6 +239,9 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [parsedVehicles, setParsedVehicles] = useState<Omit<VehicleRecord, 'id'>[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [excelWorkbook, setExcelWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [excelSheets, setExcelSheets] = useState<string[]>([]);
+  const [selectedExcelSheet, setSelectedExcelSheet] = useState<string>('');
 
   useEffect(() => {
     if (!profile.id) return;
@@ -362,100 +365,130 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
     XLSX.writeFile(wb, "Arac_Alim_Satim_Sablon.xlsx");
   };
 
+  const parseSheetData = (wb: XLSX.WorkBook, wsname: string) => {
+    try {
+      setExcelError(null);
+      setParsedVehicles([]);
+
+      const ws = wb.Sheets[wsname];
+      if (!ws) {
+        setExcelError(`"${wsname}" isimli sayfa bulunamadı.`);
+        return;
+      }
+      const data = XLSX.utils.sheet_to_json(ws);
+
+      if (data.length === 0) {
+        setExcelError(`"${wsname}" sayfasında veri bulunamadı.`);
+        return;
+      }
+
+      const parseDate = (val: any) => {
+        if (!val) return '';
+        if (val instanceof Date) {
+          return val.toISOString().split('T')[0];
+        }
+        const str = String(val).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
+        
+        // Check for Excel serial dates (numbers)
+        if (/^\d+$/.test(str)) {
+          const serial = parseInt(str, 10);
+          const date = new Date((serial - 25569) * 86400 * 1000);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        }
+
+        const parts = str.split(/[./-]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 2 && parts[2].length === 4) {
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+          }
+        }
+        return str;
+      };
+
+      const parseBool = (val: any) => {
+        if (val === undefined || val === null) return false;
+        if (typeof val === 'boolean') return val;
+        const s = String(val).trim().toLowerCase();
+        return s === 'evet' || s === 'yes' || s === 'true' || s === '1' || s === 'aktif';
+      };
+
+      const parseNumber = (val: any) => {
+        if (!val) return 0;
+        if (typeof val === 'number') return val;
+        const num = parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+        return isNaN(num) ? 0 : num;
+      };
+
+      const mappedList = data.map((row: any) => {
+        const plaka = String(row['Plaka'] || row['plaka'] || row['PLAKA'] || '').trim().toUpperCase();
+        if (!plaka) return null;
+
+        return {
+          companyId: profile.id,
+          plaka,
+          eskiPlaka: String(row['Eski Plaka'] || row['eskiPlaka'] || row['ESKİ PLAKA'] || '').trim().toUpperCase(),
+          plakaDegistiMi: parseBool(row['Plaka Değişti Mi?'] || row['plakaDegistiMi'] || row['PLAKA DEĞİŞTİ Mİ?']),
+          alisNoter: String(row['Alış Noter'] || row['alisNoter'] || row['ALIŞ NOTER'] || '').trim(),
+          alisTarihi: parseDate(row['Alış Tarihi'] || row['alisTarihi'] || row['ALIŞ TARİHİ']),
+          alisBelgeTuru: String(row['Alış Belge Türü'] || row['alisBelgeTuru'] || row['ALIŞ BELGE TÜRÜ'] || 'Gider Pusulası').trim(),
+          alisBelgeNo: String(row['Alış Belge No'] || row['alisBelgeNo'] || row['ALIŞ BELGE NO'] || '').trim(),
+          alisTutari: parseNumber(row['Alış Tutarı'] || row['alisTutari'] || row['ALIŞ TUTARI']),
+          satisNoter: String(row['Satış Noter'] || row['satisNoter'] || row['SATIŞ NOTER'] || '').trim(),
+          satisTarihi: parseDate(row['Satış Tarihi'] || row['satisTarihi'] || row['SATIŞ TARİHİ']),
+          satisBelgeNo: String(row['Satış Belge No'] || row['satisBelgeNo'] || row['SATIŞ BELGE NO'] || '').trim(),
+          satisTutari: parseNumber(row['Satış Tutarı'] || row['satisTutari'] || row['SATIŞ TUTARI']),
+          faturaTuru: String(row['Fatura Türü'] || row['faturaTuru'] || row['FATURA TÜRÜ'] || 'kar-10').trim().toLowerCase(),
+          not: String(row['Not'] || row['not'] || row['NOT'] || '').trim(),
+          satildi: parseBool(row['Satıldı Mı?'] || row['satildi'] || row['SATIŞ DURUMU'] || row['Satıldı'] || row['SATILDI Mİ?']),
+          giderPusulasiDuzenlendi: parseBool(row['Gider Pusulası Düzenlendi Mi?'] || row['giderPusulasiDuzenlendi'] || row['GİDER PUSULASI DÜZENLENDİ Mİ?']),
+          faturaKesildi: parseBool(row['Fatura Kesildi Mi?'] || row['faturaKesildi'] || row['FATURA KESİLDİ Mİ?']),
+        };
+      }).filter((v): v is Omit<VehicleRecord, 'id'> => v !== null);
+
+      if (mappedList.length === 0) {
+        setExcelError(`"${wsname}" sayfasında hiçbir geçerli araç kaydı bulunamadı. Lütfen plaka sütununun dolu olduğundan emin olun.`);
+      } else {
+        setParsedVehicles(mappedList);
+      }
+    } catch (err: any) {
+      setExcelError("Sayfa işlenirken bir hata oluştu: " + err.message);
+    }
+  };
+
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setExcelFile(file);
     setExcelError(null);
     setParsedVehicles([]);
+    setExcelWorkbook(null);
+    setExcelSheets([]);
+    setSelectedExcelSheet('');
 
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
-
-        if (data.length === 0) {
-          setExcelError("Excel dosyasında veri bulunamadı.");
-          return;
+        setExcelWorkbook(wb);
+        setExcelSheets(wb.SheetNames);
+        
+        let defaultSheet = wb.SheetNames[0];
+        const preferredSheet = wb.SheetNames.find(name => {
+          const lower = name.toLowerCase();
+          return lower.includes('araç') || lower.includes('arac') || lower.includes('envanter') || lower.includes('stok') || lower.includes('vehicle') || lower.includes('inventory');
+        });
+        if (preferredSheet) {
+          defaultSheet = preferredSheet;
         }
 
-        const parseDate = (val: any) => {
-          if (!val) return '';
-          if (val instanceof Date) {
-            return val.toISOString().split('T')[0];
-          }
-          const str = String(val).trim();
-          if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
-          
-          // Check for Excel serial dates (numbers)
-          if (/^\d+$/.test(str)) {
-            const serial = parseInt(str, 10);
-            const date = new Date((serial - 25569) * 86400 * 1000);
-            if (!isNaN(date.getTime())) {
-              return date.toISOString().split('T')[0];
-            }
-          }
-
-          const parts = str.split(/[./-]/);
-          if (parts.length === 3) {
-            if (parts[0].length === 2 && parts[2].length === 4) {
-              return `${parts[2]}-${parts[1]}-${parts[0]}`;
-            }
-          }
-          return str;
-        };
-
-        const parseBool = (val: any) => {
-          if (val === undefined || val === null) return false;
-          if (typeof val === 'boolean') return val;
-          const s = String(val).trim().toLowerCase();
-          return s === 'evet' || s === 'yes' || s === 'true' || s === '1' || s === 'aktif';
-        };
-
-        const parseNumber = (val: any) => {
-          if (!val) return 0;
-          if (typeof val === 'number') return val;
-          const num = parseFloat(String(val).replace(/[^0-9.-]/g, ''));
-          return isNaN(num) ? 0 : num;
-        };
-
-        const mappedList = data.map((row: any) => {
-          const plaka = String(row['Plaka'] || row['plaka'] || row['PLAKA'] || '').trim().toUpperCase();
-          if (!plaka) return null;
-
-          return {
-            companyId: profile.id,
-            plaka,
-            eskiPlaka: String(row['Eski Plaka'] || row['eskiPlaka'] || row['ESKİ PLAKA'] || '').trim().toUpperCase(),
-            plakaDegistiMi: parseBool(row['Plaka Değişti Mi?'] || row['plakaDegistiMi'] || row['PLAKA DEĞİŞTİ Mİ?']),
-            alisNoter: String(row['Alış Noter'] || row['alisNoter'] || row['ALIŞ NOTER'] || '').trim(),
-            alisTarihi: parseDate(row['Alış Tarihi'] || row['alisTarihi'] || row['ALIŞ TARİHİ']),
-            alisBelgeTuru: String(row['Alış Belge Türü'] || row['alisBelgeTuru'] || row['ALIŞ BELGE TÜRÜ'] || 'Gider Pusulası').trim(),
-            alisBelgeNo: String(row['Alış Belge No'] || row['alisBelgeNo'] || row['ALIŞ BELGE NO'] || '').trim(),
-            alisTutari: parseNumber(row['Alış Tutarı'] || row['alisTutari'] || row['ALIŞ TUTARI']),
-            satisNoter: String(row['Satış Noter'] || row['satisNoter'] || row['SATIŞ NOTER'] || '').trim(),
-            satisTarihi: parseDate(row['Satış Tarihi'] || row['satisTarihi'] || row['SATIŞ TARİHİ']),
-            satisBelgeNo: String(row['Satış Belge No'] || row['satisBelgeNo'] || row['SATIŞ BELGE NO'] || '').trim(),
-            satisTutari: parseNumber(row['Satış Tutarı'] || row['satisTutari'] || row['SATIŞ TUTARI']),
-            faturaTuru: String(row['Fatura Türü'] || row['faturaTuru'] || row['FATURA TÜRÜ'] || 'kar-10').trim().toLowerCase(),
-            not: String(row['Not'] || row['not'] || row['NOT'] || '').trim(),
-            satildi: parseBool(row['Satıldı Mı?'] || row['satildi'] || row['SATIŞ DURUMU'] || row['Satıldı'] || row['SATILDI Mİ?']),
-            giderPusulasiDuzenlendi: parseBool(row['Gider Pusulası Düzenlendi Mi?'] || row['giderPusulasiDuzenlendi'] || row['GİDER PUSULASI DÜZENLENDİ Mİ?']),
-            faturaKesildi: parseBool(row['Fatura Kesildi Mi?'] || row['faturaKesildi'] || row['FATURA KESİLDİ Mİ?']),
-          };
-        }).filter((v): v is Omit<VehicleRecord, 'id'> => v !== null);
-
-        if (mappedList.length === 0) {
-          setExcelError("Hiçbir geçerli araç kaydı bulunamadı. Lütfen plaka sütununun dolu olduğundan emin olun.");
-        } else {
-          setParsedVehicles(mappedList);
-        }
+        setSelectedExcelSheet(defaultSheet);
+        parseSheetData(wb, defaultSheet);
       } catch (err: any) {
-        setExcelError("Dosya işlenirken bir hata oluştu: " + err.message);
+        setExcelError("Dosya okunurken bir hata oluştu: " + err.message);
       }
     };
     reader.readAsBinaryString(file);
@@ -478,6 +511,9 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
       await batch.commit();
       setIsExcelModalOpen(false);
       setExcelFile(null);
+      setExcelWorkbook(null);
+      setExcelSheets([]);
+      setSelectedExcelSheet('');
       setParsedVehicles([]);
       setExcelError(null);
     } catch (err: any) {
@@ -1770,6 +1806,35 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
                     </p>
                   </div>
                 </div>
+
+                {/* Sheet Selector (Sekme Seçimi) */}
+                {excelSheets.length > 0 && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 animate-fadeIn">
+                    <label className="text-xs font-black text-[#1e3a8a] block uppercase tracking-wider">
+                      Yüklenecek Excel Sayfası (Sekme):
+                    </label>
+                    <select
+                      value={selectedExcelSheet}
+                      onChange={(e) => {
+                        const newSheet = e.target.value;
+                        setSelectedExcelSheet(newSheet);
+                        if (excelWorkbook) {
+                          parseSheetData(excelWorkbook, newSheet);
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#1e3a8a] transition-all cursor-pointer"
+                    >
+                      {excelSheets.map((sheet, index) => (
+                        <option key={index} value={sheet}>
+                          {sheet}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400">
+                      Excel dosyanızda birden fazla sekme bulunuyorsa, yüklemek istediğiniz verilerin olduğu sekmeyi yukarıdan seçebilirsiniz.
+                    </p>
+                  </div>
+                )}
 
                 {/* Error Box */}
                 {excelError && (
