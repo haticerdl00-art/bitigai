@@ -119,7 +119,7 @@ export const MarketPulse = () => {
 
   useEffect(() => {
     fetchMarketData();
-    const interval = setInterval(fetchMarketData, 15 * 60 * 1000);
+    const interval = setInterval(fetchMarketData, 10 * 1000); // Poll every 10 seconds for live market data
     return () => clearInterval(interval);
   }, []);
 

@@ -57,10 +57,8 @@ import { OfisGiderTakip } from './components/OfisGiderTakip';
 import { TasksModule } from './components/TasksModule';
 import { OfficeProductivityModule } from './components/OfficeProductivityModule';
 import { DocumentsModule } from './components/DocumentsModule';
-import { OCRModule } from './components/OCRModule';
 import { ContentCreatorModule } from './components/ContentCreatorModule';
 import { HapNotlarModule } from './components/HapNotlarModule';
-import { FloatingChat } from './components/FloatingChat';
 import { AracKdvTakipModule } from './components/AracKdvTakipModule';
 import { NotificationManager } from './components/NotificationManager';
 import { NotificationToast } from './components/NotificationToast';
@@ -167,7 +165,7 @@ const defaultModules = [
   { id: ModuleId.BELGELER, title: 'Belge & Evrak', icon: FileText, desc: 'Firmalara ait resmi belgelerin takibi ve paylaşımı.' },
   { id: ModuleId.MEVZUAT, title: 'Mevzuat Takip', icon: Gavel, desc: 'Mevzuat riskini sıfıra indiren akıllı takip sistemi.' },
   { id: ModuleId.MALIYET_ANALIZI, title: 'Maliyet ve Üretim', icon: Factory, desc: 'Birim maliyet analizi, fire kontrolü ve SMM otomasyonu.' },
-  { id: ModuleId.OFIS_GIDER, title: 'Ofis Gider Takibi', icon: Receipt, desc: 'Ofis gelir-gider dengesi, açık analizi ve bütçe limit hedefleri.' },
+  { id: ModuleId.OFIS_GIDER, title: 'Ofis Gider Takibi', icon: Receipt, desc: 'Ofis gelir-gider dengesi, gelişmiş dönem analizi ve yapay zeka optimizasyon önerileri.' },
   { id: ModuleId.ARAC_KDV_TAKIP, title: '2. El Araç & KDV', icon: FileSpreadsheet, desc: 'Noter alım satım işlemleri ve kâr üzerinden KDV / Özel Matrah takibi.' },
   { id: ModuleId.FIRMA_BILGISI, title: 'Firma Bilgileri', icon: Building2, desc: 'Mükellef kimlik kartı ve mali statü yönetimi.' },
   { id: ModuleId.PROFIL, title: 'Profil', icon: User, desc: 'Kullanıcı profil bilgileri ve hesap ayarları.' },
@@ -520,15 +518,8 @@ export default function App() {
             <Dashboard user={user} onNavigate={handleSetActiveModule} companies={companies} />
           </div>
         );
-      case ModuleId.CHAT:
-        return <ChatModule userId={user?.id} companies={companies} />;
       case ModuleId.MEVZUAT:
         return <LegislationModule profile={companyProfile} companies={companies} />;
-      case ModuleId.OCR:
-        return <OCRModule profile={companyProfile} onTransfer={(data) => {
-          setOcrTransferData([data]);
-          handleSetActiveModule(ModuleId.FIS_AKTARIM);
-        }} />;
       case ModuleId.CONTENT_CREATOR:
         return <ContentCreatorModule user={user} />;
       case ModuleId.HAP_NOTLAR:
@@ -711,56 +702,6 @@ export default function App() {
               {renderContent()}
             </motion.div>
           </AnimatePresence>
-
-          {/* Floating Copilot Shortcut */}
-          <FloatingChat 
-            isOpen={isFloatingChatOpen} 
-            onClose={() => setIsFloatingChatOpen(false)} 
-            userId={user?.id}
-            companies={companies}
-          />
-
-          <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-2">
-            <motion.button
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ 
-                y: [0, -20, 0], 
-                opacity: 1,
-                transition: {
-                  y: {
-                    delay: 2.5,
-                    duration: 0.6,
-                    times: [0, 0.5, 1],
-                    ease: "easeOut"
-                  },
-                  opacity: { delay: 2.5, duration: 0.3 }
-                }
-              }}
-              whileHover={{ 
-                scale: 1.1,
-                boxShadow: "0 20px 25px -5px rgba(139, 26, 26, 0.3), 0 10px 10px -5px rgba(139, 26, 26, 0.2)"
-              }}
-              whileTap={{ scale: 0.9 }}
-              onMouseEnter={() => setIsCopilotHovered(true)}
-              onMouseLeave={() => setIsCopilotHovered(false)}
-              onClick={() => setIsFloatingChatOpen(!isFloatingChatOpen)}
-              className="w-16 h-16 bg-kilim-red text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-kilim-red/90 transition-all border-4 border-white relative group overflow-hidden"
-            >
-              <motion.div
-                animate={{ 
-                  rotate: isFloatingChatOpen ? 180 : 0,
-                  scale: isFloatingChatOpen ? 0.8 : 1
-                }}
-              >
-                {isFloatingChatOpen ? <X className="w-8 h-8" /> : <Library className="w-9 h-9" />}
-              </motion.div>
-              {!isFloatingChatOpen && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full border-2 border-kilim-red flex items-center justify-center">
-                  <div className="w-2 h-2 bg-kilim-red rounded-full animate-ping" />
-                </span>
-              )}
-            </motion.button>
-          </div>
         </div>
       </main>
     </div>

@@ -666,7 +666,7 @@ export const OfisGiderTakip: React.FC = () => {
           }`}
         >
           <TrendingUp className="w-4 h-4" />
-          Aylık Özet & Trend
+          Gelir & Gider Analizi
         </button>
         <button
           onClick={() => setActiveTab('analiz')}
@@ -677,7 +677,7 @@ export const OfisGiderTakip: React.FC = () => {
           }`}
         >
           <Bot className="w-4 h-4" />
-          Hedefler & Zeki Analiz
+          Zeki Analiz & Öneriler
         </button>
       </div>
 
@@ -689,7 +689,216 @@ export const OfisGiderTakip: React.FC = () => {
             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Veriler Yükleniyor...</p>
           </div>
         ) : (
-          <AnimatePresence mode="wait">
+          <div className="space-y-6">
+            {/* Shared Filters Panel for Analytical Views */}
+            {(activeTab === 'ozet' || activeTab === 'analiz') && (
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-6 animate-fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-5 h-5 text-kilim-blue" />
+                    <h3 className="font-extrabold text-slate-800 text-sm">Gelişmiş Analiz ve Optimizasyon Parametreleri</h3>
+                  </div>
+                  <span className="text-[10px] font-black uppercase text-kilim-blue bg-kilim-blue/10 px-3 py-1 rounded-full w-max">
+                    Seçili Kalem & Tarih Analizi
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Period Type Selection */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">1. Analiz Zaman Dilimi</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAnalizTipi('aylik')}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          analizTipi === 'aylik'
+                            ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        Aylık
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAnalizTipi('yillik')}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          analizTipi === 'yillik'
+                            ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        Yıllık
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAnalizTipi('ozel')}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          analizTipi === 'ozel'
+                            ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
+                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        Tarih Arası
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Period selection inputs */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">2. Dönem Seçimi</label>
+                    {analizTipi === 'aylik' && (
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
+                      >
+                        {uniqueMonths.map(m => (
+                          <option key={m} value={m}>{getMonthLabel(m)}</option>
+                        ))}
+                      </select>
+                    )}
+                    {analizTipi === 'yillik' && (
+                      <select
+                        value={analizYil}
+                        onChange={(e) => setAnalizYil(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
+                      >
+                        {uniqueYears.map(y => (
+                          <option key={y} value={y}>{y} Yılı</option>
+                        ))}
+                      </select>
+                    )}
+                    {analizTipi === 'ozel' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          value={analizBaslangic}
+                          onChange={(e) => setAnalizBaslangic(e.target.value)}
+                          className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
+                        />
+                        <input
+                          type="date"
+                          value={analizBitis}
+                          onChange={(e) => setAnalizBitis(e.target.value)}
+                          className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fast category helpers */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">3. Hızlı Kalem İşlemleri</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSeciliKategoriler([...GIDER_KATS, ...GELIR_KATS])}
+                        className="py-2 px-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-slate-600 transition-all text-center"
+                      >
+                        Tümünü Seç
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSeciliKategoriler([])}
+                        className="py-2 px-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-rose-600 transition-all text-center"
+                      >
+                        Temizle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSeciliKategoriler(GIDER_KATS)}
+                        className="py-2 px-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-rose-600 transition-all text-center"
+                      >
+                        Sadece Gider
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSeciliKategoriler(GELIR_KATS)}
+                        className="py-2 px-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-emerald-600 transition-all text-center"
+                      >
+                        Sadece Gelir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Category select checklist with grouped badges */}
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      Analiz Edilecek Özel Kalemler (Gider / Gelir)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Gelir Kalemleri Checklist */}
+                    <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                      <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider block">Gelir Kalemleri</span>
+                      <div className="flex flex-wrap gap-2">
+                        {GELIR_KATS.map(katName => {
+                          const isSelected = seciliKategoriler.includes(katName);
+                          return (
+                            <button
+                              type="button"
+                              key={katName}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
+                                } else {
+                                  setSeciliKategoriler([...seciliKategoriler, katName]);
+                                }
+                              }}
+                              className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
+                                isSelected
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs'
+                                  : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
+                              }`}
+                            >
+                              <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                              {katName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Gider Kalemleri Checklist */}
+                    <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                      <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider block">Gider Kalemleri</span>
+                      <div className="flex flex-wrap gap-2">
+                        {GIDER_KATS.map(katName => {
+                          const isSelected = seciliKategoriler.includes(katName);
+                          return (
+                            <button
+                              type="button"
+                              key={katName}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
+                                } else {
+                                  setSeciliKategoriler([...seciliKategoriler, katName]);
+                                }
+                              }}
+                              className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
+                                isSelected
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-xs'
+                                  : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
+                              }`}
+                            >
+                              <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-rose-500' : 'bg-slate-300'}`} />
+                              {katName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <AnimatePresence mode="wait">
             {activeTab === 'giris' && (
               <motion.div
                 key="giris"
@@ -1073,198 +1282,6 @@ export const OfisGiderTakip: React.FC = () => {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                {/* Advanced Parameter Controls */}
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-6 animate-fade-in">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
-                    <div className="flex items-center gap-2">
-                      <Filter className="w-5 h-5 text-kilim-blue" />
-                      <h3 className="font-extrabold text-slate-800 text-sm">Gelişmiş Analiz ve Optimizasyon Parametreleri</h3>
-                    </div>
-                    <span className="text-[10px] font-black uppercase text-kilim-blue bg-kilim-blue/10 px-3 py-1 rounded-full w-max">
-                      Seçili Kalem & Tarih Analizi
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Period Type Selection */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">1. Analiz Zaman Dilimi</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAnalizTipi('aylik')}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
-                            analizTipi === 'aylik'
-                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          Aylık
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAnalizTipi('yillik')}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
-                            analizTipi === 'yillik'
-                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          Yıllık
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAnalizTipi('ozel')}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
-                            analizTipi === 'ozel'
-                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          Tarih Arası
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Period selection inputs */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">2. Dönem Seçimi</label>
-                      {analizTipi === 'aylik' && (
-                        <select
-                          value={selectedMonth}
-                          onChange={(e) => setSelectedMonth(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
-                        >
-                          {uniqueMonths.map(m => (
-                            <option key={m} value={m}>{getMonthLabel(m)}</option>
-                          ))}
-                        </select>
-                      )}
-                      {analizTipi === 'yillik' && (
-                        <select
-                          value={analizYil}
-                          onChange={(e) => setAnalizYil(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
-                        >
-                          {uniqueYears.map(y => (
-                            <option key={y} value={y}>{y} Yılı</option>
-                          ))}
-                        </select>
-                      )}
-                      {analizTipi === 'ozel' && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="date"
-                            value={analizBaslangic}
-                            onChange={(e) => setAnalizBaslangic(e.target.value)}
-                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
-                          />
-                          <input
-                            type="date"
-                            value={analizBitis}
-                            onChange={(e) => setAnalizBitis(e.target.value)}
-                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Fast category helpers */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">3. Kalem Filtre İşlemleri</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSeciliKategoriler([...GIDER_KATS, ...GELIR_KATS])}
-                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-slate-600 transition-all"
-                        >
-                          Tümünü Seç
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSeciliKategoriler([])}
-                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-rose-600 transition-all"
-                        >
-                          Temizle
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Category select checklist with grouped badges */}
-                  <div className="space-y-4 pt-4 border-t border-slate-100">
-                    <div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                        Analiz Edilecek Özel Kalemler (Gider / Gelir)
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Gelir Kalemleri Checklist */}
-                      <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
-                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider block">Gelir Kalemleri</span>
-                        <div className="flex flex-wrap gap-2">
-                          {GELIR_KATS.map(katName => {
-                            const isSelected = seciliKategoriler.includes(katName);
-                            return (
-                              <button
-                                type="button"
-                                key={katName}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
-                                  } else {
-                                    setSeciliKategoriler([...seciliKategoriler, katName]);
-                                  }
-                                }}
-                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
-                                  isSelected
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs'
-                                    : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
-                                }`}
-                              >
-                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                {katName}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Gider Kalemleri Checklist */}
-                      <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
-                        <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider block">Gider Kalemleri</span>
-                        <div className="flex flex-wrap gap-2">
-                          {GIDER_KATS.map(katName => {
-                            const isSelected = seciliKategoriler.includes(katName);
-                            return (
-                              <button
-                                type="button"
-                                key={katName}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
-                                  } else {
-                                    setSeciliKategoriler([...seciliKategoriler, katName]);
-                                  }
-                                }}
-                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
-                                  isSelected
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-xs'
-                                    : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
-                                }`}
-                              >
-                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-rose-500' : 'bg-slate-300'}`} />
-                                {katName}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Grid stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
@@ -1401,198 +1418,6 @@ export const OfisGiderTakip: React.FC = () => {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                {/* Advanced Parameter Controls copied for consistency */}
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-6 animate-fade-in">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
-                    <div className="flex items-center gap-2">
-                      <Filter className="w-5 h-5 text-kilim-blue" />
-                      <h3 className="font-extrabold text-slate-800 text-sm">Gelişmiş Analiz ve Optimizasyon Parametreleri</h3>
-                    </div>
-                    <span className="text-[10px] font-black uppercase text-kilim-blue bg-kilim-blue/10 px-3 py-1 rounded-full w-max">
-                      Seçili Kalem & Tarih Analizi
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Period Type Selection */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">1. Analiz Zaman Dilimi</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAnalizTipi('aylik')}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
-                            analizTipi === 'aylik'
-                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          Aylık
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAnalizTipi('yillik')}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
-                            analizTipi === 'yillik'
-                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          Yıllık
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAnalizTipi('ozel')}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
-                            analizTipi === 'ozel'
-                              ? 'bg-kilim-blue text-white border-kilim-blue shadow-sm'
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          Tarih Arası
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Period selection inputs */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">2. Dönem Seçimi</label>
-                      {analizTipi === 'aylik' && (
-                        <select
-                          value={selectedMonth}
-                          onChange={(e) => setSelectedMonth(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
-                        >
-                          {uniqueMonths.map(m => (
-                            <option key={m} value={m}>{getMonthLabel(m)}</option>
-                          ))}
-                        </select>
-                      )}
-                      {analizTipi === 'yillik' && (
-                        <select
-                          value={analizYil}
-                          onChange={(e) => setAnalizYil(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue transition-colors cursor-pointer"
-                        >
-                          {uniqueYears.map(y => (
-                            <option key={y} value={y}>{y} Yılı</option>
-                          ))}
-                        </select>
-                      )}
-                      {analizTipi === 'ozel' && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="date"
-                            value={analizBaslangic}
-                            onChange={(e) => setAnalizBaslangic(e.target.value)}
-                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
-                          />
-                          <input
-                            type="date"
-                            value={analizBitis}
-                            onChange={(e) => setAnalizBitis(e.target.value)}
-                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-kilim-blue cursor-pointer"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Fast category helpers */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">3. Kalem Filtre İşlemleri</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSeciliKategoriler([...GIDER_KATS, ...GELIR_KATS])}
-                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-slate-600 transition-all"
-                        >
-                          Tümünü Seç
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSeciliKategoriler([])}
-                          className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-rose-600 transition-all"
-                        >
-                          Temizle
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Category select checklist with grouped badges */}
-                  <div className="space-y-4 pt-4 border-t border-slate-100">
-                    <div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                        Analiz Edilecek Özel Kalemler (Gider / Gelir)
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Gelir Kalemleri Checklist */}
-                      <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
-                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider block">Gelir Kalemleri</span>
-                        <div className="flex flex-wrap gap-2">
-                          {GELIR_KATS.map(katName => {
-                            const isSelected = seciliKategoriler.includes(katName);
-                            return (
-                              <button
-                                type="button"
-                                key={katName}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
-                                  } else {
-                                    setSeciliKategoriler([...seciliKategoriler, katName]);
-                                  }
-                                }}
-                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
-                                  isSelected
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs'
-                                    : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
-                                }`}
-                              >
-                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                {katName}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Gider Kalemleri Checklist */}
-                      <div className="space-y-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
-                        <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider block">Gider Kalemleri</span>
-                        <div className="flex flex-wrap gap-2">
-                          {GIDER_KATS.map(katName => {
-                            const isSelected = seciliKategoriler.includes(katName);
-                            return (
-                              <button
-                                type="button"
-                                key={katName}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setSeciliKategoriler(seciliKategoriler.filter(k => k !== katName));
-                                  } else {
-                                    setSeciliKategoriler([...seciliKategoriler, katName]);
-                                  }
-                                }}
-                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border flex items-center gap-1.5 transition-all ${
-                                  isSelected
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-xs'
-                                    : 'bg-white text-slate-400 border-slate-200/60 hover:border-slate-300'
-                                }`}
-                              >
-                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-rose-500' : 'bg-slate-300'}`} />
-                                {katName}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* AI / Consultant Decision Support Analizi */}
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-8 opacity-5">
@@ -1754,6 +1579,7 @@ export const OfisGiderTakip: React.FC = () => {
               </motion.div>
             )}
           </AnimatePresence>
+          </div>
         )}
       </div>
     </div>

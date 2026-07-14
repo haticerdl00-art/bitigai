@@ -154,7 +154,8 @@ async function startServer() {
 
   app.get('/api/gemini/legislation', async (req, res, next) => {
     try {
-      const data = await fetchLatestLegislation();
+      const force = req.query.force === 'true';
+      const data = await fetchLatestLegislation(force);
       res.json(data);
     } catch (err) {
       next(err);

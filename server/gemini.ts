@@ -25,17 +25,30 @@ const ai = new GoogleGenAI({
 // Simple server-side in-memory cache
 const cache: { [key: string]: { data: any, timestamp: number } } = {};
 
-function getCachedData(key: string) {
+function getRelativeDateString(daysAgo: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return date.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function getCachedData(key: string, ttlMs?: number) {
   const cached = cache[key];
   if (cached) {
-    const cacheDate = new Date(cached.timestamp);
-    const nowDate = new Date();
-    // Cache is valid only if it was fetched on the exact same calendar day
-    const isSameDay = cacheDate.getFullYear() === nowDate.getFullYear() &&
-                      cacheDate.getMonth() === nowDate.getMonth() &&
-                      cacheDate.getDate() === nowDate.getDate();
-    if (isSameDay) {
-      return cached.data;
+    if (ttlMs !== undefined) {
+      const age = Date.now() - cached.timestamp;
+      if (age < ttlMs) {
+        return cached.data;
+      }
+    } else {
+      const cacheDate = new Date(cached.timestamp);
+      const nowDate = new Date();
+      // Cache is valid only if it was fetched on the exact same calendar day
+      const isSameDay = cacheDate.getFullYear() === nowDate.getFullYear() &&
+                        cacheDate.getMonth() === nowDate.getMonth() &&
+                        cacheDate.getDate() === nowDate.getDate();
+      if (isSameDay) {
+        return cached.data;
+      }
     }
   }
   return null;
@@ -213,17 +226,21 @@ export async function askCopilot(prompt: string, history: any[] = []) {
   }
 }
 
-export async function fetchLatestLegislation() {
-  if (!isApiKeyValid()) {
-    return [
-      { title: "7491 Sayılı Kanun ile Vergi Kanunlarında Yapılan Değişiklikler", date: "2024-01-01", source: "Resmi Gazete" },
-      { title: "2024 Yılı Gelir Vergisi Tarifesi ve İstisnaları", date: "2023-12-30", source: "GİB" },
-      { title: "Asgari Ücret Desteği Uygulama Esasları", date: "2024-01-15", source: "SGK" }
-    ];
+export async function fetchLatestLegislation(forceRefresh = false) {
+  const cacheKey = 'legislation';
+
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey, 4 * 60 * 60 * 1000); // 4 hours TTL
+    if (cached) return cached;
   }
 
-  const cached = getCachedData('legislation');
-  if (cached) return cached;
+  if (!isApiKeyValid()) {
+    return [
+      { title: "7491 Sayılı Kanun ile Vergi Kanunlarında Yapılan Değişiklikler", date: getRelativeDateString(1), source: "Resmi Gazete" },
+      { title: "2026 Yılı Gelir Vergisi Tarifesi ve İstisnaları", date: getRelativeDateString(3), source: "GİB" },
+      { title: "Asgari Ücret Desteği Uygulama Esasları", date: getRelativeDateString(5), source: "SGK" }
+    ];
+  }
 
   try {
     const response = await ai.models.generateContent({
@@ -250,7 +267,7 @@ export async function fetchLatestLegislation() {
 
     const cleanedText = cleanJsonString(response.text || '[]');
     const data = JSON.parse(cleanedText);
-    setCachedData('legislation', data);
+    setCachedData(cacheKey, data);
     return data;
   } catch (error: any) {
     const errorStr = String(error?.message || error || "");
@@ -260,9 +277,9 @@ export async function fetchLatestLegislation() {
       console.warn("[GEMINI] Legislation fetch error:", errorStr.slice(0, 200));
     }
     return [
-      { title: "7491 Sayılı Kanun ile Vergi Kanunlarında Yapılan Değişiklikler", date: "2024-01-01", source: "Resmi Gazete" },
-      { title: "2024 Yılı Gelir Vergisi Tarifesi ve İstisnaları", date: "2023-12-30", source: "GİB" },
-      { title: "Asgari Ücret Desteği Uygulama Esasları", date: "2024-01-15", source: "SGK" }
+      { title: "7491 Sayılı Kanun ile Vergi Kanunlarında Yapılan Değişiklikler", date: getRelativeDateString(1), source: "Resmi Gazete" },
+      { title: "2026 Yılı Gelir Vergisi Tarifesi ve İstisnaları", date: getRelativeDateString(3), source: "GİB" },
+      { title: "Asgari Ücret Desteği Uygulama Esasları", date: getRelativeDateString(5), source: "SGK" }
     ];
   }
 }
@@ -271,7 +288,7 @@ export async function fetchLatestNews(forceRefresh = false): Promise<any[]> {
   const cacheKey = 'daily_news';
   
   if (!forceRefresh) {
-    const cachedMem = getCachedData(cacheKey);
+    const cachedMem = getCachedData(cacheKey, 1 * 60 * 60 * 1000); // 1 hour TTL
     if (cachedMem) return cachedMem;
   }
 

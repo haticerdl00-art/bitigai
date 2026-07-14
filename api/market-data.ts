@@ -26,6 +26,11 @@ const FALLBACK_DATA = {
   ]
 };
 
+// Server-side in-memory cache for market data to prevent rate-limiting
+let cachedMarketData: any = null;
+let cachedMarketTimestamp = 0;
+const CACHE_TTL_MS = 15000; // 15 seconds cache TTL
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -38,6 +43,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const now = Date.now();
+    if (cachedMarketData && (now - cachedMarketTimestamp < CACHE_TTL_MS)) {
+      return res.status(200).json(cachedMarketData);
+    }
+
     const fetchWithTimeout = async (url: string, timeout = 6000) => {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeout);
@@ -126,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       quarterDisplay = (calculatedGram * 1.63 + 120).toFixed(2);
     }
 
-    return res.status(200).json({
+    const resultData = {
       currencies,
       gold: [
         { label: 'Gram Altın', value: gramDisplay, change: 0.15, unit: 'TL' },
@@ -141,7 +151,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ],
       status: 'success',
       timestamp: new Date().toISOString()
-    });
+    };
+
+    cachedMarketData = resultData;
+    cachedMarketTimestamp = now;
+
+    return res.status(200).json(resultData);
 
   } catch (error) {
     console.error('SERVER ERROR:', error);
