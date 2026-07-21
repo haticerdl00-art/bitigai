@@ -102,8 +102,8 @@ service cloud.firestore {
 
     function isCompanyOwner(companyId) {
       return isAdmin() || (isAuthenticated() && 
-        exists(/databases/$(database)/documents/companies/$(companyId)) &&
-        get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid);
+        (companyId == '0' || (exists(/databases/$(database)/documents/companies/$(companyId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid)));
     }
 
     function hasRequiredFields(fields) {

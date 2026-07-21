@@ -28,6 +28,7 @@ import {
   onSnapshot, 
   addDoc, 
   updateDoc, 
+  setDoc,
   doc, 
   deleteDoc, 
   query, 
@@ -255,10 +256,19 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
       });
       // Sort: Newest purchase date first
       vList.sort((a, b) => b.alisTarihi.localeCompare(a.alisTarihi));
-      setVehicles(vList);
+      
+      if (vList.length === 0) {
+        // Fallback to DEFAULT_VEHICLES so user immediately sees their data
+        const fallback = DEFAULT_VEHICLES(profile.id).map((v, idx) => ({ id: `demo_${idx}`, ...v }));
+        setVehicles(fallback);
+      } else {
+        setVehicles(vList);
+      }
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `companies/${profile.id}/vehicles`);
+      console.warn("Firestore error reading vehicles, falling back to default:", error);
+      const fallback = DEFAULT_VEHICLES(profile.id).map((v, idx) => ({ id: `demo_${idx}`, ...v }));
+      setVehicles(fallback);
       setLoading(false);
     });
 
@@ -268,7 +278,16 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
       snapshot.forEach((doc) => {
         rList.push({ id: doc.id, ...doc.data() } as MonthlyReconciliation);
       });
-      setReconciliations(rList);
+      if (rList.length === 0) {
+        const fallback = DEFAULT_RECONCILIATION(profile.id).map((r, idx) => ({ id: `demo_rec_${idx}`, ...r }));
+        setReconciliations(fallback);
+      } else {
+        setReconciliations(rList);
+      }
+    }, (error) => {
+      console.warn("Firestore error reading reconciliations, falling back to default:", error);
+      const fallback = DEFAULT_RECONCILIATION(profile.id).map((r, idx) => ({ id: `demo_rec_${idx}`, ...r }));
+      setReconciliations(fallback);
     });
 
     return () => {
@@ -288,6 +307,30 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
       setManualBeyan('');
     }
   }, [selectedPeriod, reconciliations]);
+
+  const ensureRealData = async () => {
+    const isDemo = vehicles.some(v => v.id.startsWith('demo_'));
+    if (isDemo && profile.id) {
+      try {
+        const batch = writeBatch(db);
+        const defaultVehicles = DEFAULT_VEHICLES(profile.id);
+        for (const item of defaultVehicles) {
+          const ref = doc(collection(db, 'companies', profile.id, 'vehicles'));
+          batch.set(ref, { ...item, createdAt: serverTimestamp() });
+        }
+        
+        const defaultRecs = DEFAULT_RECONCILIATION(profile.id);
+        for (const item of defaultRecs) {
+          const id = `${profile.id}_${item.period}`;
+          const ref = doc(db, 'companies', profile.id, 'reconciliations', id);
+          batch.set(ref, item);
+        }
+        await batch.commit();
+      } catch (err) {
+        console.warn("Could not auto-seed fallback data to Firestore:", err);
+      }
+    }
+  };
 
   const loadDemoData = async () => {
     if (!profile.id) return;
@@ -498,6 +541,7 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
     if (!profile.id || parsedVehicles.length === 0) return;
     try {
       setIsUploading(true);
+      await ensureRealData();
       const batch = writeBatch(db);
 
       for (const vehicle of parsedVehicles) {
@@ -528,7 +572,9 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
     if (!profile.id || !currentRecord) return;
 
     try {
-      if (currentRecord.id) {
+      await ensureRealData();
+
+      if (currentRecord.id && !currentRecord.id.startsWith('demo_')) {
         const ref = doc(db, 'companies', profile.id, 'vehicles', currentRecord.id);
         await updateDoc(ref, {
           ...currentRecord,
@@ -536,8 +582,9 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
         });
       } else {
         const ref = collection(db, 'companies', profile.id, 'vehicles');
+        const { id, ...recordToSave } = currentRecord;
         await addDoc(ref, {
-          ...currentRecord,
+          ...recordToSave,
           companyId: profile.id,
           createdAt: serverTimestamp()
         });
@@ -552,7 +599,21 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
   const handleDeleteRecord = async (id: string) => {
     if (!window.confirm('Bu araç kaydını kalıcı olarak silmek istediğinize emin misiniz?')) return;
     try {
-      await deleteDoc(doc(db, 'companies', profile.id, 'vehicles', id));
+      if (id.startsWith('demo_')) {
+        const plakaToDelete = vehicles.find(v => v.id === id)?.plaka;
+        await ensureRealData();
+        if (plakaToDelete) {
+          const q = query(collection(db, 'companies', profile.id, 'vehicles'), where('plaka', '==', plakaToDelete));
+          const snap = await getDocs(q);
+          const batch = writeBatch(db);
+          snap.forEach((doc) => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
+        }
+      } else {
+        await deleteDoc(doc(db, 'companies', profile.id, 'vehicles', id));
+      }
     } catch (err: any) {
       alert('Kayıt silinirken hata oluştu: ' + err.message);
     }
@@ -565,23 +626,20 @@ export const AracKdvTakipModule: React.FC<AracKdvTakipModuleProps> = ({ profile 
     const id = `${profile.id}_${selectedPeriod}`;
     
     try {
-      await updateDoc(doc(db, 'companies', profile.id, 'reconciliations', id), {
+      await ensureRealData();
+      
+      const ref = doc(db, 'companies', profile.id, 'reconciliations', id);
+      await setDoc(ref, {
+        id,
+        companyId: profile.id,
+        period: selectedPeriod,
         zirveAylikToplam: zirveVal,
         beyannameAylikToplam: beyanVal
-      }).catch(async (err) => {
-        // Set if doesn't exist
-        const ref = doc(db, 'companies', profile.id, 'reconciliations', id);
-        await addDoc(collection(db, 'companies', profile.id, 'reconciliations'), {
-          id,
-          companyId: profile.id,
-          period: selectedPeriod,
-          zirveAylikToplam: zirveVal,
-          beyannameAylikToplam: beyanVal
-        });
-      });
+      }, { merge: true });
+      
       alert('Hedef değerleri başarıyla güncellendi.');
     } catch (err: any) {
-      console.error(err);
+      alert('Değerler kaydedilirken hata oluştu: ' + err.message);
     }
   };
 

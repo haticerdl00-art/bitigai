@@ -20,7 +20,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { fetchLatestLegislation } from '../services/geminiService';
 import { UserProfile, CompanyProfile } from '../types';
 import { MarketPulse } from './MarketPulse';
-import { AgendaModule } from './AgendaModule';
 import { getCalendarItems } from '../utils/calendarUtils';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -275,9 +274,6 @@ export const Dashboard = ({ user, onNavigate, companies }: DashboardProps) => {
           </div>
         </div>
       </div>
-
-      {/* Agenda Module */}
-      <AgendaModule />
 
     </div>
   );
